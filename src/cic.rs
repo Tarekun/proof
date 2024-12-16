@@ -1,3 +1,5 @@
+use nom::Err;
+
 use crate::parsing;
 
 #[derive(Debug, PartialEq)] //support toString printing and equality check
@@ -17,5 +19,7 @@ pub fn evaluate_ast(ast: parsing::NsAst) -> StlcTerm {
             Box::new(evaluate_ast(*left)),
             Box::new(evaluate_ast(*right)),
         ),
+        parsing::NsAst::Num(value) => panic!("non implemented"),
+        parsing::NsAst::Let(var_name, ast) => panic!("non implemented"),
     }
 }
