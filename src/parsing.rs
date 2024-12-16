@@ -1,6 +1,8 @@
 use nom::{
     branch::alt,
-    character::complete::{alpha1, alphanumeric0, char, multispace0, multispace1, one_of},
+    character::complete::{
+        alpha1, alphanumeric0, char, multispace0, multispace1, one_of,
+    },
     combinator::{map, recognize},
     multi::many0,
     sequence::{delimited, pair, preceded, tuple},
@@ -38,8 +40,10 @@ fn parse_var(input: &str) -> IResult<&str, NsAst> {
 
 // Parser for a lambda abstraction
 fn parse_abs(input: &str) -> IResult<&str, NsAst> {
-    let (input, _) = preceded(multispace0, alt((char('λ'), char('\\'))))(input)?;
-    let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, _) =
+        preceded(multispace0, alt((char('λ'), char('\\'))))(input)?;
+    let (input, var_name) =
+        preceded(multispace0, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
 
