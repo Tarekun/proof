@@ -1,13 +1,17 @@
+mod cic;
 mod parsing;
 
 fn main() {
     println!("################ INIZIO PROGRAMMA #################\n");
 
-    let input = r"x z y";
+    let input = r"(λx. x x) y";
     match parsing::parse_lambda_calculus(input) {
         Ok((remaining, ast)) => {
             println!("Parsed AST: {:?}", ast);
-            println!("Remaining input: '{}'", remaining);
+            println!("Remaining input: '{}'\n", remaining);
+
+            let terms = cic::evaluate_ast(ast);
+            println!("Mapped terms: {:?}", terms);
         }
         Err(e) => println!("Error: {:?}", e),
     }
