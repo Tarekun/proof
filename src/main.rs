@@ -1,11 +1,28 @@
+use std::env;
+
 mod cic;
+mod file_manager;
 mod parsing;
 
 fn main() {
-    println!("################ INIZIO PROGRAMMA #################\n");
+    println!("################ PROGRAM START #################\n");
 
-    let input = r"let f = (λx. x x)   ;";
-    match parsing::parse_lambda_calculus(input) {
+    // Get the file path from command line arguments
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: cargo run <filepath.ns>");
+        return;
+    }
+    let filepath = &args[1];
+    let input = match file_manager::read_file(filepath) {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("Error reading file: {:?}", e);
+            return;
+        }
+    };
+
+    match parsing::parse_lambda_calculus(&input) {
         Ok((remaining, ast)) => {
             println!("Parsed AST: {:?}", ast);
             println!("Remaining input: '{}'\n", remaining);

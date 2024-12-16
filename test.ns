@@ -1,0 +1,2 @@
+let f = (λx. x x)   ;
+let g = (λx. x x)   ;
