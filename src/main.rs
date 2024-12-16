@@ -4,7 +4,7 @@ mod parsing;
 fn main() {
     println!("################ INIZIO PROGRAMMA #################\n");
 
-    let input = r"(λx. x x) y";
+    let input = r"let f = (λx. x x)   ;";
     match parsing::parse_lambda_calculus(input) {
         Ok((remaining, ast)) => {
             println!("Parsed AST: {:?}", ast);

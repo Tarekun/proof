@@ -1,9 +1,12 @@
 use nom::{
     branch::alt,
+    bytes::complete::tag,
     character::complete::{
-        alpha1, alphanumeric0, char, multispace0, multispace1, one_of,
+        alpha1, alphanumeric0, char, digit1, multispace0, multispace1,
+        one_of,
     },
-    combinator::{map, recognize},
+    combinator::{map, map_res, recognize},
+    error::{Error, ErrorKind},
     multi::many0,
     sequence::{delimited, pair, preceded, tuple},
     IResult,
@@ -14,7 +17,10 @@ pub enum NsAst {
     Var(String),
     Abs(String, Box<NsAst>),
     App(Box<NsAst>, Box<NsAst>),
+    Num(i64),
+    Let(String, Box<NsAst>),
 }
+const RESERVED_KEYWORDS: [&str; 1] = ["let"];
 
 // Parser to match and discard whitespace (space, newline, tab, carriage return)
 fn parse_whitespace(input: &str) -> IResult<&str, &str> {
@@ -30,7 +36,20 @@ fn parse_parens(input: &str) -> IResult<&str, NsAst> {
 }
 // Parser for a generic identifier (starts with a letter, followed by letters, digits, or underscores)
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(alpha1, alphanumeric0))(input)
+    let (input, identifier) =
+        recognize(pair(alpha1, alphanumeric0))(input)?;
+
+    if RESERVED_KEYWORDS.contains(&identifier) {
+        Err(nom::Err::Error(Error::new(input, ErrorKind::Tag))) // Reject reserved keywords
+    } else {
+        Ok((input, identifier)) // Successfully parsed a valid identifier
+    }
+}
+fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
+    map_res(
+        preceded(multispace0, digit1), // Pass `digit1` as a parser, do not call it.
+        |s: &str| s.parse::<i64>().map(NsAst::Num), // Convert to `i64` and wrap in `NsAst::Num`.
+    )(input)
 }
 
 // Parser for a variable
@@ -59,13 +78,28 @@ fn parse_app(input: &str) -> IResult<&str, NsAst> {
     Ok((input, NsAst::App(Box::new(left), Box::new(right))))
 }
 
+fn parse_let(input: &str) -> IResult<&str, NsAst> {
+    let (input, _) = preceded(multispace0, tag("let"))(input)?;
+    let (input, var_name) =
+        preceded(multispace1, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, char('='))(input)?;
+    let (input, term) = preceded(multispace0, parse_term)(input)?;
+    let (input, _) = preceded(multispace0, char(';'))(input)?;
+
+    Ok((input, NsAst::Let(var_name.to_string(), Box::new(term))))
+}
+
+//TODO: refactor these 2, this is ridiculous
+fn atomic_parsers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, NsAst> {
+    alt((parse_parens, parse_abs, parse_var, parse_numeral))
+}
 // Atomic term parser used for function application
 fn parse_atom(input: &str) -> IResult<&str, NsAst> {
-    alt((parse_parens, parse_abs, parse_var))(input) // Atomic terms are parenthesized terms, abstractions, or variables
+    atomic_parsers()(input)
 }
 // Main term parser that decides between variables, abstractions, or applications
 fn parse_term(input: &str) -> IResult<&str, NsAst> {
-    alt((parse_app, parse_parens, parse_var, parse_abs))(input)
+    alt((parse_app, parse_let, atomic_parsers()))(input)
 }
 
 // Utility to parse and get the full result
