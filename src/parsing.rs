@@ -8,9 +8,11 @@ use nom::{
     combinator::{map, map_res, recognize},
     error::{Error, ErrorKind},
     multi::many0,
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, pair, preceded, terminated},
     IResult,
 };
+
+use crate::file_manager;
 
 #[derive(Debug, PartialEq)]
 pub enum NsAst {
@@ -19,6 +21,7 @@ pub enum NsAst {
     App(Box<NsAst>, Box<NsAst>),
     Num(i64),
     Let(String, Box<NsAst>),
+    FileRoot(String, Vec<NsAst>),
 }
 const RESERVED_KEYWORDS: [&str; 1] = ["let"];
 
@@ -102,8 +105,23 @@ fn parse_term(input: &str) -> IResult<&str, NsAst> {
     alt((parse_app, parse_let, atomic_parsers()))(input)
 }
 
-// Utility to parse and get the full result
-pub fn parse_lambda_calculus(input: &str) -> IResult<&str, NsAst> {
-    let (input, result) = parse_term(input)?;
-    Ok((input, result))
+pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
+    let source = match file_manager::read_file(filepath) {
+        Ok(content) => content,
+        Err(e) => {
+            panic!("Error reading file: {:?}", e);
+        }
+    };
+    let result = many0(terminated(parse_term, tag("\n")))(&source);
+    let (remaining_input, terms) = match result {
+        Ok((remaining, terms)) => (remaining, terms),
+        Err(e) => {
+            panic!("Parsing error: {:?}", e);
+        }
+    };
+
+    (
+        remaining_input.to_string(),
+        NsAst::FileRoot(filepath.to_string(), terms),
+    )
 }

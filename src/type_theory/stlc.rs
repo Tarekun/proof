@@ -54,7 +54,20 @@ fn evaluate_ast_rec(
             environment.add_variable_definition(&var_name, assigned_term);
             (environment, StlcTerm::Unit)
         }
-        parsing::NsAst::Num(_) => panic!("non implemented"),
+        parsing::NsAst::FileRoot(_, asts) => {
+            let mut current_env = environment;
+            let mut last_term = StlcTerm::Unit;
+
+            for sub_ast in asts {
+                let (new_env, term) =
+                    evaluate_ast_rec(sub_ast, current_env);
+                current_env = new_env;
+                last_term = term;
+            }
+
+            (current_env, last_term)
+        }
+        _ => panic!("non implemented"),
     }
 }
 
