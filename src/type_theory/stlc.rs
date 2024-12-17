@@ -1,6 +1,3 @@
-use nom::Err;
-use std::collections::HashMap;
-
 use crate::parsing;
 use crate::type_theory::environment::Environment;
 
@@ -19,11 +16,11 @@ fn evaluate_ast_rec(
     match ast {
         parsing::NsAst::Var(var_name) => {
             match environment.get_from_deltas(&var_name) {
-                Some((var_name, body)) => {
-                    (environment, body.clone())
-                },
+                Some((_, body)) => (environment.clone(), body.clone()),
                 None => match environment.get_from_context(&var_name) {
-                    Some((_, type_term)) => (environment, StlcTerm::Variable(var_name)),
+                    Some((_, _)) => {
+                        (environment, StlcTerm::Variable(var_name))
+                    }
                     None => panic!("Unbound variable: {}", var_name),
                 },
             }
@@ -31,7 +28,7 @@ fn evaluate_ast_rec(
         parsing::NsAst::Abs(var_name, body) => {
             //TODO properly infer the type of the variable (and the function) instead of Unit
             environment.add_variable_to_context(&var_name, StlcTerm::Unit);
-            let (mut environment, body_term) =
+            let (environment, body_term) =
                 evaluate_ast_rec(*body, environment);
             (
                 environment,
@@ -39,8 +36,10 @@ fn evaluate_ast_rec(
             )
         }
         parsing::NsAst::App(left, right) => {
-            let (environment, left_term) = evaluate_ast_rec(*left, environment);
-            let (environment, right_term) = evaluate_ast_rec(*right, environment);
+            let (environment, left_term) =
+                evaluate_ast_rec(*left, environment);
+            let (environment, right_term) =
+                evaluate_ast_rec(*right, environment);
             return (
                 environment,
                 StlcTerm::Application(
@@ -55,7 +54,7 @@ fn evaluate_ast_rec(
             environment.add_variable_definition(&var_name, assigned_term);
             (environment, StlcTerm::Unit)
         }
-        parsing::NsAst::Num(value) => panic!("non implemented"),
+        parsing::NsAst::Num(_) => panic!("non implemented"),
     }
 }
 
