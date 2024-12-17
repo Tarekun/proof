@@ -1,8 +1,11 @@
 use std::env;
 
-mod cic;
 mod file_manager;
 mod parsing;
+mod type_theory {
+    pub mod environment;
+    pub mod stlc;
+}
 
 fn main() {
     println!("################ PROGRAM START #################\n");
@@ -27,7 +30,7 @@ fn main() {
             println!("Parsed AST: {:?}", ast);
             println!("Remaining input: '{}'\n", remaining);
 
-            let terms = cic::evaluate_ast(ast);
+            let terms = type_theory::stlc::evaluate_ast(ast);
             println!("Mapped terms: {:?}", terms);
         }
         Err(e) => println!("Error: {:?}", e),
