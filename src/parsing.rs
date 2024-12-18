@@ -2,12 +2,13 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{
-        alpha1, alphanumeric0, char, digit1, multispace0, multispace1,
+        alpha1, alphanumeric0, char, digit1, line_ending, multispace0,
+        multispace1, not_line_ending,
     },
-    combinator::{map, map_res, recognize},
+    combinator::{map, map_res, opt, recognize},
     error::{Error, ErrorKind},
     multi::many0,
-    sequence::{delimited, pair, preceded, terminated},
+    sequence::{delimited, pair, preceded},
     IResult,
 };
 
@@ -61,6 +62,14 @@ fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
             .map(|num: i64| NsAst::Exp(Expression::Num(num)))
     })(input)
 }
+fn parse_comment(input: &str) -> IResult<&str, NsAst> {
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag("#")(input)?;
+    let (input, _) = not_line_ending(input)?;
+    let (input, _) = opt(line_ending)(input)?;
+
+    Ok((input, NsAst::Stm(Statement::Comment())))
+}
 //########################### BASIC TOKEN PARSERS
 
 fn parse_var(input: &str) -> IResult<&str, NsAst> {
@@ -90,8 +99,8 @@ fn parse_abs(input: &str) -> IResult<&str, NsAst> {
 
 fn parse_app(input: &str) -> IResult<&str, NsAst> {
     let (input, left) = preceded(multispace0, parse_atom)(input)?; // Parse the left term (atomic term)
-    let (input, _) = multispace1(input)?; // Ensure at least one space between terms
-    let (input, right) = preceded(multispace0, parse_term)(input)?; // Parse the right term
+    let (input, _) = multispace1(input)?;
+    let (input, right) = preceded(multispace0, parse_term)(input)?;
 
     match left {
         NsAst::Exp(left_exp) => match right {
@@ -126,7 +135,13 @@ fn parse_let(input: &str) -> IResult<&str, NsAst> {
 
 //TODO: refactor these 2, this is ridiculous
 fn atomic_parsers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, NsAst> {
-    alt((parse_parens, parse_abs, parse_var, parse_numeral))
+    alt((
+        parse_parens,
+        parse_abs,
+        parse_var,
+        parse_numeral,
+        parse_comment,
+    ))
 }
 // Atomic term parser used for function application
 fn parse_atom(input: &str) -> IResult<&str, NsAst> {

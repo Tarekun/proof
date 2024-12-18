@@ -1,2 +1,2 @@
-let f := (λx. x x)   ; (f f)
+let f := (λx. x x)   ; #(f f)
 let g := (λy. f y)   ;
