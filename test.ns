@@ -1,2 +1,2 @@
-let f = (λx. x x)   ; f g
+let f = (λx. x x)   ; (f f)
 let g = (λx. x x)   ;

@@ -16,23 +16,15 @@ fn main() {
         eprintln!("Usage: cargo run <filepath.ns>");
         return;
     }
+
     let filepath = &args[1];
-    let input = match file_manager::read_file(filepath) {
-        Ok(content) => content,
-        Err(e) => {
-            eprintln!("Error reading file: {:?}", e);
-            return;
-        }
-    };
+    let (remaining, ast) = parsing::parse_source_file(&filepath);
+    println!("Parsed AST: {:?}", ast);
+    println!("Remaining input: '{}'\n", remaining);
 
-    match parsing::parse_lambda_calculus(&input) {
-        Ok((remaining, ast)) => {
-            println!("Parsed AST: {:?}", ast);
-            println!("Remaining input: '{}'\n", remaining);
-
-            let terms = type_theory::stlc::evaluate_ast(ast);
-            println!("Mapped terms: {:?}", terms);
-        }
-        Err(e) => println!("Error: {:?}", e),
+    let (environment, _) = type_theory::stlc::evaluate_ast(ast);
+    for definition in environment.deltas {
+        let (var_name, term) = definition;
+        println!("defined term {:?}: {:?}", var_name, term);
     }
 }
