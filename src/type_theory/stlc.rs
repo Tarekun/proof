@@ -18,9 +18,7 @@ fn evaluate_ast_rec(
             match environment.get_from_deltas(&var_name) {
                 Some((_, body)) => (environment.clone(), body.clone()),
                 None => match environment.get_from_context(&var_name) {
-                    Some((_, _)) => {
-                        (environment, StlcTerm::Variable(var_name))
-                    }
+                    Some((_, _)) => (environment, StlcTerm::Variable(var_name)),
                     None => panic!("Unbound variable: {}", var_name),
                 },
             }
@@ -28,16 +26,16 @@ fn evaluate_ast_rec(
         parsing::NsAst::Abs(var_name, body) => {
             //TODO properly infer the type of the variable (and the function) instead of Unit
             environment.add_variable_to_context(&var_name, StlcTerm::Unit);
-            let (environment, body_term) =
+            let (mut environment, body_term) =
                 evaluate_ast_rec(*body, environment);
-            (
-                environment,
-                StlcTerm::Abstraction(var_name, Box::new(body_term)),
-            )
+            let function =
+                StlcTerm::Abstraction(var_name.clone(), Box::new(body_term));
+            environment.add_variable_to_context(&var_name, StlcTerm::Unit);
+
+            (environment, function)
         }
         parsing::NsAst::App(left, right) => {
-            let (environment, left_term) =
-                evaluate_ast_rec(*left, environment);
+            let (environment, left_term) = evaluate_ast_rec(*left, environment);
             let (environment, right_term) =
                 evaluate_ast_rec(*right, environment);
             return (
@@ -56,16 +54,13 @@ fn evaluate_ast_rec(
         }
         parsing::NsAst::FileRoot(_, asts) => {
             let mut current_env = environment;
-            let mut last_term = StlcTerm::Unit;
 
             for sub_ast in asts {
-                let (new_env, term) =
-                    evaluate_ast_rec(sub_ast, current_env);
+                let (new_env, _) = evaluate_ast_rec(sub_ast, current_env);
                 current_env = new_env;
-                last_term = term;
             }
 
-            (current_env, last_term)
+            (current_env, StlcTerm::Unit) //TODO
         }
         _ => panic!("non implemented"),
     }

@@ -3,7 +3,6 @@ use nom::{
     bytes::complete::tag,
     character::complete::{
         alpha1, alphanumeric0, char, digit1, multispace0, multispace1,
-        one_of,
     },
     combinator::{map, map_res, recognize},
     error::{Error, ErrorKind},
@@ -25,11 +24,6 @@ pub enum NsAst {
 }
 const RESERVED_KEYWORDS: [&str; 1] = ["let"];
 
-// Parser to match and discard whitespace (space, newline, tab, carriage return)
-fn parse_whitespace(input: &str) -> IResult<&str, &str> {
-    map(many0(one_of(" \n\r\t")), |_| "")(input)
-}
-// Parser for a term wrapped in parentheses
 fn parse_parens(input: &str) -> IResult<&str, NsAst> {
     delimited(
         preceded(multispace0, char('(')), // Match '(' with leading whitespace
@@ -37,10 +31,8 @@ fn parse_parens(input: &str) -> IResult<&str, NsAst> {
         preceded(multispace0, char(')')), // Match ')' with trailing whitespace
     )(input)
 }
-// Parser for a generic identifier (starts with a letter, followed by letters, digits, or underscores)
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
-    let (input, identifier) =
-        recognize(pair(alpha1, alphanumeric0))(input)?;
+    let (input, identifier) = recognize(pair(alpha1, alphanumeric0))(input)?;
 
     if RESERVED_KEYWORDS.contains(&identifier) {
         Err(nom::Err::Error(Error::new(input, ErrorKind::Tag))) // Reject reserved keywords
@@ -55,24 +47,20 @@ fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
     )(input)
 }
 
-// Parser for a variable
 fn parse_var(input: &str) -> IResult<&str, NsAst> {
     map(parse_identifier, |s: &str| NsAst::Var(s.to_string()))(input)
 }
 
-// Parser for a lambda abstraction
 fn parse_abs(input: &str) -> IResult<&str, NsAst> {
     let (input, _) =
         preceded(multispace0, alt((char('λ'), char('\\'))))(input)?;
-    let (input, var_name) =
-        preceded(multispace0, parse_identifier)(input)?;
+    let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
 
     Ok((input, NsAst::Abs(var_name.to_string(), Box::new(body))))
 }
 
-// Parser for function application
 fn parse_app(input: &str) -> IResult<&str, NsAst> {
     let (input, left) = preceded(multispace0, parse_atom)(input)?; // Parse the left term (atomic term)
     let (input, _) = multispace1(input)?; // Ensure at least one space between terms
@@ -83,8 +71,7 @@ fn parse_app(input: &str) -> IResult<&str, NsAst> {
 
 fn parse_let(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
-    let (input, var_name) =
-        preceded(multispace1, parse_identifier)(input)?;
+    let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, char('='))(input)?;
     let (input, term) = preceded(multispace0, parse_term)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
@@ -112,7 +99,7 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
             panic!("Error reading file: {:?}", e);
         }
     };
-    let result = many0(terminated(parse_term, tag("\n")))(&source);
+    let result = many0(parse_term)(&source);
     let (remaining_input, terms) = match result {
         Ok((remaining, terms)) => (remaining, terms),
         Err(e) => {
