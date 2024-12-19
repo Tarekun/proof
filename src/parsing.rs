@@ -17,6 +17,7 @@ use crate::file_manager;
 pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
+    Let(String, Box<Expression>),
 }
 #[derive(Debug, PartialEq)]
 pub enum Expression {
@@ -24,7 +25,6 @@ pub enum Expression {
     Abstraction(String, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
-    Let(String, Box<Expression>),
 }
 #[derive(Debug, PartialEq)]
 pub enum NsAst {
@@ -76,7 +76,6 @@ fn parse_abs(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
 
-    // Ok((input, NsAst::Abs(var_name.to_string(), Box::new(body))))
     match body {
         NsAst::Exp(exp) => Ok((
             input,
@@ -94,7 +93,6 @@ fn parse_app(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = multispace1(input)?; // Ensure at least one space between terms
     let (input, right) = preceded(multispace0, parse_term)(input)?; // Parse the right term
 
-    // Ok((input, NsAst::App(Box::new(left), Box::new(right))))
     match left {
         NsAst::Exp(left_exp) => match right {
             NsAst::Exp(right_exp) => Ok((
@@ -113,15 +111,14 @@ fn parse_app(input: &str) -> IResult<&str, NsAst> {
 fn parse_let(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
     let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
-    let (input, _) = preceded(multispace0, char('='))(input)?;
+    let (input, _) = preceded(multispace0, tag(":="))(input)?;
     let (input, term) = preceded(multispace0, parse_term)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
-    // Ok((input, NsAst::Let(var_name.to_string(), Box::new(term))))
     match term {
         NsAst::Exp(exp) => Ok((
             input,
-            NsAst::Exp(Expression::Let(var_name.to_string(), Box::new(exp))),
+            NsAst::Stm(Statement::Let(var_name.to_string(), Box::new(exp))),
         )),
         NsAst::Stm(_) => generic_err(input),
     }
@@ -157,7 +154,6 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
 
     (
         remaining_input.to_string(),
-        // NsAst::FileRoot(filepath.to_string(), terms),
         NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
     )
 }

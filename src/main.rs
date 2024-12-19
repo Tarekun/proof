@@ -10,7 +10,6 @@ mod type_theory {
 fn main() {
     println!("################ PROGRAM START #################\n");
 
-    // Get the file path from command line arguments
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: cargo run <filepath.ns>");

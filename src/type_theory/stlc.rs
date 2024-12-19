@@ -17,7 +17,7 @@ fn evaluate_expression(
         parsing::Expression::VarUse(var_name) => {
             match environment.get_from_deltas(&var_name) {
                 //TODO should delta-reduce the variable here?
-                Some((_, body)) => (
+                Some((_, _)) => (
                     environment.clone(),
                     StlcTerm::Variable(var_name.to_string()),
                 ),
@@ -51,12 +51,6 @@ fn evaluate_expression(
                 ),
             );
         }
-        parsing::Expression::Let(var_name, ast) => {
-            let (mut environment, assigned_term) =
-                evaluate_expression(*ast, environment);
-            environment.add_variable_definition(&var_name, assigned_term);
-            (environment, StlcTerm::Unit)
-        }
         _ => panic!("non implemented"),
     }
 }
@@ -85,11 +79,16 @@ fn evaluate_statement(
 
             current_env
         }
+        parsing::Statement::Let(var_name, ast) => {
+            let (mut environment, assigned_term) =
+                evaluate_expression(*ast, environment);
+            environment.add_variable_definition(&var_name, assigned_term);
+            environment
+        }
     }
 }
 
 pub fn evaluate_ast(ast: parsing::NsAst) -> Environment {
-    // evaluate_expression(ast, Environment::default())
     match ast {
         parsing::NsAst::Stm(stm) => {
             evaluate_statement(stm, Environment::default())
