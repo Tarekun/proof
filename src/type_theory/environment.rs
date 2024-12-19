@@ -9,16 +9,18 @@ pub struct Environment {
 
 impl Environment {
     // Add a new variable to the context
-    pub fn add_variable_definition(&mut self, name: &str, term: StlcTerm) {
-        self.deltas.insert(name.to_string(), term);
+    pub fn add_variable_definition(&mut self, name: &str, term: &StlcTerm) {
+        //TODO avoid cloning?
+        self.deltas.insert(name.to_string(), term.clone());
     }
 
     pub fn add_variable_to_context(
         &mut self,
         name: &str,
-        type_term: StlcTerm,
+        type_term: &StlcTerm,
     ) {
-        self.context.insert(name.to_string(), type_term);
+        //TODO avoid cloning?
+        self.context.insert(name.to_string(), type_term.clone());
     }
 
     pub fn get_from_context<'a>(

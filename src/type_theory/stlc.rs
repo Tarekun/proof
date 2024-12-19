@@ -29,12 +29,12 @@ fn evaluate_expression(
         }
         parsing::Expression::Abstraction(var_name, body) => {
             //TODO properly infer the type of the variable (and the function) instead of Unit
-            environment.add_variable_to_context(&var_name, StlcTerm::Unit);
+            environment.add_variable_to_context(&var_name, &StlcTerm::Unit);
             let (mut environment, body_term) =
                 evaluate_expression(*body, environment);
             let function =
                 StlcTerm::Abstraction(var_name.clone(), Box::new(body_term));
-            environment.add_variable_to_context(&var_name, StlcTerm::Unit);
+            environment.add_variable_to_context(&var_name, &StlcTerm::Unit);
 
             (environment, function)
         }
@@ -82,7 +82,7 @@ fn evaluate_statement(
         parsing::Statement::Let(var_name, ast) => {
             let (mut environment, assigned_term) =
                 evaluate_expression(*ast, environment);
-            environment.add_variable_definition(&var_name, assigned_term);
+            environment.add_variable_definition(&var_name, &assigned_term);
             environment
         }
     }
