@@ -17,7 +17,7 @@ fn evaluate_expression(
         parsing::Expression::VarUse(var_name) => {
             match environment.get_from_deltas(&var_name) {
                 //TODO should delta-reduce the variable here?
-                Some((_, _)) => (
+                Some((var_name, _)) => (
                     environment.clone(),
                     StlcTerm::Variable(var_name.to_string()),
                 ),
@@ -43,13 +43,13 @@ fn evaluate_expression(
                 evaluate_expression(*left, environment);
             let (environment, right_term) =
                 evaluate_expression(*right, environment);
-            return (
+            (
                 environment,
                 StlcTerm::Application(
                     Box::new(left_term),
                     Box::new(right_term),
                 ),
-            );
+            )
         }
         _ => panic!("non implemented"),
     }
