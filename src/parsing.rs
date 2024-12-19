@@ -14,41 +14,59 @@ use nom::{
 use crate::file_manager;
 
 #[derive(Debug, PartialEq)]
-pub enum NsAst {
-    Var(String),
-    Abs(String, Box<NsAst>),
-    App(Box<NsAst>, Box<NsAst>),
-    Num(i64),
-    Let(String, Box<NsAst>),
+pub enum Statement {
+    Comment(),
     FileRoot(String, Vec<NsAst>),
 }
-const RESERVED_KEYWORDS: [&str; 1] = ["let"];
+#[derive(Debug, PartialEq)]
+pub enum Expression {
+    VarUse(String),
+    Abstraction(String, Box<Expression>),
+    Application(Box<Expression>, Box<Expression>),
+    Num(i64),
+    Let(String, Box<Expression>),
+}
+#[derive(Debug, PartialEq)]
+pub enum NsAst {
+    Stm(Statement),
+    Exp(Expression),
+}
 
+const RESERVED_KEYWORDS: [&str; 1] = ["let"];
+fn generic_err(input: &str) -> IResult<&str, NsAst> {
+    //TODO ever support an error message?
+    Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
+}
+
+//########################### BASIC TOKEN PARSERS
 fn parse_parens(input: &str) -> IResult<&str, NsAst> {
     delimited(
-        preceded(multispace0, char('(')), // Match '(' with leading whitespace
-        parse_term,                       // Parse the inner term
-        preceded(multispace0, char(')')), // Match ')' with trailing whitespace
+        preceded(multispace0, char('(')),
+        parse_term,
+        preceded(multispace0, char(')')),
     )(input)
 }
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
     let (input, identifier) = recognize(pair(alpha1, alphanumeric0))(input)?;
 
     if RESERVED_KEYWORDS.contains(&identifier) {
-        Err(nom::Err::Error(Error::new(input, ErrorKind::Tag))) // Reject reserved keywords
+        Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
     } else {
-        Ok((input, identifier)) // Successfully parsed a valid identifier
+        Ok((input, identifier))
     }
 }
 fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
-    map_res(
-        preceded(multispace0, digit1), // Pass `digit1` as a parser, do not call it.
-        |s: &str| s.parse::<i64>().map(NsAst::Num), // Convert to `i64` and wrap in `NsAst::Num`.
-    )(input)
+    map_res(preceded(multispace0, digit1), |s: &str| {
+        s.parse::<i64>()
+            .map(|num: i64| NsAst::Exp(Expression::Num(num)))
+    })(input)
 }
+//########################### BASIC TOKEN PARSERS
 
 fn parse_var(input: &str) -> IResult<&str, NsAst> {
-    map(parse_identifier, |s: &str| NsAst::Var(s.to_string()))(input)
+    map(parse_identifier, |s: &str| {
+        NsAst::Exp(Expression::VarUse(s.to_string()))
+    })(input)
 }
 
 fn parse_abs(input: &str) -> IResult<&str, NsAst> {
@@ -58,7 +76,17 @@ fn parse_abs(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
 
-    Ok((input, NsAst::Abs(var_name.to_string(), Box::new(body))))
+    // Ok((input, NsAst::Abs(var_name.to_string(), Box::new(body))))
+    match body {
+        NsAst::Exp(exp) => Ok((
+            input,
+            NsAst::Exp(Expression::Abstraction(
+                var_name.to_string(),
+                Box::new(exp),
+            )),
+        )),
+        NsAst::Stm(_) => generic_err(input),
+    }
 }
 
 fn parse_app(input: &str) -> IResult<&str, NsAst> {
@@ -66,7 +94,20 @@ fn parse_app(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = multispace1(input)?; // Ensure at least one space between terms
     let (input, right) = preceded(multispace0, parse_term)(input)?; // Parse the right term
 
-    Ok((input, NsAst::App(Box::new(left), Box::new(right))))
+    // Ok((input, NsAst::App(Box::new(left), Box::new(right))))
+    match left {
+        NsAst::Exp(left_exp) => match right {
+            NsAst::Exp(right_exp) => Ok((
+                input,
+                NsAst::Exp(Expression::Application(
+                    Box::new(left_exp),
+                    Box::new(right_exp),
+                )),
+            )),
+            NsAst::Stm(_) => generic_err(input),
+        },
+        NsAst::Stm(_) => generic_err(input),
+    }
 }
 
 fn parse_let(input: &str) -> IResult<&str, NsAst> {
@@ -76,7 +117,14 @@ fn parse_let(input: &str) -> IResult<&str, NsAst> {
     let (input, term) = preceded(multispace0, parse_term)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
-    Ok((input, NsAst::Let(var_name.to_string(), Box::new(term))))
+    // Ok((input, NsAst::Let(var_name.to_string(), Box::new(term))))
+    match term {
+        NsAst::Exp(exp) => Ok((
+            input,
+            NsAst::Exp(Expression::Let(var_name.to_string(), Box::new(exp))),
+        )),
+        NsAst::Stm(_) => generic_err(input),
+    }
 }
 
 //TODO: refactor these 2, this is ridiculous
@@ -109,6 +157,7 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
 
     (
         remaining_input.to_string(),
-        NsAst::FileRoot(filepath.to_string(), terms),
+        // NsAst::FileRoot(filepath.to_string(), terms),
+        NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
     )
 }

@@ -9,35 +9,40 @@ pub enum StlcTerm {
     Unit,
 }
 
-fn evaluate_ast_rec(
-    ast: parsing::NsAst,
+fn evaluate_expression(
+    ast: parsing::Expression,
     mut environment: Environment,
 ) -> (Environment, StlcTerm) {
     match ast {
-        parsing::NsAst::Var(var_name) => {
+        parsing::Expression::VarUse(var_name) => {
             match environment.get_from_deltas(&var_name) {
-                Some((_, body)) => (environment.clone(), body.clone()),
+                //TODO should delta-reduce the variable here?
+                Some((_, body)) => (
+                    environment.clone(),
+                    StlcTerm::Variable(var_name.to_string()),
+                ),
                 None => match environment.get_from_context(&var_name) {
                     Some((_, _)) => (environment, StlcTerm::Variable(var_name)),
                     None => panic!("Unbound variable: {}", var_name),
                 },
             }
         }
-        parsing::NsAst::Abs(var_name, body) => {
+        parsing::Expression::Abstraction(var_name, body) => {
             //TODO properly infer the type of the variable (and the function) instead of Unit
             environment.add_variable_to_context(&var_name, StlcTerm::Unit);
             let (mut environment, body_term) =
-                evaluate_ast_rec(*body, environment);
+                evaluate_expression(*body, environment);
             let function =
                 StlcTerm::Abstraction(var_name.clone(), Box::new(body_term));
             environment.add_variable_to_context(&var_name, StlcTerm::Unit);
 
             (environment, function)
         }
-        parsing::NsAst::App(left, right) => {
-            let (environment, left_term) = evaluate_ast_rec(*left, environment);
+        parsing::Expression::Application(left, right) => {
+            let (environment, left_term) =
+                evaluate_expression(*left, environment);
             let (environment, right_term) =
-                evaluate_ast_rec(*right, environment);
+                evaluate_expression(*right, environment);
             return (
                 environment,
                 StlcTerm::Application(
@@ -46,26 +51,52 @@ fn evaluate_ast_rec(
                 ),
             );
         }
-        parsing::NsAst::Let(var_name, ast) => {
+        parsing::Expression::Let(var_name, ast) => {
             let (mut environment, assigned_term) =
-                evaluate_ast_rec(*ast, environment);
+                evaluate_expression(*ast, environment);
             environment.add_variable_definition(&var_name, assigned_term);
             (environment, StlcTerm::Unit)
-        }
-        parsing::NsAst::FileRoot(_, asts) => {
-            let mut current_env = environment;
-
-            for sub_ast in asts {
-                let (new_env, _) = evaluate_ast_rec(sub_ast, current_env);
-                current_env = new_env;
-            }
-
-            (current_env, StlcTerm::Unit) //TODO
         }
         _ => panic!("non implemented"),
     }
 }
 
-pub fn evaluate_ast(ast: parsing::NsAst) -> (Environment, StlcTerm) {
-    evaluate_ast_rec(ast, Environment::default())
+fn evaluate_statement(
+    ast: parsing::Statement,
+    environment: Environment,
+) -> Environment {
+    match ast {
+        parsing::Statement::Comment() => environment,
+        parsing::Statement::FileRoot(_, asts) => {
+            let mut current_env = environment;
+
+            for sub_ast in asts {
+                match sub_ast {
+                    parsing::NsAst::Stm(stm) => {
+                        current_env = evaluate_statement(stm, current_env)
+                    }
+                    parsing::NsAst::Exp(exp) => {
+                        let (new_env, _) =
+                            evaluate_expression(exp, current_env);
+                        current_env = new_env;
+                    }
+                }
+            }
+
+            current_env
+        }
+    }
+}
+
+pub fn evaluate_ast(ast: parsing::NsAst) -> Environment {
+    // evaluate_expression(ast, Environment::default())
+    match ast {
+        parsing::NsAst::Stm(stm) => {
+            evaluate_statement(stm, Environment::default())
+        }
+        parsing::NsAst::Exp(exp) => {
+            let (new_env, _) = evaluate_expression(exp, Environment::default());
+            new_env
+        }
+    }
 }

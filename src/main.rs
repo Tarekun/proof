@@ -22,7 +22,7 @@ fn main() {
     println!("Parsed AST: {:?}", ast);
     println!("Remaining input: '{}'\n", remaining);
 
-    let (environment, _) = type_theory::stlc::evaluate_ast(ast);
+    let environment = type_theory::stlc::evaluate_ast(ast);
     for definition in environment.deltas {
         let (var_name, term) = definition;
         println!("defined term {:?}: {:?}", var_name, term);
