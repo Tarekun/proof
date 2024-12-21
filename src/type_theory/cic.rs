@@ -58,25 +58,21 @@ impl TypeTheory for Cic {
 
                 (environment, function)
             }
-            parsing::Expression::TypeProduct(var_name, body) => {
-                //TODO properly infer the type of the variable (and the function) instead of TYPE sort
-                environment.add_variable_to_context(
-                    &var_name,
-                    &SystemFTerm::Sort("TYPE".to_string()),
-                );
-                let (mut environment, body_term) =
+            parsing::Expression::TypeProduct(var_name, var_type, body) => {
+                let (mut environment, type_term) =
+                    Cic::evaluate_expression(*var_type, environment);
+                //TODO update the context only temporarily, during body evaluation
+                environment.add_variable_to_context(&var_name, &type_term);
+                let (environment, body_term) =
                     Cic::evaluate_expression(*body, environment);
-                let generic_type = SystemFTerm::Product(
+
+                let function = SystemFTerm::Product(
                     var_name.clone(),
+                    Box::new(type_term),
                     Box::new(body_term),
-                    Box::new(SystemFTerm::Sort("TYPE".to_string())),
-                );
-                environment.add_variable_to_context(
-                    &var_name,
-                    &SystemFTerm::Sort("TYPE".to_string()),
                 );
 
-                (environment, generic_type)
+                (environment, function)
             }
             parsing::Expression::Application(left, right) => {
                 let (environment, left_term) =
@@ -143,6 +139,7 @@ impl TypeTheory for Cic {
     }
 }
 
+#[allow(non_snake_case)]
 fn make_default_environment() -> Environment<SystemFTerm> {
     let TYPE = SystemFTerm::Sort("TYPE".to_string());
     let axioms: Vec<(&str, &SystemFTerm)> =
