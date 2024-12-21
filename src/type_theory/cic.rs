@@ -37,7 +37,7 @@ impl TypeTheory for Cic {
                 }
             }
             parsing::Expression::Abstraction(var_name, body) => {
-                //TODO properly infer the type of the variable (and the function) instead of Unit
+                //TODO properly infer the type of the variable (and the function) instead of TYPE sort
                 environment.add_variable_to_context(
                     &var_name,
                     &SystemFTerm::Sort("TYPE".to_string()),
@@ -56,6 +56,26 @@ impl TypeTheory for Cic {
 
                 (environment, function)
             }
+            parsing::Expression::TypeProduct(var_name, body) => {
+                //TODO properly infer the type of the variable (and the function) instead of TYPE sort
+                environment.add_variable_to_context(
+                    &var_name,
+                    &SystemFTerm::Sort("TYPE".to_string()),
+                );
+                let (mut environment, body_term) =
+                    Cic::evaluate_expression(*body, environment);
+                let generic_type = SystemFTerm::Product(
+                    var_name.clone(),
+                    Box::new(body_term),
+                    Box::new(SystemFTerm::Sort("TYPE".to_string())),
+                );
+                environment.add_variable_to_context(
+                    &var_name,
+                    &SystemFTerm::Sort("TYPE".to_string()),
+                );
+
+                (environment, generic_type)
+            }
             parsing::Expression::Application(left, right) => {
                 let (environment, left_term) =
                     Cic::evaluate_expression(*left, environment);
@@ -69,7 +89,7 @@ impl TypeTheory for Cic {
                     ),
                 )
             }
-            _ => panic!("non implemented"),
+            _ => panic!("not implemented"),
         }
     }
 

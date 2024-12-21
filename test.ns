@@ -1,2 +1,3 @@
 let f := (λx. x x)   ; #(f f)
-let g := (λy. f y)   ;
+let g := (\lambda y. f y)   ;
+let Type := Πt. f ;

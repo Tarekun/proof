@@ -24,6 +24,7 @@ pub enum Statement {
 pub enum Expression {
     VarUse(String),
     Abstraction(String, Box<Expression>),
+    TypeProduct(String, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
 }
@@ -80,7 +81,7 @@ fn parse_var(input: &str) -> IResult<&str, NsAst> {
 
 fn parse_abs(input: &str) -> IResult<&str, NsAst> {
     let (input, _) =
-        preceded(multispace0, alt((char('λ'), char('\\'))))(input)?;
+        preceded(multispace0, alt((tag("λ"), tag("\\lambda "))))(input)?;
     let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
@@ -90,6 +91,25 @@ fn parse_abs(input: &str) -> IResult<&str, NsAst> {
             input,
             NsAst::Exp(Expression::Abstraction(
                 var_name.to_string(),
+                Box::new(exp),
+            )),
+        )),
+        NsAst::Stm(_) => generic_err(input),
+    }
+}
+
+fn parse_type_abs(input: &str) -> IResult<&str, NsAst> {
+    let (input, _) =
+        preceded(multispace0, alt((tag("Π"), tag("\\forall"))))(input)?;
+    let (input, type_var) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, char('.'))(input)?;
+    let (input, body) = preceded(multispace0, parse_term)(input)?;
+
+    match body {
+        NsAst::Exp(exp) => Ok((
+            input,
+            NsAst::Exp(Expression::TypeProduct(
+                type_var.to_string(),
                 Box::new(exp),
             )),
         )),
@@ -138,6 +158,7 @@ fn atomic_parsers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, NsAst> {
     alt((
         parse_parens,
         parse_abs,
+        parse_type_abs,
         parse_var,
         parse_numeral,
         parse_comment,
