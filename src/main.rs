@@ -29,4 +29,10 @@ fn main() {
         let (var_name, term) = definition;
         println!("defined term {:?}: {:?}", var_name, term);
     }
+
+    println!("\nContext:");
+    for assumption in environment.context {
+        let (var_name, var_type) = assumption;
+        println!("var {:?} : {:?}", var_name, var_type);
+    }
 }

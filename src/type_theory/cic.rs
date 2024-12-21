@@ -1,4 +1,4 @@
-use crate::parsing;
+use crate::parsing::{self, Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -17,7 +17,7 @@ impl TypeTheory for Cic {
     type Term = SystemFTerm;
 
     fn evaluate_expression(
-        ast: parsing::Expression,
+        ast: Expression,
         mut environment: Environment<SystemFTerm>,
     ) -> (Environment<SystemFTerm>, SystemFTerm) {
         match ast {
@@ -94,7 +94,7 @@ impl TypeTheory for Cic {
     }
 
     fn evaluate_statement(
-        ast: parsing::Statement,
+        ast: Statement,
         environment: Environment<SystemFTerm>,
     ) -> Environment<SystemFTerm> {
         match ast {
@@ -127,18 +127,24 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn evaluate_ast(ast: parsing::NsAst) -> Environment<SystemFTerm> {
+    fn evaluate_ast(ast: NsAst) -> Environment<SystemFTerm> {
         match ast {
-            parsing::NsAst::Stm(stm) => {
-                Cic::evaluate_statement(stm, Environment::<SystemFTerm>::new())
+            NsAst::Stm(stm) => {
+                Cic::evaluate_statement(stm, make_default_environment())
             }
-            parsing::NsAst::Exp(exp) => {
-                let (new_env, _) = Cic::evaluate_expression(
-                    exp,
-                    Environment::<SystemFTerm>::new(),
-                );
+            NsAst::Exp(exp) => {
+                let (new_env, _) =
+                    Cic::evaluate_expression(exp, make_default_environment());
                 new_env
             }
         }
     }
+}
+
+fn make_default_environment() -> Environment<SystemFTerm> {
+    let TYPE = SystemFTerm::Sort("TYPE".to_string());
+    let axioms: Vec<(&str, &SystemFTerm)> =
+        vec![("TYPE", &TYPE), ("nat", &TYPE)];
+
+    Environment::with_defaults(axioms, Vec::default())
 }
