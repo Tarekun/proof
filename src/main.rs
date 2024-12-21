@@ -3,9 +3,12 @@ use std::env;
 mod file_manager;
 mod parsing;
 mod type_theory {
+    pub mod cic;
     pub mod environment;
+    pub mod interface;
     pub mod stlc;
 }
+use crate::type_theory::interface::TypeTheory;
 
 fn main() {
     println!("################ PROGRAM START #################\n");
@@ -21,7 +24,7 @@ fn main() {
     println!("Parsed AST: {:?}", ast);
     println!("Remaining input: '{}'\n", remaining);
 
-    let environment = type_theory::stlc::evaluate_ast(ast);
+    let environment = type_theory::cic::Cic::evaluate_ast(ast);
     for definition in environment.deltas {
         let (var_name, term) = definition;
         println!("defined term {:?}: {:?}", var_name, term);
