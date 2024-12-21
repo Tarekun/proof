@@ -25,7 +25,7 @@ pub enum Expression {
     VarUse(String),
     /// (var_name, var_type, function_body)
     Abstraction(String, Box<Expression>, Box<Expression>),
-    /// (var_name, var_type, function_body)
+    /// (var_name, var_type, dependent_type)
     TypeProduct(String, Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),

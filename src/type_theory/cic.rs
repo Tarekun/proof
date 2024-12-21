@@ -66,13 +66,13 @@ impl TypeTheory for Cic {
                 let (environment, body_term) =
                     Cic::evaluate_expression(*body, environment);
 
-                let function = SystemFTerm::Product(
+                let dependent_type = SystemFTerm::Product(
                     var_name.clone(),
                     Box::new(type_term),
                     Box::new(body_term),
                 );
 
-                (environment, function)
+                (environment, dependent_type)
             }
             parsing::Expression::Application(left, right) => {
                 let (environment, left_term) =
