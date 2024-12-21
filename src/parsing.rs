@@ -23,8 +23,10 @@ pub enum Statement {
 #[derive(Debug, PartialEq)]
 pub enum Expression {
     VarUse(String),
-    Abstraction(String, Box<Expression>),
-    TypeProduct(String, Box<Expression>),
+    /// (var_name, var_type, function_body)
+    Abstraction(String, Box<Expression>, Box<Expression>),
+    /// (var_name, var_type, dependent_type)
+    TypeProduct(String, Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
 }
@@ -83,17 +85,23 @@ fn parse_abs(input: &str) -> IResult<&str, NsAst> {
     let (input, _) =
         preceded(multispace0, alt((tag("λ"), tag("\\lambda "))))(input)?;
     let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, type_var) = preceded(multispace0, parse_var)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
 
     match body {
-        NsAst::Exp(exp) => Ok((
-            input,
-            NsAst::Exp(Expression::Abstraction(
-                var_name.to_string(),
-                Box::new(exp),
+        NsAst::Exp(body_exp) => match type_var {
+            NsAst::Exp(type_exp) => Ok((
+                input,
+                NsAst::Exp(Expression::Abstraction(
+                    var_name.to_string(),
+                    Box::new(type_exp),
+                    Box::new(body_exp),
+                )),
             )),
-        )),
+            NsAst::Stm(_) => generic_err(input),
+        },
         NsAst::Stm(_) => generic_err(input),
     }
 }
@@ -101,18 +109,24 @@ fn parse_abs(input: &str) -> IResult<&str, NsAst> {
 fn parse_type_abs(input: &str) -> IResult<&str, NsAst> {
     let (input, _) =
         preceded(multispace0, alt((tag("Π"), tag("\\forall"))))(input)?;
-    let (input, type_var) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, type_var) = preceded(multispace0, parse_var)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_term)(input)?;
 
     match body {
-        NsAst::Exp(exp) => Ok((
-            input,
-            NsAst::Exp(Expression::TypeProduct(
-                type_var.to_string(),
-                Box::new(exp),
+        NsAst::Exp(body_exp) => match type_var {
+            NsAst::Exp(type_exp) => Ok((
+                input,
+                NsAst::Exp(Expression::TypeProduct(
+                    var_name.to_string(),
+                    Box::new(type_exp),
+                    Box::new(body_exp),
+                )),
             )),
-        )),
+            NsAst::Stm(_) => generic_err(input),
+        },
         NsAst::Stm(_) => generic_err(input),
     }
 }

@@ -6,7 +6,7 @@ mod type_theory {
     pub mod cic;
     pub mod environment;
     pub mod interface;
-    pub mod stlc;
+    // pub mod stlc;
 }
 use crate::type_theory::interface::TypeTheory;
 
