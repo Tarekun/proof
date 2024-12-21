@@ -6,6 +6,7 @@ pub struct Environment<TermType> {
     pub deltas: HashMap<String, TermType>,  //var_name, term
 }
 
+//TODO check if this cloning is really necessary or there's better ways
 impl<TermType: Clone> Environment<TermType> {
     pub fn new() -> Self {
         Self {
