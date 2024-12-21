@@ -4,12 +4,18 @@ use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
 pub enum SystemFTerm {
-    Constant(String, Box<SystemFTerm>), // (constant's token, constant's type)
-    Sort(String),                       // (sort name)
-    Variable(String),                   // (var name)
-    Abstraction(String, Box<SystemFTerm>, Box<SystemFTerm>), // (var name, var type, body, bodytype?)
-    Product(String, Box<SystemFTerm>, Box<SystemFTerm>), // (var name, var type, body, bodytype?)
-    Application(Box<SystemFTerm>, Box<SystemFTerm>),     // (function, argument)
+    /// (constant's token, constant's type)
+    Constant(String, Box<SystemFTerm>),
+    /// (sort name)
+    Sort(String),
+    /// (var name)
+    Variable(String),
+    /// (var name, var type, body)
+    Abstraction(String, Box<SystemFTerm>, Box<SystemFTerm>), //add bodytype?
+    /// (var name, var type, body)
+    Product(String, Box<SystemFTerm>, Box<SystemFTerm>), //add bodytype?
+    /// (function, argument)
+    Application(Box<SystemFTerm>, Box<SystemFTerm>),
 }
 
 pub struct Cic;
@@ -36,22 +42,18 @@ impl TypeTheory for Cic {
                     },
                 }
             }
-            parsing::Expression::Abstraction(var_name, body) => {
-                //TODO properly infer the type of the variable (and the function) instead of TYPE sort
-                environment.add_variable_to_context(
-                    &var_name,
-                    &SystemFTerm::Sort("TYPE".to_string()),
-                );
-                let (mut environment, body_term) =
+            parsing::Expression::Abstraction(var_name, var_type, body) => {
+                let (mut environment, type_term) =
+                    Cic::evaluate_expression(*var_type, environment);
+                //TODO update the context only temporarily, during body evaluation
+                environment.add_variable_to_context(&var_name, &type_term);
+                let (environment, body_term) =
                     Cic::evaluate_expression(*body, environment);
+
                 let function = SystemFTerm::Abstraction(
                     var_name.clone(),
+                    Box::new(type_term),
                     Box::new(body_term),
-                    Box::new(SystemFTerm::Sort("TYPE".to_string())),
-                );
-                environment.add_variable_to_context(
-                    &var_name,
-                    &SystemFTerm::Sort("TYPE".to_string()),
                 );
 
                 (environment, function)
