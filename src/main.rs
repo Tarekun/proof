@@ -3,6 +3,7 @@ use std::env;
 mod file_manager;
 mod parsing;
 mod type_theory {
+    pub mod cic;
     pub mod environment;
     pub mod stlc;
 }
