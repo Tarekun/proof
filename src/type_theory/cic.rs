@@ -24,46 +24,57 @@ impl TypeTheory for Cic {
 
     fn evaluate_expression(
         ast: Expression,
-        mut environment: Environment<SystemFTerm>,
-    ) -> (Environment<SystemFTerm>, SystemFTerm) {
+        environment: Environment<SystemFTerm>,
+    ) -> (Environment<SystemFTerm>, (SystemFTerm, SystemFTerm)) {
         match ast {
-            parsing::Expression::VarUse(var_name) => {
+            Expression::VarUse(var_name) => {
                 match environment.get_from_deltas(&var_name) {
                     //TODO should delta-reduce the variable here?
-                    Some((var_name, _)) => (
+                    Some((var_name, (_, var_type))) => (
                         environment.clone(),
-                        SystemFTerm::Variable(var_name.to_string()),
+                        (
+                            SystemFTerm::Variable(var_name.to_string()),
+                            var_type.clone(),
+                        ),
                     ),
+
                     None => match environment.get_from_context(&var_name) {
-                        Some((_, _)) => {
-                            (environment, SystemFTerm::Variable(var_name))
-                        }
+                        Some((var_name, var_type)) => (
+                            environment.clone(),
+                            (
+                                SystemFTerm::Variable(var_name.to_string()),
+                                var_type.clone(),
+                            ),
+                        ),
                         None => panic!("Unbound variable: {}", var_name),
                     },
                 }
             }
-            parsing::Expression::Abstraction(var_name, var_type, body) => {
-                let (mut environment, type_term) =
+            Expression::Abstraction(var_name, var_type, body) => {
+                let (mut environment, (var_type_term, _)) =
                     Cic::evaluate_expression(*var_type, environment);
                 //TODO update the context only temporarily, during body evaluation
-                environment.add_variable_to_context(&var_name, &type_term);
-                let (environment, body_term) =
+                environment.add_variable_to_context(&var_name, &var_type_term);
+                let (environment, (body_term, body_type)) =
                     Cic::evaluate_expression(*body, environment);
 
                 let function = SystemFTerm::Abstraction(
                     var_name.clone(),
-                    Box::new(type_term),
+                    Box::new(var_type_term.clone()),
                     Box::new(body_term),
                 );
 
-                (environment, function)
+                (
+                    environment,
+                    (function, make_functional_type(var_type_term, body_type)),
+                )
             }
-            parsing::Expression::TypeProduct(var_name, var_type, body) => {
-                let (mut environment, type_term) =
+            Expression::TypeProduct(var_name, var_type, body) => {
+                let (mut environment, (type_term, _)) =
                     Cic::evaluate_expression(*var_type, environment);
                 //TODO update the context only temporarily, during body evaluation
                 environment.add_variable_to_context(&var_name, &type_term);
-                let (environment, body_term) =
+                let (environment, (body_term, _)) =
                     Cic::evaluate_expression(*body, environment);
 
                 let dependent_type = SystemFTerm::Product(
@@ -72,20 +83,53 @@ impl TypeTheory for Cic {
                     Box::new(body_term),
                 );
 
-                (environment, dependent_type)
-            }
-            parsing::Expression::Application(left, right) => {
-                let (environment, left_term) =
-                    Cic::evaluate_expression(*left, environment);
-                let (environment, right_term) =
-                    Cic::evaluate_expression(*right, environment);
                 (
                     environment,
-                    SystemFTerm::Application(
-                        Box::new(left_term),
-                        Box::new(right_term),
-                    ),
+                    (dependent_type, SystemFTerm::Sort("TYPE".to_string())),
                 )
+            }
+            Expression::Application(left, right) => {
+                let (environment, (left_term, function_type)) =
+                    Cic::evaluate_expression(*left, environment);
+                let (environment, (right_term, _)) =
+                    Cic::evaluate_expression(*right, environment);
+
+                match function_type {
+                    SystemFTerm::Product(_, _, codomain) => (
+                        environment,
+                        (
+                            SystemFTerm::Application(
+                                Box::new(left_term),
+                                Box::new(right_term),
+                            ),
+                            *codomain, //TODO: how do i handle dependent types?
+                        ),
+                    ),
+                    SystemFTerm::Sort(_) => {
+                        match left_term.clone() {
+                            SystemFTerm::Product(_, _, codomain) => (
+                                environment,
+                                (
+                                    SystemFTerm::Application(
+                                        Box::new(left_term),
+                                        Box::new(right_term),
+                                    ),
+                                    *codomain, //TODO: how do i handle dependent types?
+                                ),
+                            ),
+                            _ => panic!(
+                                "application of a non functional term TF?! term {:?} : {:?}",
+                                left_term,
+                                function_type
+                            )
+                        }
+                    }
+                    _ => panic!(
+                        "application of a non functional term TF?! term {:?} : {:?}",
+                        left_term,
+                        function_type
+                    ),
+                }
             }
             _ => panic!("not implemented"),
         }
@@ -117,9 +161,14 @@ impl TypeTheory for Cic {
                 current_env
             }
             parsing::Statement::Let(var_name, ast) => {
-                let (mut environment, assigned_term) =
+                let (mut environment, (assigned_term, term_type)) =
                     Cic::evaluate_expression(*ast, environment);
-                environment.add_variable_definition(&var_name, &assigned_term);
+
+                environment.add_variable_definition(
+                    &var_name,
+                    &assigned_term,
+                    &term_type,
+                );
                 environment
             }
         }
@@ -146,4 +195,11 @@ fn make_default_environment() -> Environment<SystemFTerm> {
         vec![("TYPE", &TYPE), ("nat", &TYPE)];
 
     Environment::with_defaults(axioms, Vec::default())
+}
+
+fn make_functional_type(
+    domain: SystemFTerm,
+    codomain: SystemFTerm,
+) -> SystemFTerm {
+    SystemFTerm::Product("_".to_string(), Box::new(domain), Box::new(codomain))
 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct Environment<TermType> {
     pub context: HashMap<String, TermType>, //var_name, variable type
-    pub deltas: HashMap<String, TermType>,  //var_name, definition term
+    pub deltas: HashMap<String, (TermType, TermType)>, //var_name, definition term
 }
 
 //TODO check if this cloning is really necessary or there's better ways
@@ -17,7 +17,7 @@ impl<TermType: Clone> Environment<TermType> {
 
     pub fn with_defaults(
         axioms: Vec<(&str, &TermType)>,
-        deltas: Vec<(&str, &TermType)>,
+        deltas: Vec<(&str, (&TermType, &TermType))>,
     ) -> Self {
         let mut context_map = HashMap::new();
         let mut deltas_map = HashMap::new();
@@ -25,8 +25,9 @@ impl<TermType: Clone> Environment<TermType> {
         for (name, term) in axioms {
             context_map.insert(name.to_string(), term.clone());
         }
-        for (name, term) in deltas {
-            deltas_map.insert(name.to_string(), term.clone());
+        for (name, (term, term_type)) in deltas {
+            deltas_map
+                .insert(name.to_string(), (term.clone(), term_type.clone()));
         }
 
         Self {
@@ -37,9 +38,15 @@ impl<TermType: Clone> Environment<TermType> {
 
     /// Define a new variable adding it to the delta substitution context, along with
     /// its definition body
-    pub fn add_variable_definition(&mut self, name: &str, term: &TermType) {
+    pub fn add_variable_definition(
+        &mut self,
+        name: &str,
+        term: &TermType,
+        term_type: &TermType,
+    ) {
         //TODO avoid cloning?
-        self.deltas.insert(name.to_string(), term.clone());
+        self.deltas
+            .insert(name.to_string(), (term.clone(), term_type.clone()));
     }
 
     /// Insert a new typed variable into the context
@@ -62,7 +69,7 @@ impl<TermType: Clone> Environment<TermType> {
     pub fn get_from_deltas<'a>(
         &'a self,
         name: &'a str,
-    ) -> Option<(&'a str, &'a TermType)> {
+    ) -> Option<(&'a str, &'a (TermType, TermType))> {
         self.deltas.get(name).map(|body| (name, body))
     }
 }

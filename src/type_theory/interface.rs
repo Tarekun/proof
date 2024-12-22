@@ -24,5 +24,5 @@ pub trait TypeTheory {
     fn evaluate_expression(
         ast: Expression,
         environment: Environment<Self::Term>,
-    ) -> (Environment<Self::Term>, Self::Term);
+    ) -> (Environment<Self::Term>, (Self::Term, Self::Term));
 }
