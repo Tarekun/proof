@@ -21,11 +21,15 @@ pub enum SystemFTerm {
 pub struct Cic;
 impl TypeTheory for Cic {
     type Term = SystemFTerm;
+    type Type = SystemFTerm;
 
     fn evaluate_expression(
         ast: Expression,
-        environment: Environment<SystemFTerm>,
-    ) -> (Environment<SystemFTerm>, (SystemFTerm, SystemFTerm)) {
+        environment: Environment<SystemFTerm, SystemFTerm>,
+    ) -> (
+        Environment<SystemFTerm, SystemFTerm>,
+        (SystemFTerm, SystemFTerm),
+    ) {
         match ast {
             Expression::VarUse(var_name) => {
                 match environment.get_from_deltas(&var_name) {
@@ -137,8 +141,8 @@ impl TypeTheory for Cic {
 
     fn evaluate_statement(
         ast: Statement,
-        environment: Environment<SystemFTerm>,
-    ) -> Environment<SystemFTerm> {
+        environment: Environment<SystemFTerm, SystemFTerm>,
+    ) -> Environment<SystemFTerm, SystemFTerm> {
         match ast {
             parsing::Statement::Comment() => environment,
             parsing::Statement::FileRoot(_, asts) => {
@@ -174,7 +178,7 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn evaluate_ast(ast: NsAst) -> Environment<SystemFTerm> {
+    fn evaluate_ast(ast: NsAst) -> Environment<SystemFTerm, SystemFTerm> {
         match ast {
             NsAst::Stm(stm) => {
                 Cic::evaluate_statement(stm, make_default_environment())
@@ -189,7 +193,7 @@ impl TypeTheory for Cic {
 }
 
 #[allow(non_snake_case)]
-fn make_default_environment() -> Environment<SystemFTerm> {
+fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
     let TYPE = SystemFTerm::Sort("TYPE".to_string());
     let axioms: Vec<(&str, &SystemFTerm)> =
         vec![("TYPE", &TYPE), ("nat", &TYPE)];
