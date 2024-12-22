@@ -10,7 +10,7 @@ pub struct Environment<Term, Type> {
 impl<Term: Clone, Type: Clone> Environment<Term, Type> {
     pub fn with_defaults(
         axioms: Vec<(&str, &Type)>,
-        deltas: Vec<(&str, (&Term, &Type))>,
+        deltas: Vec<(&str, &Term, &Type)>,
     ) -> Self {
         let mut context_map = HashMap::new();
         let mut deltas_map = HashMap::new();
@@ -18,7 +18,7 @@ impl<Term: Clone, Type: Clone> Environment<Term, Type> {
         for (name, term) in axioms {
             context_map.insert(name.to_string(), term.clone());
         }
-        for (name, (term, term_type)) in deltas {
+        for (name, term, term_type) in deltas {
             deltas_map
                 .insert(name.to_string(), (term.clone(), term_type.clone()));
         }
