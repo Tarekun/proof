@@ -24,9 +24,10 @@ fn cast_to_type(
             //TODO this should use a special context for types
             match env.get_from_context(&var_name) {
                 Some((_, var_type)) => var_type.clone(),
-                None => {
-                    panic!("Unbound type: {}", var_name)
-                }
+                None => match env.get_atomic_type(&var_name) {
+                    Some((_, type_obj)) => type_obj.clone(),
+                    None => panic!("Unbound type: {}", var_name),
+                },
             }
         }
         _ => {
@@ -62,7 +63,16 @@ impl TypeTheory for Stlc {
                                 term_type.clone(),
                             ),
                         ),
-                        None => panic!("Unbound variable: {}", var_name),
+                        None => match environment.get_atomic_type(&var_name) {
+                            Some((var_name, term_obj)) => (
+                                environment.clone(),
+                                (
+                                    StlcTerm::Variable(var_name.to_string()),
+                                    term_obj.clone(),
+                                ),
+                            ),
+                            None => panic!("Unbound variable: {}", var_name),
+                        },
                     },
                 }
             }
@@ -158,16 +168,16 @@ impl TypeTheory for Stlc {
     }
 
     fn evaluate_ast(ast: NsAst) -> Environment<StlcTerm, StlcType> {
+        let nat = StlcType::Atomic("nat".to_string());
+        let env = Environment::<StlcTerm, StlcType>::with_defaults_lower_order(
+            vec![("TYPE", &nat)], //hacky thing to avoid setting up serious testing here
+            Vec::new(),
+            vec![("nat", &nat)],
+        );
         match ast {
-            NsAst::Stm(stm) => Stlc::evaluate_statement(
-                stm,
-                Environment::<StlcTerm, StlcType>::new(),
-            ),
+            NsAst::Stm(stm) => Stlc::evaluate_statement(stm, env),
             NsAst::Exp(exp) => {
-                let (new_env, _) = Stlc::evaluate_expression(
-                    exp,
-                    Environment::<StlcTerm, StlcType>::new(),
-                );
+                let (new_env, _) = Stlc::evaluate_expression(exp, env);
                 new_env
             }
         }
