@@ -1,4 +1,4 @@
 let f := (λx : nat. TYPE)   ; #(f f)
 let g := (\lambda x:nat. f x)   ;
-let Type := Πx : TYPE. f ;
-(Πx : TYPE. f) TYPE
+#let Type := Πx : TYPE. f ;
+#(Πx : TYPE. f) TYPE

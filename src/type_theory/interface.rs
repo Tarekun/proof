@@ -23,6 +23,6 @@ pub trait TypeTheory {
         environment: Environment<Self::Term, Self::Type>,
     ) -> (
         Environment<Self::Term, Self::Type>,
-        (Self::Term, Self::Term),
+        (Self::Term, Self::Type),
     );
 }
