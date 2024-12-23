@@ -3,7 +3,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct Environment<Term, Type> {
     pub context: HashMap<String, Type>, //var_name, variable type
-    pub deltas: HashMap<String, (Term, Type)>, //var_name, definition term
+    pub deltas: HashMap<String, (Term, Type)>, //var_name, definition term, type
     pub atomic_types: HashMap<String, Type>, //type_name, type_obj
 }
 
@@ -94,7 +94,9 @@ impl<Term: Clone, Type: Clone> Environment<Term, Type> {
         &'a self,
         name: &'a str,
     ) -> Option<(&'a str, &'a (Term, Type))> {
-        self.deltas.get(name).map(|body| (name, body))
+        self.deltas
+            .get(name)
+            .map(|typed_body: &(Term, Type)| (name, typed_body))
     }
 
     pub fn get_atomic_type<'a>(

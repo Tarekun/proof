@@ -32,27 +32,8 @@ impl TypeTheory for Cic {
     ) {
         match ast {
             Expression::VarUse(var_name) => {
-                match environment.get_from_deltas(&var_name) {
-                    //TODO should delta-reduce the variable here?
-                    Some((var_name, (_, var_type))) => (
-                        environment.clone(),
-                        (
-                            SystemFTerm::Variable(var_name.to_string()),
-                            var_type.clone(),
-                        ),
-                    ),
-
-                    None => match environment.get_from_context(&var_name) {
-                        Some((var_name, var_type)) => (
-                            environment.clone(),
-                            (
-                                SystemFTerm::Variable(var_name.to_string()),
-                                var_type.clone(),
-                            ),
-                        ),
-                        None => panic!("Unbound variable: {}", var_name),
-                    },
-                }
+                let (env, rest) = evaluate_var(&environment, &var_name);
+                (env.clone(), rest) //TODO change type of the function and avoid cloning
             }
             Expression::Abstraction(var_name, var_type, body) => {
                 let (mut environment, (var_type_term, _)) =
@@ -206,4 +187,70 @@ fn make_functional_type(
     codomain: SystemFTerm,
 ) -> SystemFTerm {
     SystemFTerm::Product("_".to_string(), Box::new(domain), Box::new(codomain))
+}
+
+fn evaluate_var<'a>(
+    environment: &'a Environment<SystemFTerm, SystemFTerm>,
+    var_name: &str,
+) -> (
+    &'a Environment<SystemFTerm, SystemFTerm>,
+    (SystemFTerm, SystemFTerm),
+) {
+    match environment.get_from_deltas(&var_name) {
+        //TODO should delta-reduce the variable here?
+        Some((var_name, (_, var_type))) => (
+            environment,
+            (
+                SystemFTerm::Variable(var_name.to_string()),
+                var_type.clone(),
+            ),
+        ),
+
+        None => match environment.get_from_context(&var_name) {
+            Some((var_name, var_type)) => (
+                environment,
+                (
+                    SystemFTerm::Variable(var_name.to_string()),
+                    var_type.clone(),
+                ),
+            ),
+            None => panic!("Unbound variable: {}", var_name),
+        },
+    }
+}
+
+#[test]
+fn test_var_evaluation() {
+    let test_var_name = "test_var";
+    let test_var_type = SystemFTerm::Sort("TYPE".to_string());
+    let test_env: Environment<SystemFTerm, SystemFTerm> =
+        Environment::with_defaults(
+            vec![(&test_var_name, &test_var_type)],
+            Vec::new(),
+        );
+
+    let (_, (var, var_type)) = evaluate_var(&test_env, &test_var_name);
+    assert_eq!(
+        var,
+        SystemFTerm::Variable(test_var_name.to_string()),
+        "Variable term not properly constructed"
+    );
+    assert_eq!(var_type, test_var_type, "Variable type mismatch");
+    let (_, (var, var_type)) = Cic::evaluate_expression(
+        Expression::VarUse(test_var_name.to_string()),
+        test_env,
+    );
+    assert_eq!(
+        var,
+        SystemFTerm::Variable(test_var_name.to_string()),
+        "Variable term not properly constructed"
+    );
+    assert_eq!(var_type, test_var_type, "Variable type mismatch");
+}
+#[test]
+#[should_panic]
+fn test_unbound_var_evaluation() {
+    let test_env: Environment<SystemFTerm, SystemFTerm> =
+        Environment::with_defaults(vec![], Vec::new());
+    let _ = evaluate_var(&test_env, "unbound_var");
 }
