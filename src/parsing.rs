@@ -51,7 +51,8 @@ fn parse_parens(input: &str) -> IResult<&str, NsAst> {
     )(input)
 }
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
-    let (input, identifier) = recognize(pair(alpha1, alphanumeric0))(input)?;
+    let (input, identifier) =
+        preceded(multispace0, recognize(pair(alpha1, alphanumeric0)))(input)?;
 
     if RESERVED_KEYWORDS.contains(&identifier) {
         Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
@@ -206,4 +207,44 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
         remaining_input.to_string(),
         NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
     )
+}
+
+#[test]
+fn test_tokens_parser() {
+    // identifier tests
+    assert!(
+        parse_identifier("test").is_ok(),
+        "Identifier cant read identifiers"
+    );
+    assert_eq!(
+        parse_identifier("  test").unwrap(),
+        ("", "test"),
+        "Identifier parser cant cope with whitespaces"
+    );
+    assert_eq!(
+        parse_identifier("test123").unwrap(),
+        ("", "test123"),
+        "Identifier parser cant read numbers/underscores"
+    );
+
+    // comment tests
+    assert!(parse_comment("#abc\n").is_ok(), "Parser cant read comments");
+    assert!(
+        parse_comment("#abc").is_ok(),
+        "Parser cant read comments at end of input"
+    );
+
+    // parenthesis tests
+    assert!(
+        parse_parens("(x)").is_ok(),
+        "Parser cant cope with parenthesis"
+    );
+    assert!(
+        parse_parens("(x").is_err(),
+        "Parser accepts unmatched parenthesis"
+    );
+    assert!(
+        parse_parens("x)").is_err(),
+        "Parser accepts unmatched parenthesis"
+    );
 }
