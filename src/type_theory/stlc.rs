@@ -20,16 +20,10 @@ fn cast_to_type(
     term_type: StlcTerm,
 ) -> StlcType {
     match term_type {
-        StlcTerm::Variable(var_name) => {
-            //TODO this should use a special context for types
-            match env.get_from_context(&var_name) {
-                Some((_, var_type)) => var_type.clone(),
-                None => match env.get_atomic_type(&var_name) {
-                    Some((_, type_obj)) => type_obj.clone(),
-                    None => panic!("Unbound type: {}", var_name),
-                },
-            }
-        }
+        StlcTerm::Variable(var_name) => match env.get_atomic_type(&var_name) {
+            Some((_, type_obj)) => type_obj.clone(),
+            None => panic!("Unbound type: {}", var_name),
+        },
         _ => {
             panic!("Non variable term used in place of a type: {:?}", term_type)
         }
