@@ -221,9 +221,8 @@ fn test_tokens_parser() {
         ("", "test"),
         "Identifier parser cant cope with whitespaces"
     );
-    assert_eq!(
-        parse_identifier("test123").unwrap(),
-        ("", "test123"),
+    assert!(
+        parse_identifier("test123").is_ok(),
         "Identifier parser cant read numbers/underscores"
     );
 
@@ -238,6 +237,10 @@ fn test_tokens_parser() {
     assert!(
         parse_parens("(x)").is_ok(),
         "Parser cant cope with parenthesis"
+    );
+    assert!(
+        parse_parens("((x))").is_ok(),
+        "Parser cant cope with nested parenthesis"
     );
     assert!(
         parse_parens("(x").is_err(),

@@ -1,9 +1,9 @@
-name: Gitea Actions Demo
-run-name: ${{ gitea.actor }} is testing out Gitea Actions 🚀
+name: Theorem prover test pipeline
+run-name: ${{ gitea.actor }} is running tests after a push
 on: [push]
 
 jobs:
-  Explore-Gitea-Actions:
+  Tests_Execution:
     runs-on: ubuntu-latest
     container:
       # this also includes node, needed for the checkout by gitea
