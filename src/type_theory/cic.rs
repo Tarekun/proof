@@ -163,6 +163,9 @@ impl TypeTheory for Cic {
                 environment.add_variable_to_context(&axiom_name, &axiom_term);
                 environment
             }
+            Statement::Inductive(type_name, constructors) => {
+                evaluate_inductive(environment, type_name, constructors)
+            }
             _ => panic!("not implemented"),
         }
     }
@@ -225,6 +228,52 @@ fn evaluate_var<'a>(
             None => panic!("Unbound variable: {}", var_name),
         },
     }
+}
+
+fn evaluate_inductive(
+    mut environment: Environment<SystemFTerm, SystemFTerm>,
+    type_name: String,
+    constructors: Vec<(String, Vec<Expression>)>,
+) -> Environment<SystemFTerm, SystemFTerm> {
+    fn make_constr_type(
+        arguments: &[SystemFTerm],
+        base: SystemFTerm,
+    ) -> SystemFTerm {
+        if arguments.is_empty() {
+            return base;
+        }
+
+        let (arg, rest) = arguments.split_first().unwrap();
+        let sub_type = make_constr_type(rest, base);
+
+        SystemFTerm::Product(
+            "_".to_string(),
+            Box::new(arg.to_owned()),
+            Box::new(sub_type),
+        )
+    }
+
+    for (constr_name, arg_types) in constructors {
+        let mut arg_term_types = vec![];
+        for arg_type_exp in arg_types {
+            let (env, (arg_type, _)) =
+                Cic::evaluate_expression(arg_type_exp, environment);
+            environment = env;
+            arg_term_types.push(arg_type);
+        }
+
+        let constr_type = make_constr_type(
+            &arg_term_types,
+            SystemFTerm::Variable(type_name.clone()),
+        );
+        environment.add_variable_to_context(&constr_name, &constr_type);
+    }
+
+    environment.add_variable_to_context(
+        &type_name,
+        &SystemFTerm::Sort("TYPE".to_string()),
+    );
+    environment
 }
 
 #[test]
