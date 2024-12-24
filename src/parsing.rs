@@ -317,10 +317,118 @@ fn test_tokens_parser() {
 }
 
 #[test]
+fn test_type_theory_terms() {
+    // variable
+    assert!(parse_var("test").is_ok(), "Parser cant read variables");
+    assert_eq!(
+        parse_var("  test\n").unwrap(),
+        ("\n", NsAst::Exp(Expression::VarUse("test".to_string()))),
+        "Variable parser cant cope with whitespaces"
+    );
+
+    // abstraction
+    assert!(
+        parse_abs("λx:T.x").is_ok(),
+        "Parser cant read lambda abstractions"
+    );
+    assert!(
+        parse_abs("λ \tx   :\tT \t . \t x  \n").is_ok(),
+        "Abstraction parser cant cope with whitespaces"
+    );
+    assert!(
+        parse_abs("\\lambda   x :T .  x").is_ok(),
+        "Abstraction parser cant use 'lambda' keyword"
+    );
+    assert_eq!(
+        parse_abs("λn:nat.n").unwrap(),
+        (
+            "",
+            NsAst::Exp(Expression::Abstraction(
+                "n".to_string(),
+                Box::new(Expression::VarUse("nat".to_string())),
+                Box::new(Expression::VarUse("n".to_string()))
+            ))
+        ),
+        "Abstraction struct isnt properly built"
+    );
+
+    // application
+    assert_eq!(
+        parse_app("f x").unwrap(),
+        (
+            "",
+            NsAst::Exp(Expression::Application(
+                Box::new(Expression::VarUse("f".to_string())),
+                Box::new(Expression::VarUse("x".to_string()))
+            ))
+        ),
+        "Parser cant read function application"
+    );
+    //TODO add testing for left associative application
+
+    // type abstraction
+    assert!(
+        parse_type_abs("ΠT:TYPE.T").is_ok(),
+        "Parser cant read type abstractions"
+    );
+    assert!(
+        parse_type_abs("Π \tT   :\tTYPE \t . \t T  \n").is_ok(),
+        "Type abstraction parser cant cope with whitespaces"
+    );
+    assert!(
+        parse_type_abs("\\forall   T :TYPE .  T").is_ok(),
+        "Type abstraction parser cant use 'forall' keyword"
+    );
+    assert_eq!(
+        parse_type_abs("ΠT:TYPE.T").unwrap(),
+        (
+            "",
+            NsAst::Exp(Expression::TypeProduct(
+                "T".to_string(),
+                Box::new(Expression::VarUse("TYPE".to_string())),
+                Box::new(Expression::VarUse("T".to_string()))
+            ))
+        ),
+        "Abstraction struct isnt properly built"
+    );
+}
+
+#[test]
+fn test_let() {
+    assert!(
+        parse_let("let n := x;").is_ok(),
+        "Parser cant read let definitions"
+    );
+    assert!(
+        parse_let("let \t n    :=\t  x  \t;").is_ok(),
+        "Let parser cant cope with multispaces"
+    );
+    assert!(
+        parse_let("letn := x;").is_err(),
+        "Let parser doesnt split 'let' keyword and variable identifier"
+    );
+    assert_eq!(
+        parse_let("let n := x;").unwrap(),
+        (
+            "",
+            NsAst::Stm(Statement::Let(
+                "n".to_string(),
+                Box::new(Expression::VarUse("x".to_string()))
+            ))
+        ),
+        "Let definition struct isnt properly constructed"
+    );
+    assert!(
+        parse_term("let n := x;").is_ok(),
+        "Top level parser can't read axioms"
+    );
+}
+
+#[test]
 fn test_axiom() {
     assert!(
         parse_axiom("axiom nat:TYPE;").is_ok(),
-        "Identifier cant read axioms"
+        "Parser cant read axioms"
     );
     assert!(
         parse_axiom("axiom  nat :\tTYPE  ;").is_ok(),
