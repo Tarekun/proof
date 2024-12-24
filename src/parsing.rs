@@ -66,14 +66,6 @@ fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
             .map(|num: i64| NsAst::Exp(Expression::Num(num)))
     })(input)
 }
-fn parse_comment(input: &str) -> IResult<&str, NsAst> {
-    let (input, _) = multispace0(input)?;
-    let (input, _) = tag("#")(input)?;
-    let (input, _) = not_line_ending(input)?;
-    let (input, _) = opt(line_ending)(input)?;
-
-    Ok((input, NsAst::Stm(Statement::Comment())))
-}
 //########################### BASIC TOKEN PARSERS
 
 //########################### EXPRESSION PARSERS
@@ -171,6 +163,15 @@ fn parse_let(input: &str) -> IResult<&str, NsAst> {
 //########################### EXPRESSION PARSERS
 
 //########################### STATEMENT PARSERS
+fn parse_comment(input: &str) -> IResult<&str, NsAst> {
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag("#")(input)?;
+    let (input, _) = not_line_ending(input)?;
+    let (input, _) = opt(line_ending)(input)?;
+
+    Ok((input, NsAst::Stm(Statement::Comment())))
+}
+
 fn parse_axiom(input: &str) -> IResult<&str, NsAst> {
     let (input, _) = preceded(multispace0, tag("axiom"))(input)?;
     let (input, axiom_name) = preceded(multispace1, parse_identifier)(input)?;
