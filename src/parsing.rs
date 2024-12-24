@@ -1,3 +1,4 @@
+use crate::file_manager;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -12,13 +13,12 @@ use nom::{
     IResult,
 };
 
-use crate::file_manager;
-
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
     Let(String, Box<Expression>),
+    Axiom(String, Box<Expression>),
 }
 #[derive(Debug, PartialEq)]
 pub enum Expression {
@@ -36,7 +36,7 @@ pub enum NsAst {
     Exp(Expression),
 }
 
-const RESERVED_KEYWORDS: [&str; 1] = ["let"];
+const RESERVED_KEYWORDS: [&str; 2] = ["let", "axiom"];
 fn generic_err(input: &str) -> IResult<&str, NsAst> {
     //TODO ever support an error message?
     Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
@@ -66,16 +66,9 @@ fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
             .map(|num: i64| NsAst::Exp(Expression::Num(num)))
     })(input)
 }
-fn parse_comment(input: &str) -> IResult<&str, NsAst> {
-    let (input, _) = multispace0(input)?;
-    let (input, _) = tag("#")(input)?;
-    let (input, _) = not_line_ending(input)?;
-    let (input, _) = opt(line_ending)(input)?;
-
-    Ok((input, NsAst::Stm(Statement::Comment())))
-}
 //########################### BASIC TOKEN PARSERS
 
+//########################### EXPRESSION PARSERS
 fn parse_var(input: &str) -> IResult<&str, NsAst> {
     map(parse_identifier, |s: &str| {
         NsAst::Exp(Expression::VarUse(s.to_string()))
@@ -167,6 +160,34 @@ fn parse_let(input: &str) -> IResult<&str, NsAst> {
         NsAst::Stm(_) => generic_err(input),
     }
 }
+//########################### EXPRESSION PARSERS
+
+//########################### STATEMENT PARSERS
+fn parse_comment(input: &str) -> IResult<&str, NsAst> {
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag("#")(input)?;
+    let (input, _) = not_line_ending(input)?;
+    let (input, _) = opt(line_ending)(input)?;
+
+    Ok((input, NsAst::Stm(Statement::Comment())))
+}
+
+fn parse_axiom(input: &str) -> IResult<&str, NsAst> {
+    let (input, _) = preceded(multispace0, tag("axiom"))(input)?;
+    let (input, axiom_name) = preceded(multispace1, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, term) = preceded(multispace0, parse_term)(input)?;
+    let (input, _) = preceded(multispace0, char(';'))(input)?;
+
+    match term {
+        NsAst::Exp(exp) => Ok((
+            input,
+            NsAst::Stm(Statement::Axiom(axiom_name.to_string(), Box::new(exp))),
+        )),
+        NsAst::Stm(_) => generic_err(input),
+    }
+}
+//########################### STATEMENT PARSERS
 
 //TODO: refactor these 2, this is ridiculous
 fn atomic_parsers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, NsAst> {
@@ -177,6 +198,7 @@ fn atomic_parsers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, NsAst> {
         parse_var,
         parse_numeral,
         parse_comment,
+        parse_axiom,
     ))
 }
 // Atomic term parser used for function application
@@ -214,7 +236,7 @@ fn test_tokens_parser() {
     // identifier tests
     assert!(
         parse_identifier("test").is_ok(),
-        "Identifier cant read identifiers"
+        "Parser cant read identifiers"
     );
     assert_eq!(
         parse_identifier("  test").unwrap(),
@@ -249,5 +271,25 @@ fn test_tokens_parser() {
     assert!(
         parse_parens("x)").is_err(),
         "Parser accepts unmatched parenthesis"
+    );
+}
+
+#[test]
+fn test_axiom() {
+    assert!(
+        parse_axiom("axiom nat:TYPE;").is_ok(),
+        "Identifier cant read axioms"
+    );
+    assert!(
+        parse_axiom("axiom  nat :\tTYPE  ;").is_ok(),
+        "Axiom parser cant cope with multispaces"
+    );
+    assert!(
+        parse_axiom("axiomnat:TYPE;").is_err(),
+        "Axiom parser doesnt split 'axiom' keyword and axiom identifier"
+    );
+    assert!(
+        parse_term("axiom nat:TYPE;").is_ok(),
+        "Top level parser can't read axioms"
     );
 }

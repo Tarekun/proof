@@ -1,4 +1,4 @@
-use crate::parsing::{self, Expression, NsAst, Statement};
+use crate::parsing::{Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -125,17 +125,17 @@ impl TypeTheory for Cic {
         environment: Environment<SystemFTerm, SystemFTerm>,
     ) -> Environment<SystemFTerm, SystemFTerm> {
         match ast {
-            parsing::Statement::Comment() => environment,
-            parsing::Statement::FileRoot(_, asts) => {
+            Statement::Comment() => environment,
+            Statement::FileRoot(_, asts) => {
                 let mut current_env = environment;
 
                 for sub_ast in asts {
                     match sub_ast {
-                        parsing::NsAst::Stm(stm) => {
+                        NsAst::Stm(stm) => {
                             current_env =
                                 Cic::evaluate_statement(stm, current_env)
                         }
-                        parsing::NsAst::Exp(exp) => {
+                        NsAst::Exp(exp) => {
                             let (new_env, _) =
                                 Cic::evaluate_expression(exp, current_env);
                             current_env = new_env;
@@ -145,7 +145,7 @@ impl TypeTheory for Cic {
 
                 current_env
             }
-            parsing::Statement::Let(var_name, ast) => {
+            Statement::Let(var_name, ast) => {
                 let (mut environment, (assigned_term, term_type)) =
                     Cic::evaluate_expression(*ast, environment);
 
@@ -156,6 +156,14 @@ impl TypeTheory for Cic {
                 );
                 environment
             }
+            Statement::Axiom(axiom_name, ast) => {
+                let (mut environment, (axiom_term, axiom_type)) =
+                    Cic::evaluate_expression(*ast, environment);
+                //TODO should also add axiom_term : axiom_type ?
+                environment.add_variable_to_context(&axiom_name, &axiom_term);
+                environment
+            }
+            _ => panic!("not implemented"),
         }
     }
 
@@ -177,7 +185,7 @@ impl TypeTheory for Cic {
 fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
     let TYPE = SystemFTerm::Sort("TYPE".to_string());
     let axioms: Vec<(&str, &SystemFTerm)> =
-        vec![("TYPE", &TYPE), ("nat", &TYPE)];
+        vec![("TYPE", &TYPE), ("PROP", &TYPE)];
 
     Environment::with_defaults(axioms, Vec::default())
 }

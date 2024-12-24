@@ -158,6 +158,7 @@ impl TypeTheory for Stlc {
                 );
                 environment
             }
+            _ => panic!("not implemented"),
         }
     }
 
