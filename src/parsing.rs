@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::file_manager;
 use nom::{
     branch::alt,
@@ -21,8 +19,7 @@ pub enum Statement {
     FileRoot(String, Vec<NsAst>),
     Let(String, Box<Expression>),
     Axiom(String, Box<Expression>),
-    Inductive(String, Vec<Statement>),
-    InductiveConstructor(String, Vec<Expression>),
+    Inductive(String, Vec<(String, Vec<Expression>)>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -165,7 +162,9 @@ fn parse_let(input: &str) -> IResult<&str, NsAst> {
     }
 }
 
-fn parse_inductive_constructor(input: &str) -> IResult<&str, Statement> {
+fn parse_inductive_constructor(
+    input: &str,
+) -> IResult<&str, (String, Vec<Expression>)> {
     let (input, _) = preceded(multispace0, char('|'))(input)?;
     let (input, constructor_name) =
         preceded(multispace0, parse_identifier)(input)?;
@@ -182,13 +181,7 @@ fn parse_inductive_constructor(input: &str) -> IResult<&str, Statement> {
         }
     }
 
-    Ok((
-        input,
-        Statement::InductiveConstructor(
-            constructor_name.to_string(),
-            type_expressions,
-        ),
-    ))
+    Ok((input, (constructor_name.to_string(), type_expressions)))
 }
 
 fn parse_inductive_def(input: &str) -> IResult<&str, NsAst> {
@@ -347,10 +340,7 @@ fn test_axiom() {
 fn test_inductive() {
     let test_definition = NsAst::Stm(Statement::Inductive(
         "T".to_string(),
-        vec![
-            Statement::InductiveConstructor("c".to_string(), vec![]),
-            Statement::InductiveConstructor("g".to_string(), vec![]),
-        ],
+        vec![("c".to_string(), vec![]), ("g".to_string(), vec![])],
     ));
 
     assert_eq!(
@@ -375,14 +365,14 @@ fn test_inductive() {
             NsAst::Stm(Statement::Inductive(
                 "T".to_string(),
                 vec![
-                    Statement::InductiveConstructor(
+                    (
                         "c".to_string(),
                         vec![Expression::Application(
                             Box::new(Expression::VarUse("list".to_string())),
                             Box::new(Expression::VarUse("nat".to_string())),
                         )]
                     ),
-                    Statement::InductiveConstructor(
+                    (
                         "g".to_string(),
                         vec![
                             Expression::VarUse("nat".to_string()),
