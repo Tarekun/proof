@@ -13,16 +13,13 @@ pub trait TypeTheory {
     /// Evaluate a statement in the given environment.
     fn evaluate_statement(
         ast: Statement,
-        environment: Environment<Self::Term, Self::Type>,
-    ) -> Environment<Self::Term, Self::Type>;
+        environment: &mut Environment<Self::Term, Self::Type>,
+    );
 
     /// Evaluate a single expression, updating the environment and returning
     /// the result as a term of the type theory.
     fn evaluate_expression(
         ast: Expression,
-        environment: Environment<Self::Term, Self::Type>,
-    ) -> (
-        Environment<Self::Term, Self::Type>,
-        (Self::Term, Self::Type),
-    );
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> (Self::Term, Self::Type);
 }

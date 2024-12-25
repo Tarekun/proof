@@ -25,22 +25,18 @@ impl TypeTheory for Cic {
 
     fn evaluate_expression(
         ast: Expression,
-        environment: Environment<SystemFTerm, SystemFTerm>,
-    ) -> (
-        Environment<SystemFTerm, SystemFTerm>,
-        (SystemFTerm, SystemFTerm),
-    ) {
+        environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    ) -> (SystemFTerm, SystemFTerm) {
         match ast {
             Expression::VarUse(var_name) => {
-                let (env, rest) = evaluate_var(&environment, &var_name);
-                (env.clone(), rest) //TODO change type of the function and avoid cloning
+                evaluate_var(&environment, &var_name)
             }
             Expression::Abstraction(var_name, var_type, body) => {
-                let (mut environment, (var_type_term, _)) =
+                let (var_type_term, _) =
                     Cic::evaluate_expression(*var_type, environment);
                 //TODO update the context only temporarily, during body evaluation
                 environment.add_variable_to_context(&var_name, &var_type_term);
-                let (environment, (body_term, body_type)) =
+                let (body_term, body_type) =
                     Cic::evaluate_expression(*body, environment);
 
                 let function = SystemFTerm::Abstraction(
@@ -49,17 +45,14 @@ impl TypeTheory for Cic {
                     Box::new(body_term),
                 );
 
-                (
-                    environment,
-                    (function, make_functional_type(var_type_term, body_type)),
-                )
+                (function, make_functional_type(var_type_term, body_type))
             }
             Expression::TypeProduct(var_name, var_type, body) => {
-                let (mut environment, (type_term, _)) =
+                let (type_term, _) =
                     Cic::evaluate_expression(*var_type, environment);
                 //TODO update the context only temporarily, during body evaluation
                 environment.add_variable_to_context(&var_name, &type_term);
-                let (environment, (body_term, _)) =
+                let (body_term, _) =
                     Cic::evaluate_expression(*body, environment);
 
                 let dependent_type = SystemFTerm::Product(
@@ -68,39 +61,30 @@ impl TypeTheory for Cic {
                     Box::new(body_term),
                 );
 
-                (
-                    environment,
-                    (dependent_type, SystemFTerm::Sort("TYPE".to_string())),
-                )
+                (dependent_type, SystemFTerm::Sort("TYPE".to_string()))
             }
             Expression::Application(left, right) => {
-                let (environment, (left_term, function_type)) =
+                let (left_term, function_type) =
                     Cic::evaluate_expression(*left, environment);
-                let (environment, (right_term, _)) =
+                let (right_term, _) =
                     Cic::evaluate_expression(*right, environment);
 
                 match function_type {
                     SystemFTerm::Product(_, _, codomain) => (
-                        environment,
-                        (
                             SystemFTerm::Application(
                                 Box::new(left_term),
                                 Box::new(right_term),
                             ),
                             *codomain, //TODO: how do i handle dependent types?
-                        ),
                     ),
                     SystemFTerm::Sort(_) => {
                         match left_term.clone() {
                             SystemFTerm::Product(_, _, codomain) => (
-                                environment,
-                                (
                                     SystemFTerm::Application(
                                         Box::new(left_term),
                                         Box::new(right_term),
                                     ),
                                     *codomain, //TODO: how do i handle dependent types?
-                                ),
                             ),
                             _ => panic!(
                                 "application of a non functional term TF?! term {:?} : {:?}",
@@ -122,31 +106,25 @@ impl TypeTheory for Cic {
 
     fn evaluate_statement(
         ast: Statement,
-        environment: Environment<SystemFTerm, SystemFTerm>,
-    ) -> Environment<SystemFTerm, SystemFTerm> {
+        environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    ) {
         match ast {
-            Statement::Comment() => environment,
+            Statement::Comment() => {}
             Statement::FileRoot(_, asts) => {
-                let mut current_env = environment;
-
                 for sub_ast in asts {
                     match sub_ast {
                         NsAst::Stm(stm) => {
-                            current_env =
-                                Cic::evaluate_statement(stm, current_env)
+                            Cic::evaluate_statement(stm, environment)
                         }
                         NsAst::Exp(exp) => {
-                            let (new_env, _) =
-                                Cic::evaluate_expression(exp, current_env);
-                            current_env = new_env;
+                            let (_, _) =
+                                Cic::evaluate_expression(exp, environment);
                         }
                     }
                 }
-
-                current_env
             }
             Statement::Let(var_name, ast) => {
-                let (mut environment, (assigned_term, term_type)) =
+                let (assigned_term, term_type) =
                     Cic::evaluate_expression(*ast, environment);
 
                 environment.add_variable_definition(
@@ -154,33 +132,31 @@ impl TypeTheory for Cic {
                     &assigned_term,
                     &term_type,
                 );
-                environment
             }
             Statement::Axiom(axiom_name, ast) => {
-                let (mut environment, (axiom_term, axiom_type)) =
+                let (axiom_term, axiom_type) =
                     Cic::evaluate_expression(*ast, environment);
                 //TODO should also add axiom_term : axiom_type ?
                 environment.add_variable_to_context(&axiom_name, &axiom_term);
-                environment
             }
             Statement::Inductive(type_name, constructors) => {
-                evaluate_inductive(environment, type_name, constructors)
+                let _ =
+                    evaluate_inductive(environment, type_name, constructors);
             }
             _ => panic!("not implemented"),
         }
     }
 
     fn evaluate_ast(ast: NsAst) -> Environment<SystemFTerm, SystemFTerm> {
+        let mut env = make_default_environment();
         match ast {
-            NsAst::Stm(stm) => {
-                Cic::evaluate_statement(stm, make_default_environment())
-            }
+            NsAst::Stm(stm) => Cic::evaluate_statement(stm, &mut env),
             NsAst::Exp(exp) => {
-                let (new_env, _) =
-                    Cic::evaluate_expression(exp, make_default_environment());
-                new_env
+                let (_, _) = Cic::evaluate_expression(exp, &mut env);
             }
         }
+
+        env
     }
 }
 
@@ -200,30 +176,21 @@ fn make_functional_type(
     SystemFTerm::Product("_".to_string(), Box::new(domain), Box::new(codomain))
 }
 
-fn evaluate_var<'a>(
-    environment: &'a Environment<SystemFTerm, SystemFTerm>,
+fn evaluate_var(
+    environment: &Environment<SystemFTerm, SystemFTerm>,
     var_name: &str,
-) -> (
-    &'a Environment<SystemFTerm, SystemFTerm>,
-    (SystemFTerm, SystemFTerm),
-) {
+) -> (SystemFTerm, SystemFTerm) {
     match environment.get_from_deltas(&var_name) {
         //TODO should delta-reduce the variable here?
         Some((var_name, (_, var_type))) => (
-            environment,
-            (
-                SystemFTerm::Variable(var_name.to_string()),
-                var_type.clone(),
-            ),
+            SystemFTerm::Variable(var_name.to_string()),
+            var_type.clone(),
         ),
 
         None => match environment.get_from_context(&var_name) {
             Some((var_name, var_type)) => (
-                environment,
-                (
-                    SystemFTerm::Variable(var_name.to_string()),
-                    var_type.clone(),
-                ),
+                SystemFTerm::Variable(var_name.to_string()),
+                var_type.clone(),
             ),
             None => panic!("Unbound variable: {}", var_name),
         },
@@ -231,10 +198,10 @@ fn evaluate_var<'a>(
 }
 
 fn evaluate_inductive(
-    mut environment: Environment<SystemFTerm, SystemFTerm>,
+    environment: &mut Environment<SystemFTerm, SystemFTerm>,
     type_name: String,
     constructors: Vec<(String, Vec<Expression>)>,
-) -> Environment<SystemFTerm, SystemFTerm> {
+) {
     fn make_constr_type(
         arguments: &[SystemFTerm],
         base: SystemFTerm,
@@ -256,9 +223,8 @@ fn evaluate_inductive(
     for (constr_name, arg_types) in constructors {
         let mut arg_term_types = vec![];
         for arg_type_exp in arg_types {
-            let (env, (arg_type, _)) =
+            let (arg_type, _) =
                 Cic::evaluate_expression(arg_type_exp, environment);
-            environment = env;
             arg_term_types.push(arg_type);
         }
 
@@ -273,29 +239,28 @@ fn evaluate_inductive(
         &type_name,
         &SystemFTerm::Sort("TYPE".to_string()),
     );
-    environment
 }
 
 #[test]
 fn test_var_evaluation() {
     let test_var_name = "test_var";
     let test_var_type = SystemFTerm::Sort("TYPE".to_string());
-    let test_env: Environment<SystemFTerm, SystemFTerm> =
+    let mut test_env: Environment<SystemFTerm, SystemFTerm> =
         Environment::with_defaults(
             vec![(&test_var_name, &test_var_type)],
             Vec::new(),
         );
 
-    let (_, (var, var_type)) = evaluate_var(&test_env, &test_var_name);
+    let (var, var_type) = evaluate_var(&test_env, &test_var_name);
     assert_eq!(
         var,
         SystemFTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
     assert_eq!(var_type, test_var_type, "Variable type mismatch");
-    let (_, (var, var_type)) = Cic::evaluate_expression(
+    let (var, var_type) = Cic::evaluate_expression(
         Expression::VarUse(test_var_name.to_string()),
-        test_env,
+        &mut test_env,
     );
     assert_eq!(
         var,
