@@ -152,7 +152,6 @@ fn parse_match_branch(
 }
 fn parse_pattern_match(input: &str) -> IResult<&str, Expression> {
     let (input, _) = preceded(multispace0, tag("match"))(input)?;
-    //TODO support using generic expressions and not only variables
     let (input, term) = preceded(multispace1, parse_expression)(input)?;
     let (input, _) = preceded(multispace1, tag("with"))(input)?;
     let (input, branches) = many1(parse_match_branch)(input)?;
