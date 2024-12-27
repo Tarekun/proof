@@ -17,7 +17,6 @@ use nom::{
 pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
-    Let(String, Box<Expression>),
     Axiom(String, Box<Expression>),
     Inductive(String, Vec<(String, Vec<Expression>)>),
 }
@@ -29,6 +28,8 @@ pub enum Expression {
     /// (var_name, var_type, dependent_type)
     TypeProduct(String, Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
+    /// (var_name, definition_body)
+    Let(String, Box<Expression>),
     Num(i64),
 }
 #[derive(Debug, PartialEq, Clone)]
@@ -44,13 +45,6 @@ fn generic_err(input: &str) -> IResult<&str, NsAst> {
 }
 
 //########################### BASIC TOKEN PARSERS
-fn parse_parens(input: &str) -> IResult<&str, NsAst> {
-    delimited(
-        preceded(multispace0, char('(')),
-        parse_term,
-        preceded(multispace0, char(')')),
-    )(input)
-}
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
     let (input, identifier) =
         preceded(multispace0, recognize(pair(alpha1, alphanumeric0)))(input)?;
@@ -61,107 +55,111 @@ fn parse_identifier(input: &str) -> IResult<&str, &str> {
         Ok((input, identifier))
     }
 }
-fn parse_numeral(input: &str) -> IResult<&str, NsAst> {
+fn parse_numeral(input: &str) -> IResult<&str, Expression> {
     map_res(preceded(multispace0, digit1), |s: &str| {
-        s.parse::<i64>()
-            .map(|num: i64| NsAst::Exp(Expression::Num(num)))
+        s.parse::<i64>().map(|num: i64| Expression::Num(num))
     })(input)
 }
 //########################### BASIC TOKEN PARSERS
 
 //########################### EXPRESSION PARSERS
-fn parse_var(input: &str) -> IResult<&str, NsAst> {
+fn parse_parens(input: &str) -> IResult<&str, Expression> {
+    delimited(
+        preceded(multispace0, char('(')),
+        parse_expression,
+        preceded(multispace0, char(')')),
+    )(input)
+}
+
+fn parse_var(input: &str) -> IResult<&str, Expression> {
     map(parse_identifier, |s: &str| {
-        NsAst::Exp(Expression::VarUse(s.to_string()))
+        Expression::VarUse(s.to_string())
     })(input)
 }
 
-fn parse_abs(input: &str) -> IResult<&str, NsAst> {
+fn parse_abs(input: &str) -> IResult<&str, Expression> {
     let (input, _) =
         preceded(multispace0, alt((tag("λ"), tag("\\lambda "))))(input)?;
     let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    //TODO should allow product type expressions here or only predefined type vars?
     let (input, type_var) = preceded(multispace0, parse_var)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
-    let (input, body) = preceded(multispace0, parse_term)(input)?;
+    let (input, body) = preceded(multispace0, parse_expression)(input)?;
 
-    match body {
-        NsAst::Exp(body_exp) => match type_var {
-            NsAst::Exp(type_exp) => Ok((
-                input,
-                NsAst::Exp(Expression::Abstraction(
-                    var_name.to_string(),
-                    Box::new(type_exp),
-                    Box::new(body_exp),
-                )),
-            )),
-            NsAst::Stm(_) => generic_err(input),
-        },
-        NsAst::Stm(_) => generic_err(input),
-    }
+    Ok((
+        input,
+        Expression::Abstraction(
+            var_name.to_string(),
+            Box::new(type_var),
+            Box::new(body),
+        ),
+    ))
 }
 
-fn parse_type_abs(input: &str) -> IResult<&str, NsAst> {
+fn parse_type_abs(input: &str) -> IResult<&str, Expression> {
     let (input, _) =
         preceded(multispace0, alt((tag("Π"), tag("\\forall"))))(input)?;
     let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    //TODO should allow product type expressions here or only predefined type vars?
     let (input, type_var) = preceded(multispace0, parse_var)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
-    let (input, body) = preceded(multispace0, parse_term)(input)?;
+    let (input, body) = preceded(multispace0, parse_expression)(input)?;
 
-    match body {
-        NsAst::Exp(body_exp) => match type_var {
-            NsAst::Exp(type_exp) => Ok((
-                input,
-                NsAst::Exp(Expression::TypeProduct(
-                    var_name.to_string(),
-                    Box::new(type_exp),
-                    Box::new(body_exp),
-                )),
-            )),
-            NsAst::Stm(_) => generic_err(input),
-        },
-        NsAst::Stm(_) => generic_err(input),
-    }
+    Ok((
+        input,
+        Expression::TypeProduct(
+            var_name.to_string(),
+            Box::new(type_var),
+            Box::new(body),
+        ),
+    ))
 }
 
-fn parse_app(input: &str) -> IResult<&str, NsAst> {
-    let (input, left) = preceded(multispace0, parse_atom)(input)?; // Parse the left term (atomic term)
+fn parse_app(input: &str) -> IResult<&str, Expression> {
+    let (input, left) = preceded(multispace0, parse_atomic_expression)(input)?; // Parse the left term (atomic term)
     let (input, _) = multispace1(input)?;
-    let (input, right) = preceded(multispace0, parse_term)(input)?;
+    let (input, right) = preceded(multispace0, parse_expression)(input)?;
 
-    match left {
-        NsAst::Exp(left_exp) => match right {
-            NsAst::Exp(right_exp) => Ok((
-                input,
-                NsAst::Exp(Expression::Application(
-                    Box::new(left_exp),
-                    Box::new(right_exp),
-                )),
-            )),
-            NsAst::Stm(_) => generic_err(input),
-        },
-        NsAst::Stm(_) => generic_err(input),
-    }
+    Ok((
+        input,
+        Expression::Application(Box::new(left), Box::new(right)),
+    ))
 }
 
-fn parse_let(input: &str) -> IResult<&str, NsAst> {
+fn parse_let(input: &str) -> IResult<&str, Expression> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
     let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":="))(input)?;
-    let (input, term) = preceded(multispace0, parse_term)(input)?;
+    let (input, term) = preceded(multispace0, parse_expression)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
-    match term {
-        NsAst::Exp(exp) => Ok((
-            input,
-            NsAst::Stm(Statement::Let(var_name.to_string(), Box::new(exp))),
-        )),
-        NsAst::Stm(_) => generic_err(input),
-    }
+    Ok((input, Expression::Let(var_name.to_string(), Box::new(term))))
 }
 
+//TODO: refactor these 2, this is ridiculous
+fn atomic_expression<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, Expression>
+{
+    alt((
+        parse_abs,
+        parse_type_abs,
+        parse_var,
+        parse_let,
+        parse_numeral,
+        parse_parens,
+    ))
+}
+// Atomic term parser used for function application
+fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
+    atomic_expression()(input)
+}
+fn parse_expression(input: &str) -> IResult<&str, Expression> {
+    alt((parse_app, parse_atomic_expression))(input)
+}
+//########################### EXPRESSION PARSERS
+
+//########################### STATEMENT PARSERS
 fn parse_inductive_constructor(
     input: &str,
 ) -> IResult<&str, (String, Vec<Expression>)> {
@@ -171,20 +169,10 @@ fn parse_inductive_constructor(
     let (input, args) =
         many0(preceded(multispace1, alt((parse_var, parse_parens))))(input)?;
 
-    let mut type_expressions = vec![];
-    for arg in args {
-        match arg {
-            NsAst::Exp(exp) => type_expressions.push(exp),
-            NsAst::Stm(_) => {
-                return Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
-            }
-        }
-    }
-
-    Ok((input, (constructor_name.to_string(), type_expressions)))
+    Ok((input, (constructor_name.to_string(), args)))
 }
 
-fn parse_inductive_def(input: &str) -> IResult<&str, NsAst> {
+fn parse_inductive_def(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("inductive"))(input)?;
     let (input, inductive_type_name) =
         preceded(multispace1, parse_identifier)(input)?;
@@ -194,61 +182,45 @@ fn parse_inductive_def(input: &str) -> IResult<&str, NsAst> {
 
     Ok((
         input,
-        NsAst::Stm(Statement::Inductive(
-            inductive_type_name.to_string(),
-            constructors,
-        )),
+        Statement::Inductive(inductive_type_name.to_string(), constructors),
     ))
 }
-//########################### EXPRESSION PARSERS
 
-//########################### STATEMENT PARSERS
-fn parse_comment(input: &str) -> IResult<&str, NsAst> {
+fn parse_comment(input: &str) -> IResult<&str, Statement> {
     let (input, _) = multispace0(input)?;
     let (input, _) = tag("#")(input)?;
     let (input, _) = not_line_ending(input)?;
     let (input, _) = opt(line_ending)(input)?;
 
-    Ok((input, NsAst::Stm(Statement::Comment())))
+    Ok((input, Statement::Comment()))
 }
 
-fn parse_axiom(input: &str) -> IResult<&str, NsAst> {
+fn parse_axiom(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("axiom"))(input)?;
     let (input, axiom_name) = preceded(multispace1, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":"))(input)?;
-    let (input, term) = preceded(multispace0, parse_term)(input)?;
+    let (input, formula) = preceded(multispace0, parse_expression)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
-    match term {
-        NsAst::Exp(exp) => Ok((
-            input,
-            NsAst::Stm(Statement::Axiom(axiom_name.to_string(), Box::new(exp))),
-        )),
-        NsAst::Stm(_) => generic_err(input),
-    }
+    Ok((
+        input,
+        Statement::Axiom(axiom_name.to_string(), Box::new(formula)),
+    ))
+}
+
+fn parse_statement(input: &str) -> IResult<&str, Statement> {
+    alt((parse_comment, parse_axiom, parse_inductive_def))(input)
 }
 //########################### STATEMENT PARSERS
 
-//TODO: refactor these 2, this is ridiculous
-fn atomic_parsers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, NsAst> {
+/// Top level parser for single nodes that wraps expressions and statements
+fn parse_node(input: &str) -> IResult<&str, NsAst> {
     alt((
-        parse_parens,
-        parse_abs,
-        parse_type_abs,
-        parse_var,
-        parse_numeral,
-        parse_comment,
-        parse_axiom,
-        parse_inductive_def,
-    ))
-}
-// Atomic term parser used for function application
-fn parse_atom(input: &str) -> IResult<&str, NsAst> {
-    atomic_parsers()(input)
-}
-// Main term parser that decides between variables, abstractions, or applications
-fn parse_term(input: &str) -> IResult<&str, NsAst> {
-    alt((parse_app, parse_let, atomic_parsers()))(input)
+        // Try to parse a Statement and wrap it in NsAst::Stm
+        map(parse_statement, NsAst::Stm),
+        // Try to parse an Expression and wrap it in NsAst::Exp
+        map(parse_expression, NsAst::Exp),
+    ))(input)
 }
 
 pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
@@ -258,7 +230,7 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
             panic!("Error reading file: {:?}", e);
         }
     };
-    let result = many0(parse_term)(&source);
+    let result = many0(parse_node)(&source);
     let (remaining_input, terms) = match result {
         Ok((remaining, terms)) => (remaining, terms),
         Err(e) => {
@@ -296,6 +268,11 @@ fn test_tokens_parser() {
         parse_comment("#abc").is_ok(),
         "Parser cant read comments at end of input"
     );
+    assert_eq!(
+        parse_comment("#abc").unwrap(),
+        ("", Statement::Comment()),
+        "Comment node isnt properly constructed"
+    );
 
     // parenthesis tests
     assert!(
@@ -314,6 +291,11 @@ fn test_tokens_parser() {
         parse_parens("x)").is_err(),
         "Parser accepts unmatched parenthesis"
     );
+    assert_eq!(
+        parse_parens("(x)").unwrap(),
+        ("", Expression::VarUse("x".to_string())),
+        "Parenthesis parser doesnt produce subterm properly"
+    );
 }
 
 #[test]
@@ -322,7 +304,7 @@ fn test_type_theory_terms() {
     assert!(parse_var("test").is_ok(), "Parser cant read variables");
     assert_eq!(
         parse_var("  test\n").unwrap(),
-        ("\n", NsAst::Exp(Expression::VarUse("test".to_string()))),
+        ("\n", Expression::VarUse("test".to_string())),
         "Variable parser cant cope with whitespaces"
     );
 
@@ -343,11 +325,11 @@ fn test_type_theory_terms() {
         parse_abs("λn:nat.n").unwrap(),
         (
             "",
-            NsAst::Exp(Expression::Abstraction(
+            Expression::Abstraction(
                 "n".to_string(),
                 Box::new(Expression::VarUse("nat".to_string())),
                 Box::new(Expression::VarUse("n".to_string()))
-            ))
+            )
         ),
         "Abstraction struct isnt properly built"
     );
@@ -357,10 +339,10 @@ fn test_type_theory_terms() {
         parse_app("f x").unwrap(),
         (
             "",
-            NsAst::Exp(Expression::Application(
+            Expression::Application(
                 Box::new(Expression::VarUse("f".to_string())),
                 Box::new(Expression::VarUse("x".to_string()))
-            ))
+            )
         ),
         "Parser cant read function application"
     );
@@ -383,11 +365,11 @@ fn test_type_theory_terms() {
         parse_type_abs("ΠT:TYPE.T").unwrap(),
         (
             "",
-            NsAst::Exp(Expression::TypeProduct(
+            Expression::TypeProduct(
                 "T".to_string(),
                 Box::new(Expression::VarUse("TYPE".to_string())),
                 Box::new(Expression::VarUse("T".to_string()))
-            ))
+            )
         ),
         "Abstraction struct isnt properly built"
     );
@@ -411,15 +393,15 @@ fn test_let() {
         parse_let("let n := x;").unwrap(),
         (
             "",
-            NsAst::Stm(Statement::Let(
+            Expression::Let(
                 "n".to_string(),
                 Box::new(Expression::VarUse("x".to_string()))
-            ))
+            )
         ),
         "Let definition struct isnt properly constructed"
     );
     assert!(
-        parse_term("let n := x;").is_ok(),
+        parse_node("let n := x;").is_ok(),
         "Top level parser can't read axioms"
     );
 }
@@ -438,18 +420,29 @@ fn test_axiom() {
         parse_axiom("axiomnat:TYPE;").is_err(),
         "Axiom parser doesnt split 'axiom' keyword and axiom identifier"
     );
+    assert_eq!(
+        parse_axiom("axiom nat : TYPE;").unwrap(),
+        (
+            "",
+            Statement::Axiom(
+                "nat".to_string(),
+                Box::new(Expression::VarUse("TYPE".to_string()))
+            )
+        ),
+        "Axiom node isnt properly constructed"
+    );
     assert!(
-        parse_term("axiom nat:TYPE;").is_ok(),
+        parse_node("axiom nat:TYPE;").is_ok(),
         "Top level parser can't read axioms"
     );
 }
 
 #[test]
 fn test_inductive() {
-    let test_definition = NsAst::Stm(Statement::Inductive(
+    let test_definition = Statement::Inductive(
         "T".to_string(),
         vec![("c".to_string(), vec![]), ("g".to_string(), vec![])],
-    ));
+    );
 
     assert_eq!(
         parse_inductive_def("inductive T := \n| c \n| \tg;").unwrap(),
@@ -470,7 +463,7 @@ fn test_inductive() {
             .unwrap(),
         (
             "",
-            NsAst::Stm(Statement::Inductive(
+            Statement::Inductive(
                 "T".to_string(),
                 vec![
                     (
@@ -488,12 +481,12 @@ fn test_inductive() {
                         ]
                     ),
                 ],
-            ))
+            )
         ),
         "Inductive constructor parser cant properly parse constructor types"
     );
     assert!(
-        parse_term("inductive T := \n\t| c (list nat) \n\t| g nat nat;")
+        parse_node("inductive T := \n\t| c (list nat) \n\t| g nat nat;")
             .is_ok(),
         "Top level parser cant parse inductive definitions"
     );

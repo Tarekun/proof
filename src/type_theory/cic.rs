@@ -100,6 +100,18 @@ impl TypeTheory for Cic {
                     ),
                 }
             }
+            Expression::Let(var_name, body) => {
+                let (assigned_term, term_type) =
+                    Cic::evaluate_expression(*body, environment);
+
+                environment.add_variable_definition(
+                    &var_name,
+                    &assigned_term,
+                    &term_type,
+                );
+
+                (SystemFTerm::Variable(var_name), term_type)
+            }
             _ => panic!("not implemented"),
         }
     }
@@ -122,16 +134,6 @@ impl TypeTheory for Cic {
                         }
                     }
                 }
-            }
-            Statement::Let(var_name, ast) => {
-                let (assigned_term, term_type) =
-                    Cic::evaluate_expression(*ast, environment);
-
-                environment.add_variable_definition(
-                    &var_name,
-                    &assigned_term,
-                    &term_type,
-                );
             }
             Statement::Axiom(axiom_name, ast) => {
                 let (axiom_term, axiom_type) =
