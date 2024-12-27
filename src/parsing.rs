@@ -39,10 +39,6 @@ pub enum NsAst {
 }
 
 const RESERVED_KEYWORDS: [&str; 3] = ["let", "axiom", "inductive"];
-fn generic_err(input: &str) -> IResult<&str, NsAst> {
-    //TODO ever support an error message?
-    Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
-}
 
 //########################### BASIC TOKEN PARSERS
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
