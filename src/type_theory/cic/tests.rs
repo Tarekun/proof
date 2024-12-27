@@ -50,3 +50,6 @@ fn test_unbound_var_evaluation() {
         "Unbound variable has type"
     );
 }
+
+#[test]
+fn test_type_check() {}

@@ -26,6 +26,68 @@ pub enum SystemFTerm {
     Match(Box<SystemFTerm>, Vec<(Vec<SystemFTerm>, SystemFTerm)>),
 }
 
+pub fn type_check(
+    term: SystemFTerm,
+    environment: &mut Environment<SystemFTerm, SystemFTerm>,
+) -> Result<SystemFTerm, String> {
+    match term {
+        SystemFTerm::Sort(sort_name) => {
+            match environment.get_variable_type(&sort_name) {
+                Some(sort_type) => Ok(sort_type),
+                None => Err(format!("Unbound sort: {}", sort_name)),
+            }
+        }
+        SystemFTerm::Variable(var_name) => {
+            match environment.get_variable_type(&var_name) {
+                Some(var_type) => Ok(var_type),
+                None => Err(format!("Unbound variable: {}", var_name)),
+            }
+        }
+        SystemFTerm::Abstraction(var_name, var_type, body) => {
+            //TODO update the context only temporarily, during body evaluation
+            environment.add_variable_to_context(&var_name, &var_type);
+            let body_type = type_check(*body, environment)?;
+
+            Ok(SystemFTerm::Product(
+                var_name,
+                var_type,
+                Box::new(body_type),
+            ))
+        }
+        SystemFTerm::Product(var_name, var_type, body) => {
+            //TODO update the context only temporarily, during body evaluation
+            environment.add_variable_to_context(&var_name, &var_type);
+            let body_type = type_check(*body, environment)?;
+
+            match body_type {
+                SystemFTerm::Sort(_) => Ok(body_type),
+                _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
+            }
+        }
+        SystemFTerm::Application(left, right) => {
+            let function_type = type_check(*left, environment)?;
+            let arg_type = type_check(*right, environment)?;
+
+            match function_type {
+                SystemFTerm::Product(_, domain, codomain) => {
+                    if *domain == arg_type {
+                        Ok(*codomain)
+                    } else {
+                        Err(format!(
+                            "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
+                            *domain,
+                            arg_type
+                        ))
+                    }
+                }
+                _ => Err(format!("Attempted application on non functional term of type: {:?}", function_type)),
+            }
+        }
+
+        _ => Err("Term case is not typable yet".to_string()),
+    }
+}
+
 pub struct Cic;
 impl TypeTheory for Cic {
     type Term = SystemFTerm;
