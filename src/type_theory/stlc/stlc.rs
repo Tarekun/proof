@@ -1,11 +1,10 @@
-use crate::parsing::{self, Expression, NsAst, Statement};
-use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::TypeTheory;
-
 use super::evaluation::{
     evaluate_abstraction, evaluate_application, evaluate_file_root,
     evaluate_let, evaluate_var,
 };
+use crate::parsing::{self, Expression, NsAst, Statement};
+use crate::type_theory::environment::Environment;
+use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, Clone)] //support toString printing and equality check
 pub enum StlcTerm {
@@ -18,21 +17,6 @@ pub enum StlcTerm {
 pub enum StlcType {
     Atomic(String),
     Arrow(Box<StlcType>, Box<StlcType>),
-}
-
-fn cast_to_type(
-    env: &Environment<StlcTerm, StlcType>,
-    term_type: StlcTerm,
-) -> StlcType {
-    match term_type {
-        StlcTerm::Variable(var_name) => match env.get_atomic_type(&var_name) {
-            Some((_, type_obj)) => type_obj.clone(),
-            None => panic!("Unbound type: {}", var_name),
-        },
-        _ => {
-            panic!("Non variable term used in place of a type: {:?}", term_type)
-        }
-    }
 }
 
 pub struct Stlc;
