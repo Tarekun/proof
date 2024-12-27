@@ -4,13 +4,13 @@
 #let Type := Πx : TYPE. f ;
 #(Πx : TYPE. f) TYPE
 
-inductive Ind := 
-    | c nat
-    | g
+inductive nat := 
+    | o
+    | s n
 ;
 
-let t := g;
+let t := o;
 let z := match t with
-    | g => t 
-    | c n => g
+    | o => t 
+    | s n => o
 ;;

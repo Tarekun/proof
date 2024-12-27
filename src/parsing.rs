@@ -146,20 +146,18 @@ fn parse_match_branch(
     let (input, _) = preceded(multispace0, tag("=>"))(input)?;
     let (input, body) = preceded(multispace0, parse_expression)(input)?;
 
-    let mut left_side = vec![constructor];
-    left_side.extend(args);
-    Ok((input, (left_side, body)))
+    let mut pattern = vec![constructor];
+    pattern.extend(args);
+    Ok((input, (pattern, body)))
 }
 fn parse_pattern_match(input: &str) -> IResult<&str, Expression> {
     let (input, _) = preceded(multispace0, tag("match"))(input)?;
     //TODO support using generic expressions and not only variables
-    let (input, term) =
-        preceded(multispace1, alt((parse_var, parse_parens)))(input)?;
+    let (input, term) = preceded(multispace1, parse_expression)(input)?;
     let (input, _) = preceded(multispace1, tag("with"))(input)?;
     let (input, branches) = many1(parse_match_branch)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
-    // Ok((input, Expression::Match(Box::new(term), vec![])))
     Ok((input, Expression::Match(Box::new(term), branches)))
 }
 
