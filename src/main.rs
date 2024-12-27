@@ -8,7 +8,11 @@ mod type_theory {
     }
     pub mod environment;
     pub mod interface;
-    pub mod stlc;
+    pub mod stlc {
+        pub mod evaluation;
+        pub mod stlc;
+        mod tests;
+    }
 }
 
 use crate::type_theory::interface::TypeTheory;
