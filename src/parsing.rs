@@ -31,6 +31,8 @@ pub enum Expression {
     /// (var_name, definition_body)
     Let(String, Box<Expression>),
     Num(i64),
+    // (matched_term, [ branch: ([pattern], body) ])
+    Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum NsAst {
@@ -38,7 +40,8 @@ pub enum NsAst {
     Exp(Expression),
 }
 
-const RESERVED_KEYWORDS: [&str; 3] = ["let", "axiom", "inductive"];
+const RESERVED_KEYWORDS: [&str; 5] =
+    ["let", "axiom", "inductive", "match", "with"];
 
 //########################### BASIC TOKEN PARSERS
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
@@ -134,31 +137,44 @@ fn parse_let(input: &str) -> IResult<&str, Expression> {
     Ok((input, Expression::Let(var_name.to_string(), Box::new(term))))
 }
 
-//TODO: refactor these 2, this is ridiculous
-fn atomic_expression<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, Expression>
-{
-    alt((
-        parse_abs,
-        parse_type_abs,
-        parse_var,
-        parse_let,
-        parse_numeral,
-        parse_parens,
-    ))
+fn parse_match_branch(
+    input: &str,
+) -> IResult<&str, (Vec<Expression>, Expression)> {
+    let (input, _) = preceded(multispace0, char('|'))(input)?;
+    let (input, constructor) = preceded(multispace0, parse_var)(input)?;
+    let (input, args) = many0(preceded(multispace1, parse_var))(input)?;
+    let (input, _) = preceded(multispace0, tag("=>"))(input)?;
+    let (input, body) = preceded(multispace0, parse_expression)(input)?;
+
+    let mut pattern = vec![constructor];
+    pattern.extend(args);
+    Ok((input, (pattern, body)))
 }
+fn parse_pattern_match(input: &str) -> IResult<&str, Expression> {
+    let (input, _) = preceded(multispace0, tag("match"))(input)?;
+    let (input, term) = preceded(multispace1, parse_expression)(input)?;
+    let (input, _) = preceded(multispace1, tag("with"))(input)?;
+    let (input, branches) = many1(parse_match_branch)(input)?;
+    let (input, _) = preceded(multispace0, char(';'))(input)?;
+
+    Ok((input, Expression::Match(Box::new(term), branches)))
+}
+
 // Atomic term parser used for function application
 fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
     alt((
         parse_abs,
         parse_type_abs,
         parse_var,
-        parse_let,
         parse_numeral,
         parse_parens,
+        parse_pattern_match,
     ))(input)
 }
 fn parse_expression(input: &str) -> IResult<&str, Expression> {
-    alt((parse_app, parse_atomic_expression))(input)
+    //let is here because you dont want 2 consecutive let edfinitions
+    //be parsed as an application normally
+    alt((parse_app, parse_let, parse_atomic_expression))(input)
 }
 //########################### EXPRESSION PARSERS
 
@@ -490,5 +506,55 @@ fn test_inductive() {
         parse_node("inductive T := \n\t| c (list nat) \n\t| g nat nat;")
             .is_ok(),
         "Top level parser cant parse inductive definitions"
+    );
+}
+
+#[test]
+fn test_pattern_matching() {
+    assert!(
+        parse_match_branch("| O => x").is_ok(),
+        "Parser cant read pattern matching branches"
+    );
+    assert_eq!(
+        parse_match_branch("| O => x").unwrap(),
+        (
+            "",
+            (
+                vec![Expression::VarUse("O".to_string())],
+                Expression::VarUse("x".to_string())
+            )
+        ),
+        "Pattern match branch isnt properly constructed"
+    );
+    assert!(
+        parse_match_branch("| BinTree l r => x ").is_ok(),
+        "Parser cant read pattern matching branches with variables"
+    );
+
+    assert_eq!(
+        parse_pattern_match("match x with | O => x;").unwrap(),
+        (
+            "",
+            Expression::Match(
+                Box::new(Expression::VarUse("x".to_string())),
+                vec![(
+                    vec![Expression::VarUse("O".to_string())],
+                    Expression::VarUse("x".to_string())
+                )]
+            )
+        ),
+        "Pattern match expression isnt properly constructed"
+    );
+    assert!(
+        parse_pattern_match("match \tx   with \n\t|O =>  \nx   ;").is_ok(),
+        "Pattern match parser cant cope with whitespaces"
+    );
+    assert!(
+        parse_pattern_match("matchx with | O => x;").is_err(),
+        "Pattern match parser doesnt split keywords"
+    );
+    assert!(
+        parse_pattern_match("match xwith | O => x;").is_err(),
+        "Pattern match parser doesnt split keywords"
     );
 }

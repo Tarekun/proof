@@ -30,7 +30,11 @@ pub fn evaluate_var(
                 SystemFTerm::Variable(var_name.to_string()),
                 var_type.clone(),
             ),
-            None => panic!("Unbound variable: {}", var_name),
+            //this isnt type checking, unbound variable shouldnt crash evaluation
+            None => (
+                SystemFTerm::Variable(var_name.to_string()),
+                SystemFTerm::MissingType(),
+            ),
         },
     }
 }
@@ -124,6 +128,48 @@ pub fn evaluate_let(
 
     (SystemFTerm::Variable(var_name), term_type)
 }
+
+pub fn evaluate_match(
+    environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    matched_exp: Expression,
+    branches: Vec<(Vec<Expression>, Expression)>,
+) -> (SystemFTerm, SystemFTerm) {
+    let (matched_term, term_type) =
+        Cic::evaluate_expression(matched_exp, environment);
+
+    let mut branch_terms = vec![];
+    let mut return_body_type = None;
+    for (pattern, body_exp) in branches {
+        //TODO i dont like having to clone arg
+        let (constr_term, _) =
+            Cic::evaluate_expression(pattern[0].clone(), environment);
+        let mut pattern_terms = vec![constr_term];
+        for arg in &pattern[1..] {
+            let (arg_term, arg_type) =
+                Cic::evaluate_expression(arg.clone(), environment);
+
+            //clone is inexpensive as this is either a (atomic) variable or crashes
+            match arg_term.clone() {
+                SystemFTerm::Variable(var_name) => {
+                    environment.add_variable_to_context(&var_name, &arg_type);
+                    pattern_terms.push(arg_term);
+                }
+                _ => panic!("Argument expression should be just a variable"),
+            }
+        }
+
+        let (body_term, body_type) =
+            Cic::evaluate_expression(body_exp, environment);
+        return_body_type = Some(body_type.clone());
+
+        branch_terms.push((pattern_terms, body_term));
+    }
+
+    (
+        SystemFTerm::Match(Box::new(matched_term), branch_terms),
+        return_body_type.expect("WTF this shouldnt be none no mo"),
+    )
+}
 //########################### EXPRESSIONS EVALUATION
 
 //########################### STATEMENTS EVALUATION
@@ -167,6 +213,7 @@ pub fn evaluate_inductive(
 
     environment.add_variable_to_context(
         &type_name,
+        //TODO support selecting the sort TYPE/PROP
         &SystemFTerm::Sort("TYPE".to_string()),
     );
 }

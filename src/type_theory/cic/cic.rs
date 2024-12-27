@@ -1,6 +1,6 @@
 use super::evaluation::{
     evaluate_abstraction, evaluate_application, evaluate_axiom,
-    evaluate_file_root, evaluate_inductive, evaluate_let,
+    evaluate_file_root, evaluate_inductive, evaluate_let, evaluate_match,
     evaluate_type_product, evaluate_var,
 };
 use crate::parsing::{Expression, NsAst, Statement};
@@ -9,6 +9,7 @@ use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
 pub enum SystemFTerm {
+    MissingType(),
     /// (constant's token, constant's type)
     Constant(String, Box<SystemFTerm>),
     /// (sort name)
@@ -21,6 +22,8 @@ pub enum SystemFTerm {
     Product(String, Box<SystemFTerm>, Box<SystemFTerm>), //add bodytype?
     /// (function, argument)
     Application(Box<SystemFTerm>, Box<SystemFTerm>),
+    /// (matched_term, [ branch: ([pattern], body) ])
+    Match(Box<SystemFTerm>, Vec<(Vec<SystemFTerm>, SystemFTerm)>),
 }
 
 pub struct Cic;
@@ -47,6 +50,9 @@ impl TypeTheory for Cic {
             }
             Expression::Let(var_name, body) => {
                 evaluate_let(environment, var_name, *body)
+            }
+            Expression::Match(matched_term, branches) => {
+                evaluate_match(environment, *matched_term, branches)
             }
             _ => panic!("not implemented"),
         }
