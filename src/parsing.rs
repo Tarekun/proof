@@ -31,7 +31,7 @@ pub enum Expression {
     /// (var_name, definition_body)
     Let(String, Box<Expression>),
     Num(i64),
-    // (matched_term, [[constr_args], branch_body])
+    // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
 }
 #[derive(Debug, PartialEq, Clone)]
@@ -40,7 +40,8 @@ pub enum NsAst {
     Exp(Expression),
 }
 
-const RESERVED_KEYWORDS: [&str; 3] = ["let", "axiom", "inductive"];
+const RESERVED_KEYWORDS: [&str; 5] =
+    ["let", "axiom", "inductive", "match", "with"];
 
 //########################### BASIC TOKEN PARSERS
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
@@ -168,14 +169,15 @@ fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
         parse_abs,
         parse_type_abs,
         parse_var,
-        parse_let,
         parse_numeral,
         parse_parens,
         parse_pattern_match,
     ))(input)
 }
 fn parse_expression(input: &str) -> IResult<&str, Expression> {
-    alt((parse_app, parse_atomic_expression))(input)
+    //let is here because you dont want 2 consecutive let edfinitions
+    //be parsed as an application normally
+    alt((parse_app, parse_let, parse_atomic_expression))(input)
 }
 //########################### EXPRESSION PARSERS
 
