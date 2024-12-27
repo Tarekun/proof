@@ -1,7 +1,11 @@
 mod file_manager;
 mod parsing;
 mod type_theory {
-    pub mod cic;
+    pub mod cic {
+        pub mod cic;
+        pub mod evaluation;
+        mod tests;
+    }
     pub mod environment;
     pub mod interface;
     pub mod stlc;
@@ -9,7 +13,7 @@ mod type_theory {
 
 use crate::type_theory::interface::TypeTheory;
 use std::env;
-use type_theory::{cic::Cic, environment, stlc::Stlc};
+use type_theory::cic::cic::Cic;
 
 fn main() {
     println!("################ PROGRAM START #################\n");

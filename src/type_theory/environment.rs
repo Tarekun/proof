@@ -9,13 +9,6 @@ pub struct Environment<Term, Type> {
 
 //TODO check if this cloning is really necessary or there's better ways
 impl<Term: Clone, Type: Clone> Environment<Term, Type> {
-    pub fn new() -> Self {
-        Self {
-            context: HashMap::new(),
-            deltas: HashMap::new(),
-            atomic_types: HashMap::new(),
-        }
-    }
     pub fn with_defaults(
         axioms: Vec<(&str, &Type)>,
         deltas: Vec<(&str, &Term, &Type)>,
