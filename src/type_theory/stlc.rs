@@ -101,6 +101,18 @@ impl TypeTheory for Stlc {
                 }
             }
 
+            Expression::Let(var_name, ast) => {
+                let (assigned_term, term_type) =
+                    Stlc::evaluate_expression(*ast, environment);
+                environment.add_variable_definition(
+                    &var_name,
+                    &assigned_term,
+                    &term_type,
+                );
+
+                (StlcTerm::Variable(var_name), term_type)
+            }
+
             _ => panic!("non implemented"),
         }
     }
@@ -122,15 +134,6 @@ impl TypeTheory for Stlc {
                         }
                     }
                 }
-            }
-            Statement::Let(var_name, ast) => {
-                let (assigned_term, term_type) =
-                    Stlc::evaluate_expression(*ast, environment);
-                environment.add_variable_definition(
-                    &var_name,
-                    &assigned_term,
-                    &term_type,
-                );
             }
             _ => panic!("not implemented"),
         }
