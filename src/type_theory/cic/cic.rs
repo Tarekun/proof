@@ -44,6 +44,7 @@ pub fn type_check(
             }
         }
         SystemFTerm::Abstraction(var_name, var_type, body) => {
+            let _ = type_check(*var_type.clone(), environment)?;
             //TODO update the context only temporarily, during body evaluation
             environment.add_variable_to_context(&var_name, &var_type);
             let body_type = type_check(*body, environment)?;
@@ -55,6 +56,7 @@ pub fn type_check(
             ))
         }
         SystemFTerm::Product(var_name, var_type, body) => {
+            let _ = type_check(*var_type.clone(), environment)?;
             //TODO update the context only temporarily, during body evaluation
             environment.add_variable_to_context(&var_name, &var_type);
             let body_type = type_check(*body, environment)?;
@@ -153,7 +155,7 @@ impl TypeTheory for Cic {
 }
 
 #[allow(non_snake_case)]
-fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
+pub fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
     let TYPE = SystemFTerm::Sort("TYPE".to_string());
     let axioms: Vec<(&str, &SystemFTerm)> =
         vec![("TYPE", &TYPE), ("PROP", &TYPE)];
