@@ -73,6 +73,7 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
     /// Insert a new typed variable into the context
     pub fn add_variable_to_context(&mut self, name: &str, type_term: &Type) {
         //TODO avoid cloning?
+        //TODO check the type_term exists?
         self.context.insert(name.to_string(), type_term.clone());
     }
 
