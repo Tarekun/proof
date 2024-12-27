@@ -38,10 +38,15 @@ fn test_var_evaluation() {
     );
     assert_eq!(var_type, test_var_type, "Variable type mismatch");
 }
+
 #[test]
-#[should_panic]
 fn test_unbound_var_evaluation() {
     let test_env: Environment<SystemFTerm, SystemFTerm> =
         Environment::with_defaults(vec![], Vec::new());
-    let _ = evaluate_var(&test_env, "unbound_var");
+    let (_, type_term) = evaluate_var(&test_env, "unbound_var");
+    assert_eq!(
+        type_term,
+        SystemFTerm::MissingType(),
+        "Unbound variable has type"
+    );
 }
