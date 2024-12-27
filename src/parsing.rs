@@ -152,7 +152,14 @@ fn atomic_expression<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, Expression
 }
 // Atomic term parser used for function application
 fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
-    atomic_expression()(input)
+    alt((
+        parse_abs,
+        parse_type_abs,
+        parse_var,
+        parse_let,
+        parse_numeral,
+        parse_parens,
+    ))(input)
 }
 fn parse_expression(input: &str) -> IResult<&str, Expression> {
     alt((parse_app, parse_atomic_expression))(input)
@@ -216,10 +223,8 @@ fn parse_statement(input: &str) -> IResult<&str, Statement> {
 /// Top level parser for single nodes that wraps expressions and statements
 fn parse_node(input: &str) -> IResult<&str, NsAst> {
     alt((
-        // Try to parse a Statement and wrap it in NsAst::Stm
-        map(parse_statement, NsAst::Stm),
-        // Try to parse an Expression and wrap it in NsAst::Exp
         map(parse_expression, NsAst::Exp),
+        map(parse_statement, NsAst::Stm),
     ))(input)
 }
 
