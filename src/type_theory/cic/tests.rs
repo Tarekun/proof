@@ -4,15 +4,16 @@ use crate::{
         cic::{
             cic::{make_default_environment, Cic, CicTerm},
             evaluation::{
-                evaluate_abstraction, evaluate_let, evaluate_type_product,
-                evaluate_var,
+                evaluate_abstraction, evaluate_application, evaluate_let,
+                evaluate_type_product, evaluate_var,
             },
         },
         environment::Environment,
         interface::TypeTheory,
     },
 };
-
+//TODO oltre al fix di questo test, bisogna accertarsi che le funzioni
+//falliscano in casi degeneri
 #[test]
 fn test_var_evaluation() {
     let test_var_name = "test_var";
@@ -496,7 +497,49 @@ fn test_prod_evaluation() {
 }
 
 #[test]
-fn test_app_evaluation() {}
+fn test_app_evaluation() {
+    let mut test_env = make_default_environment();
+    test_env
+        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
+    test_env.add_variable_to_context(
+        "o",
+        &SystemFTerm::Variable("nat".to_string()),
+    );
+    test_env.add_variable_to_context(
+        "s",
+        &SystemFTerm::Product(
+            "_".to_string(),
+            Box::new(SystemFTerm::Variable("nat".to_string())),
+            Box::new(SystemFTerm::Variable("nat".to_string())),
+        ),
+    );
+    let expected_term = SystemFTerm::Application(
+        Box::new(SystemFTerm::Variable("s".to_string())),
+        Box::new(SystemFTerm::Variable("o".to_string())),
+    );
+    let expected_type = SystemFTerm::Variable("nat".to_string());
+
+    assert_eq!(
+        evaluate_application(
+            &mut test_env,
+            Expression::VarUse("s".to_string()),
+            Expression::VarUse("o".to_string())
+        ),
+        (expected_term.clone(), expected_type.clone()),
+        "Application evaluation isnt working as expected"
+    );
+    assert_eq!(
+        Cic::evaluate_expression(
+            Expression::Application(
+                Box::new(Expression::VarUse("s".to_string())),
+                Box::new(Expression::VarUse("o".to_string())),
+            ),
+            &mut test_env,
+        ),
+        (expected_term, expected_type),
+        "Top level evaluator isnt working with applications"
+    );
+}
 
 #[test]
 fn test_let_evaluation() {
