@@ -123,15 +123,14 @@ pub fn type_check_match(
     let mut return_type = None;
 
     for (pattern, body) in branches {
+        //pattern type checking
         let constr_var = pattern[0].clone();
-        //type check pattern (i.e. constr exists)
         let constr_type = Cic::type_check(constr_var, environment)?;
         let result_type = type_check_pattern(
             constr_type,
             pattern[1..].to_vec(),
             environment,
         )?;
-        //make sure pattern makes a type of matching_type
         if result_type != matching_type {
             return Err(
                 format!(
@@ -142,6 +141,7 @@ pub fn type_check_match(
             );
         }
 
+        //body type checking
         let body_type = Cic::type_check(body, environment)?;
         if return_type.is_none() {
             return_type = Some(body_type);
