@@ -13,7 +13,7 @@ pub enum StlcTerm {
     Application(Box<StlcTerm>, Box<StlcTerm>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StlcType {
     Atomic(String),
     Arrow(Box<StlcType>, Box<StlcType>),

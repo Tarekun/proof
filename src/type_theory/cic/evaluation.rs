@@ -19,7 +19,7 @@ pub fn evaluate_var(
     var_name: &str,
 ) -> (SystemFTerm, SystemFTerm) {
     match environment.get_from_deltas(&var_name) {
-        //TODO should delta-reduce the variable here?
+        //TODO watch out if you're requesting a sort you souldnt be getting a Variable back
         Some((var_name, (_, var_type))) => (
             SystemFTerm::Variable(var_name.to_string()),
             var_type.clone(),

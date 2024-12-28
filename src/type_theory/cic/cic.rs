@@ -3,6 +3,10 @@ use super::evaluation::{
     evaluate_file_root, evaluate_inductive, evaluate_let, evaluate_match,
     evaluate_type_product, evaluate_var,
 };
+use super::type_check::{
+    type_check_abstraction, type_check_application, type_check_match,
+    type_check_product, type_check_sort, type_check_variable,
+};
 use crate::parsing::{Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -88,10 +92,38 @@ impl TypeTheory for Cic {
 
         env
     }
+
+    fn type_check(
+        term: SystemFTerm,
+        environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    ) -> Result<SystemFTerm, String> {
+        match term {
+            SystemFTerm::Sort(sort_name) => {
+                type_check_sort(environment, sort_name)
+            }
+            SystemFTerm::Variable(var_name) => {
+                type_check_variable(environment, var_name)
+            }
+            SystemFTerm::Abstraction(var_name, var_type, body) => {
+                type_check_abstraction(environment, var_name, *var_type, *body)
+            }
+            SystemFTerm::Product(var_name, var_type, body) => {
+                type_check_product(environment, var_name, *var_type, *body)
+            }
+            SystemFTerm::Application(left, right) => {
+                type_check_application(environment, *left, *right)
+            }
+            SystemFTerm::Match(matched_term, branches) => {
+                type_check_match(environment, *matched_term, branches)
+            }
+
+            _ => Err("Term case is not typable yet".to_string()),
+        }
+    }
 }
 
 #[allow(non_snake_case)]
-fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
+pub fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
     let TYPE = SystemFTerm::Sort("TYPE".to_string());
     let axioms: Vec<(&str, &SystemFTerm)> =
         vec![("TYPE", &TYPE), ("PROP", &TYPE)];

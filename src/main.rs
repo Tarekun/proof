@@ -5,14 +5,15 @@ mod type_theory {
         pub mod cic;
         pub mod evaluation;
         mod tests;
+        pub mod type_check;
     }
     pub mod environment;
     pub mod interface;
-    pub mod stlc {
-        pub mod evaluation;
-        pub mod stlc;
-        mod tests;
-    }
+    // pub mod stlc {
+    //     pub mod evaluation;
+    //     pub mod stlc;
+    //     mod tests;
+    // }
 }
 
 use crate::type_theory::interface::TypeTheory;

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{clone, collections::HashMap};
 
 #[derive(Debug, Clone)]
 pub struct Environment<Term, Type> {
@@ -8,7 +8,7 @@ pub struct Environment<Term, Type> {
 }
 
 //TODO check if this cloning is really necessary or there's better ways
-impl<Term: Clone, Type: Clone> Environment<Term, Type> {
+impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
     pub fn with_defaults(
         axioms: Vec<(&str, &Type)>,
         deltas: Vec<(&str, &Term, &Type)>,
@@ -73,6 +73,7 @@ impl<Term: Clone, Type: Clone> Environment<Term, Type> {
     /// Insert a new typed variable into the context
     pub fn add_variable_to_context(&mut self, name: &str, type_term: &Type) {
         //TODO avoid cloning?
+        //TODO check the type_term exists?
         self.context.insert(name.to_string(), type_term.clone());
     }
 
@@ -99,5 +100,35 @@ impl<Term: Clone, Type: Clone> Environment<Term, Type> {
         self.atomic_types
             .get(type_name)
             .map(|type_obj| (type_name, type_obj))
+    }
+
+    pub fn check_var_type(&self, var_name: &str, target_type: Type) -> bool {
+        match self.get_from_context(var_name) {
+            Some((_, var_type)) => *var_type == target_type,
+            None => match self.get_from_deltas(var_name) {
+                Some((_, (_, var_type))) => *var_type == target_type,
+                None => false,
+            },
+        }
+    }
+
+    pub fn is_var_bound(&self, var_name: &str) -> bool {
+        match self.get_from_context(var_name) {
+            Some(_) => true,
+            None => match self.get_from_deltas(var_name) {
+                Some(_) => true,
+                None => false,
+            },
+        }
+    }
+
+    pub fn get_variable_type(&self, var_name: &str) -> Option<Type> {
+        match self.get_from_context(var_name) {
+            Some((_, var_type)) => Some(var_type.clone()),
+            None => match self.get_from_deltas(var_name) {
+                Some((_, (_, var_type))) => Some(var_type.clone()),
+                None => None,
+            },
+        }
     }
 }
