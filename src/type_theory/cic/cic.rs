@@ -3,8 +3,12 @@ use super::evaluation::{
     evaluate_file_root, evaluate_inductive, evaluate_let, evaluate_match,
     evaluate_type_product, evaluate_var,
 };
+use super::type_check::{
+    type_check_abstraction, type_check_application, type_check_match,
+    type_check_product, type_check_sort, type_check_variable,
+};
 use crate::parsing::{Expression, NsAst, Statement};
-use crate::type_theory::environment::{self, Environment};
+use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
@@ -24,174 +28,6 @@ pub enum SystemFTerm {
     Application(Box<SystemFTerm>, Box<SystemFTerm>),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<SystemFTerm>, Vec<(Vec<SystemFTerm>, SystemFTerm)>),
-}
-
-pub fn type_check(
-    term: SystemFTerm,
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
-) -> Result<SystemFTerm, String> {
-    match term {
-        SystemFTerm::Sort(sort_name) => {
-            match environment.get_variable_type(&sort_name) {
-                Some(sort_type) => Ok(sort_type),
-                None => Err(format!("Unbound sort: {}", sort_name)),
-            }
-        }
-        SystemFTerm::Variable(var_name) => {
-            match environment.get_variable_type(&var_name) {
-                Some(var_type) => Ok(var_type),
-                None => Err(format!("Unbound variable: {}", var_name)),
-            }
-        }
-        SystemFTerm::Abstraction(var_name, var_type, body) => {
-            let _ = type_check(*var_type.clone(), environment)?;
-            //TODO update the context only temporarily, during body evaluation
-            environment.add_variable_to_context(&var_name, &var_type);
-            let body_type = type_check(*body, environment)?;
-
-            Ok(SystemFTerm::Product(
-                var_name,
-                var_type,
-                Box::new(body_type),
-            ))
-        }
-        SystemFTerm::Product(var_name, var_type, body) => {
-            let _ = type_check(*var_type.clone(), environment)?;
-            //TODO update the context only temporarily, during body evaluation
-            environment.add_variable_to_context(&var_name, &var_type);
-            let body_type = type_check(*body, environment)?;
-
-            match body_type {
-                SystemFTerm::Sort(_) => Ok(body_type),
-                _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
-            }
-        }
-        SystemFTerm::Application(left, right) => {
-            let function_type = type_check(*left, environment)?;
-            let arg_type = type_check(*right, environment)?;
-
-            match function_type {
-                SystemFTerm::Product(_, domain, codomain) => {
-                    if *domain == arg_type {
-                        Ok(*codomain)
-                    } else {
-                        Err(format!(
-                            "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
-                            *domain,
-                            arg_type
-                        ))
-                    }
-                }
-                _ => Err(format!("Attempted application on non functional term of type: {:?}", function_type)),
-            }
-        }
-        SystemFTerm::Match(matched_term, branches) => {
-            let matching_type = type_check(*matched_term, environment)?;
-            let mut return_type = None;
-
-            fn type_check_pattern(
-                constr_type: SystemFTerm,
-                variables: Vec<SystemFTerm>,
-                environment: &mut Environment<SystemFTerm, SystemFTerm>,
-            ) -> Result<SystemFTerm, String> {
-                match variables.len() {
-                    0 => Ok(constr_type),
-                    1.. => match variables[0].clone() {
-                        SystemFTerm::Variable(var_name) => match constr_type {
-                            SystemFTerm::Product(_, domain, codomain) => {
-                                // TODO local addition for the branch only
-                                environment.add_variable_to_context(
-                                    &var_name, &domain,
-                                );
-                                type_check_pattern(
-                                    *codomain,
-                                    variables[1..].to_vec(),
-                                    environment,
-                                )
-                            }
-                            _ => Err("Mismatch in number of variables for constructor".to_string()),
-                        },
-                        _ => Err(format!(
-                            "Found illegal term in place of variable {:?}",
-                            variables[0].clone(),
-                        )),
-                    },
-                }
-            }
-
-            for (pattern, body) in branches {
-                let constr_var = pattern[0].clone();
-                //type check pattern (i.e. constr exists)
-                let constr_type = type_check(constr_var, environment)?;
-                let result_type = type_check_pattern(
-                    constr_type,
-                    pattern[1..].to_vec(),
-                    environment,
-                )?;
-                //make sure pattern makes a type of matching_type
-                if result_type != matching_type {
-                    return Err(
-                        format!(
-                            "Pattern doesnt produce expected type: expected {:?} produced {:?}",
-                            matching_type,
-                            result_type
-                        )
-                    );
-                }
-
-                // match constr_var {
-                //     SystemFTerm::Variable(constr_name) => {
-                //         //type check pattern (i.e. constr exists)
-                //         match environment.get_from_context(&constr_name) {
-                //             Some((_, constr_type)) => {
-                //                 let result_type = type_check_pattern(constr_type.clone(), pattern[1..].to_vec(), environment)?;
-                //                 //make sure pattern makes a type of matching_type
-                //                 if result_type != matching_type {
-                //                     return Err(
-                //                         format!(
-                //                             "Pattern doesnt produce expected type: expected {:?} produced {:?}",
-                //                             matching_type,
-                //                             result_type
-                //                         )
-                //                     );
-                //                 }
-
-                //             },
-                //             None => return Err(
-                //                 format!(
-                //                     "Found unbound type constructor {:?}",
-                //                     constr_name,
-                //                 )
-                //             ),
-                //         }
-                //     }
-                //     _ => return Err(
-                //         format!(
-                //             "Found illegal term {:?} in place of branch pattern constructor",
-                //             constr_var,
-                //         )
-                //     ),
-                // }
-
-                let body_type = type_check(body, environment)?;
-                if return_type.is_none() {
-                    return_type = Some(body_type);
-                } else if return_type.clone().unwrap() != body_type {
-                    return Err(
-                        format!(
-                            "Match branches have different types: found {:?} with previous {:?}",
-                            body_type,
-                            return_type.unwrap()
-                        )
-                    );
-                }
-            }
-
-            Ok(return_type.unwrap())
-        }
-
-        _ => Err("Term case is not typable yet".to_string()),
-    }
 }
 
 pub struct Cic;
@@ -255,6 +91,34 @@ impl TypeTheory for Cic {
         }
 
         env
+    }
+
+    fn type_check(
+        term: SystemFTerm,
+        environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    ) -> Result<SystemFTerm, String> {
+        match term {
+            SystemFTerm::Sort(sort_name) => {
+                type_check_sort(environment, sort_name)
+            }
+            SystemFTerm::Variable(var_name) => {
+                type_check_variable(environment, var_name)
+            }
+            SystemFTerm::Abstraction(var_name, var_type, body) => {
+                type_check_abstraction(environment, var_name, *var_type, *body)
+            }
+            SystemFTerm::Product(var_name, var_type, body) => {
+                type_check_product(environment, var_name, *var_type, *body)
+            }
+            SystemFTerm::Application(left, right) => {
+                type_check_application(environment, *left, *right)
+            }
+            SystemFTerm::Match(matched_term, branches) => {
+                type_check_match(environment, *matched_term, branches)
+            }
+
+            _ => Err("Term case is not typable yet".to_string()),
+        }
     }
 }
 

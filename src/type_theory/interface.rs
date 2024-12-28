@@ -22,4 +22,11 @@ pub trait TypeTheory {
         ast: Expression,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> (Self::Term, Self::Type);
+
+    /// Type checks the term and returns its type.
+    /// On failure returns an Err with a String message
+    fn type_check(
+        term: Self::Term,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String>;
 }
