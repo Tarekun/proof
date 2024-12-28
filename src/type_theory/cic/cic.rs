@@ -4,7 +4,7 @@ use super::evaluation::{
     evaluate_type_product, evaluate_var,
 };
 use crate::parsing::{Expression, NsAst, Statement};
-use crate::type_theory::environment::Environment;
+use crate::type_theory::environment::{self, Environment};
 use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
@@ -84,6 +84,110 @@ pub fn type_check(
                 }
                 _ => Err(format!("Attempted application on non functional term of type: {:?}", function_type)),
             }
+        }
+        SystemFTerm::Match(matched_term, branches) => {
+            let matching_type = type_check(*matched_term, environment)?;
+            let mut return_type = None;
+
+            fn type_check_pattern(
+                constr_type: SystemFTerm,
+                variables: Vec<SystemFTerm>,
+                environment: &mut Environment<SystemFTerm, SystemFTerm>,
+            ) -> Result<SystemFTerm, String> {
+                match variables.len() {
+                    0 => Ok(constr_type),
+                    1.. => match variables[0].clone() {
+                        SystemFTerm::Variable(var_name) => match constr_type {
+                            SystemFTerm::Product(_, domain, codomain) => {
+                                // TODO local addition for the branch only
+                                environment.add_variable_to_context(
+                                    &var_name, &domain,
+                                );
+                                type_check_pattern(
+                                    *codomain,
+                                    variables[1..].to_vec(),
+                                    environment,
+                                )
+                            }
+                            _ => Err("Mismatch in number of variables for constructor".to_string()),
+                        },
+                        _ => Err(format!(
+                            "Found illegal term in place of variable {:?}",
+                            variables[0].clone(),
+                        )),
+                    },
+                }
+            }
+
+            for (pattern, body) in branches {
+                let constr_var = pattern[0].clone();
+                //type check pattern (i.e. constr exists)
+                let constr_type = type_check(constr_var, environment)?;
+                let result_type = type_check_pattern(
+                    constr_type,
+                    pattern[1..].to_vec(),
+                    environment,
+                )?;
+                //make sure pattern makes a type of matching_type
+                if result_type != matching_type {
+                    return Err(
+                        format!(
+                            "Pattern doesnt produce expected type: expected {:?} produced {:?}",
+                            matching_type,
+                            result_type
+                        )
+                    );
+                }
+
+                // match constr_var {
+                //     SystemFTerm::Variable(constr_name) => {
+                //         //type check pattern (i.e. constr exists)
+                //         match environment.get_from_context(&constr_name) {
+                //             Some((_, constr_type)) => {
+                //                 let result_type = type_check_pattern(constr_type.clone(), pattern[1..].to_vec(), environment)?;
+                //                 //make sure pattern makes a type of matching_type
+                //                 if result_type != matching_type {
+                //                     return Err(
+                //                         format!(
+                //                             "Pattern doesnt produce expected type: expected {:?} produced {:?}",
+                //                             matching_type,
+                //                             result_type
+                //                         )
+                //                     );
+                //                 }
+
+                //             },
+                //             None => return Err(
+                //                 format!(
+                //                     "Found unbound type constructor {:?}",
+                //                     constr_name,
+                //                 )
+                //             ),
+                //         }
+                //     }
+                //     _ => return Err(
+                //         format!(
+                //             "Found illegal term {:?} in place of branch pattern constructor",
+                //             constr_var,
+                //         )
+                //     ),
+                // }
+
+                let body_type = type_check(body, environment)?;
+                if return_type.is_none() {
+                    return_type = Some(body_type);
+                } else if return_type.clone().unwrap() != body_type {
+                    return Err(
+                        format!(
+                            "Match branches have different types: found {:?} with previous {:?}",
+                            body_type,
+                            return_type.unwrap()
+                        )
+                    );
+                }
+            }
+
+            Ok(return_type.unwrap())
         }
 
         _ => Err("Term case is not typable yet".to_string()),

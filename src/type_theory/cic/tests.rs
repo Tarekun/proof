@@ -259,4 +259,6 @@ fn test_type_check() {
         .is_err(),
         "Type checker illegal function application"
     );
+
+    // match
 }
