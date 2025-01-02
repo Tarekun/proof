@@ -7,18 +7,18 @@ pub trait TypeTheory {
     /// Enum listing all the type constructors.
     type Type;
 
-    /// Evaluate a full AST into an environment.
-    fn evaluate_ast(ast: NsAst) -> Environment<Self::Term, Self::Type>;
+    /// Elaborate a full AST into an environment.
+    fn elaborate_ast(ast: NsAst) -> Environment<Self::Term, Self::Type>;
 
-    /// Evaluate a statement in the given environment.
-    fn evaluate_statement(
+    /// Elaborate a statement in the given environment.
+    fn elaborate_statement(
         ast: Statement,
         environment: &mut Environment<Self::Term, Self::Type>,
     );
 
-    /// Evaluate a single expression, updating the environment and returning
+    /// Elaborate a single expression, updating the environment and returning
     /// the result as a term of the type theory.
-    fn evaluate_expression(
+    fn elaborate_expression(
         ast: Expression,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> (Self::Term, Self::Type);

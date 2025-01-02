@@ -3,7 +3,7 @@ use crate::{
     type_theory::{
         cic::{
             cic::{make_default_environment, Cic, SystemFTerm},
-            evaluation::evaluate_var,
+            elaboration::elaborate_var,
         },
         environment::Environment,
         interface::TypeTheory,
@@ -20,14 +20,14 @@ fn test_var_evaluation() {
             Vec::new(),
         );
 
-    let (var, var_type) = evaluate_var(&test_env, &test_var_name);
+    let (var, var_type) = elaborate_var(&test_env, &test_var_name);
     assert_eq!(
         var,
         SystemFTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
     assert_eq!(var_type, test_var_type, "Variable type mismatch");
-    let (var, var_type) = Cic::evaluate_expression(
+    let (var, var_type) = Cic::elaborate_expression(
         Expression::VarUse(test_var_name.to_string()),
         &mut test_env,
     );
@@ -43,7 +43,7 @@ fn test_var_evaluation() {
 fn test_unbound_var_evaluation() {
     let test_env: Environment<SystemFTerm, SystemFTerm> =
         Environment::with_defaults(vec![], Vec::new());
-    let (_, type_term) = evaluate_var(&test_env, "unbound_var");
+    let (_, type_term) = elaborate_var(&test_env, "unbound_var");
     assert_eq!(
         type_term,
         SystemFTerm::MissingType(),
