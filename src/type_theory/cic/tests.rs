@@ -1,71 +1,186 @@
 use crate::{
-    parsing::Expression,
+    parsing::{Expression, Statement},
     type_theory::{
         cic::{
             cic::{make_default_environment, Cic, CicTerm},
-            evaluation::{
-                evaluate_abstraction, evaluate_application, evaluate_let,
-                evaluate_type_product, evaluate_var,
+            elaboration::{
+                elaborate_abstraction, elaborate_application, elaborate_let,
+                elaborate_type_product, elaborate_var_use,
             },
         },
         environment::Environment,
         interface::TypeTheory,
     },
 };
+
+//########################## ELABORATION TESTS
 //TODO oltre al fix di questo test, bisogna accertarsi che le funzioni
 //falliscano in casi degeneri
 #[test]
 fn test_var_evaluation() {
     let test_var_name = "test_var";
-    let test_var_type = SystemFTerm::Sort("TYPE".to_string());
+    let test_var_type = CicTerm::Sort("TYPE".to_string());
     let mut test_env = make_default_environment();
     test_env.add_variable_to_context(test_var_name, &test_var_type);
 
     assert_eq!(
-        evaluate_var(&test_env, &test_var_name),
-        (
-            SystemFTerm::Variable(test_var_name.to_string()),
-            test_var_type.clone()
-        ),
+        elaborate_var_use(test_var_name.to_string()),
+        CicTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
     // assert_eq!(
-    //     evaluate_var(&test_env, "TYPE"),
+    //     elaborate_var_use(&test_env, "TYPE"),
     //     (
-    //         SystemFTerm::Sort("TYPE".to_string()),
+    //         CicTerm::Sort("TYPE".to_string()),
     //         SystemFTerm::Sort("TYPE".to_string())
     //     ),
     //     "Sort name returns a simple variable instead of a sort term"
     // );
     assert_eq!(
-        Cic::evaluate_expression(
-            Expression::VarUse(test_var_name.to_string()),
-            &mut test_env,
-        ),
-        (
-            SystemFTerm::Variable(test_var_name.to_string()),
-            test_var_type
-        ),
+        Cic::elaborate_expression(Expression::VarUse(
+            test_var_name.to_string()
+        ),),
+        CicTerm::Variable(test_var_name.to_string()),
         "Top level evaluation doesnt work with variables as expected"
     );
-
-    let var_term = elaborate_var(test_var_name.to_string());
-    assert_eq!(
-        var_term,
-        CicTerm::Variable(test_var_name.to_string()),
-        "Variable term not properly constructed"
-    );
-    // assert_eq!(var_type, test_var_type, "Variable type mismatch");
-    let var_term = Cic::elaborate_expression(Expression::VarUse(
-        test_var_name.to_string(),
-    ));
-    assert_eq!(
-        var_term,
-        CicTerm::Variable(test_var_name.to_string()),
-        "Variable term not properly constructed"
-    );
-    // assert_eq!(var_type, test_var_type, "Variable type mismatch");
 }
+
+#[test]
+fn test_abs_evaluation() {
+    let mut test_env = make_default_environment();
+    let expected_term = CicTerm::Abstraction(
+        "x".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Variable("x".to_string())),
+    );
+    let expected_type = CicTerm::Product(
+        "_".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+    );
+
+    // assert_eq!(
+    //     elaborate_abstraction(
+    //         &mut test_env,
+    //         "x".to_string(),
+    //         Expression::VarUse("TYPE".to_string()),
+    //         Expression::VarUse("x".to_string())
+    //     ),
+    //     (expected_term.clone(), expected_type.clone()),
+    //     "Abstraction evaluation isnt working as expected"
+    // );
+    // assert_eq!(
+    //     Cic::elaborate_expression(
+    //         Expression::Abstraction(
+    //             "x".to_string(),
+    //             Box::new(Expression::VarUse("TYPE".to_string())),
+    //             Box::new(Expression::VarUse("x".to_string())),
+    //         ),
+    //         &mut test_env,
+    //     ),
+    //     (expected_term, expected_type),
+    //     "Top level evaluator isnt working with abstraction"
+    // );
+}
+
+#[test]
+fn test_prod_evaluation() {
+    let mut test_env = make_default_environment();
+    let expected_term = CicTerm::Product(
+        "x".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+    );
+    let expected_type = CicTerm::Sort("TYPE".to_string());
+
+    // assert_eq!(
+    //     elaborate_type_product(
+    //         &mut test_env,
+    //         "x".to_string(),
+    //         Expression::VarUse("TYPE".to_string()),
+    //         Expression::VarUse("TYPE".to_string())
+    //     ),
+    //     (expected_term.clone(), expected_type.clone()),
+    //     "Type abstraction evaluation isnt working as expected"
+    // );
+    // assert_eq!(
+    //     Cic::elaborate_expression(
+    //         Expression::TypeProduct(
+    //             "x".to_string(),
+    //             Box::new(Expression::VarUse("TYPE".to_string())),
+    //             Box::new(Expression::VarUse("TYPE".to_string())),
+    //         ),
+    //         &mut test_env,
+    //     ),
+    //     (expected_term, expected_type),
+    //     "Top level evaluator isnt working with type abstraction"
+    // );
+}
+
+#[test]
+fn test_app_elaboration() {
+    let expected_term = CicTerm::Application(
+        Box::new(CicTerm::Variable("s".to_string())),
+        Box::new(CicTerm::Variable("o".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_application(
+            Expression::VarUse("s".to_string()),
+            Expression::VarUse("o".to_string())
+        ),
+        expected_term.clone(),
+        "Application evaluation isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Application(
+            Box::new(Expression::VarUse("s".to_string())),
+            Box::new(Expression::VarUse("o".to_string())),
+        ),),
+        expected_term,
+        "Top level evaluator isnt working with applications"
+    );
+}
+
+#[test]
+fn test_let_elaboration() {
+    // let mut test_env = make_default_environment();
+    // test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+    // test_env
+    //     .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
+    // let expected_term = CicTerm::Variable("n".to_string());
+    // let expected_type = CicTerm::Variable("nat".to_string());
+
+    // assert_eq!(
+    //     elaborate_let(
+    //         &mut test_env,
+    //         "n".to_string(),
+    //         Expression::VarUse("nat".to_string()),
+    //         Expression::VarUse("c".to_string()),
+    //     ),
+    //     (expected_term.clone(), expected_type.clone()),
+    //     "Let definition evaluation isnt working as expected"
+    // );
+    // assert_eq!(
+    //     Cic::elaborate_statement(
+    //         Statement::Let(
+    //             "n".to_string(),
+    //             Box::new(Expression::VarUse("nat".to_string())),
+    //             Box::new(Expression::VarUse("c".to_string())),
+    //         ),
+    //         &mut test_env,
+    //     ),
+    //     (expected_term, expected_type),
+    //     "Top level evaluator isnt working with let definitions"
+    // );
+}
+
+#[test]
+fn test_match_elaboration() {}
+
+#[test]
+fn test_inductive_elaboration() {}
+//########################## ELABORATION TESTS
 
 #[test]
 fn test_type_check_sort_n_vars() {
@@ -423,160 +538,3 @@ fn test_type_check_match() {
     //     "Type checker accepts match with random (properly typed) variable in place of constructor"
     // );
 }
-
-#[test]
-fn test_abs_evaluation() {
-    let mut test_env = make_default_environment();
-    let expected_term = SystemFTerm::Abstraction(
-        "x".to_string(),
-        Box::new(SystemFTerm::Sort("TYPE".to_string())),
-        Box::new(SystemFTerm::Variable("x".to_string())),
-    );
-    let expected_type = SystemFTerm::Product(
-        "_".to_string(),
-        Box::new(SystemFTerm::Sort("TYPE".to_string())),
-        Box::new(SystemFTerm::Sort("TYPE".to_string())),
-    );
-
-    // assert_eq!(
-    //     evaluate_abstraction(
-    //         &mut test_env,
-    //         "x".to_string(),
-    //         Expression::VarUse("TYPE".to_string()),
-    //         Expression::VarUse("x".to_string())
-    //     ),
-    //     (expected_term.clone(), expected_type.clone()),
-    //     "Abstraction evaluation isnt working as expected"
-    // );
-    // assert_eq!(
-    //     Cic::evaluate_expression(
-    //         Expression::Abstraction(
-    //             "x".to_string(),
-    //             Box::new(Expression::VarUse("TYPE".to_string())),
-    //             Box::new(Expression::VarUse("x".to_string())),
-    //         ),
-    //         &mut test_env,
-    //     ),
-    //     (expected_term, expected_type),
-    //     "Top level evaluator isnt working with abstraction"
-    // );
-}
-
-#[test]
-fn test_prod_evaluation() {
-    let mut test_env = make_default_environment();
-    let expected_term = SystemFTerm::Product(
-        "x".to_string(),
-        Box::new(SystemFTerm::Sort("TYPE".to_string())),
-        Box::new(SystemFTerm::Sort("TYPE".to_string())),
-    );
-    let expected_type = SystemFTerm::Sort("TYPE".to_string());
-
-    // assert_eq!(
-    //     evaluate_type_product(
-    //         &mut test_env,
-    //         "x".to_string(),
-    //         Expression::VarUse("TYPE".to_string()),
-    //         Expression::VarUse("TYPE".to_string())
-    //     ),
-    //     (expected_term.clone(), expected_type.clone()),
-    //     "Type abstraction evaluation isnt working as expected"
-    // );
-    // assert_eq!(
-    //     Cic::evaluate_expression(
-    //         Expression::TypeProduct(
-    //             "x".to_string(),
-    //             Box::new(Expression::VarUse("TYPE".to_string())),
-    //             Box::new(Expression::VarUse("TYPE".to_string())),
-    //         ),
-    //         &mut test_env,
-    //     ),
-    //     (expected_term, expected_type),
-    //     "Top level evaluator isnt working with type abstraction"
-    // );
-}
-
-#[test]
-fn test_app_evaluation() {
-    let mut test_env = make_default_environment();
-    test_env
-        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
-    test_env.add_variable_to_context(
-        "o",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
-    test_env.add_variable_to_context(
-        "s",
-        &SystemFTerm::Product(
-            "_".to_string(),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
-        ),
-    );
-    let expected_term = SystemFTerm::Application(
-        Box::new(SystemFTerm::Variable("s".to_string())),
-        Box::new(SystemFTerm::Variable("o".to_string())),
-    );
-    let expected_type = SystemFTerm::Variable("nat".to_string());
-
-    assert_eq!(
-        evaluate_application(
-            &mut test_env,
-            Expression::VarUse("s".to_string()),
-            Expression::VarUse("o".to_string())
-        ),
-        (expected_term.clone(), expected_type.clone()),
-        "Application evaluation isnt working as expected"
-    );
-    assert_eq!(
-        Cic::evaluate_expression(
-            Expression::Application(
-                Box::new(Expression::VarUse("s".to_string())),
-                Box::new(Expression::VarUse("o".to_string())),
-            ),
-            &mut test_env,
-        ),
-        (expected_term, expected_type),
-        "Top level evaluator isnt working with applications"
-    );
-}
-
-#[test]
-fn test_let_evaluation() {
-    let mut test_env = make_default_environment();
-    test_env
-        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
-    test_env.add_variable_to_context(
-        "c",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
-    let expected_term = SystemFTerm::Variable("n".to_string());
-    let expected_type = SystemFTerm::Variable("nat".to_string());
-
-    assert_eq!(
-        evaluate_let(
-            &mut test_env,
-            "n".to_string(),
-            Expression::VarUse("c".to_string()),
-        ),
-        (expected_term.clone(), expected_type.clone()),
-        "Let definition evaluation isnt working as expected"
-    );
-    assert_eq!(
-        Cic::evaluate_expression(
-            Expression::Let(
-                "n".to_string(),
-                Box::new(Expression::VarUse("c".to_string())),
-            ),
-            &mut test_env,
-        ),
-        (expected_term, expected_type),
-        "Top level evaluator isnt working with let definitions"
-    );
-}
-
-#[test]
-fn test_match_evaluation() {}
-
-#[test]
-fn test_inductive_evaluation() {}

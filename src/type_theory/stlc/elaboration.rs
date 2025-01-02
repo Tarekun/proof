@@ -19,7 +19,7 @@ fn cast_to_type(
 }
 
 //########################### EXPRESSIONS EVALUATION
-pub fn elaborate_var(var_name: String) -> StlcTerm {
+pub fn elaborate_var_use(var_name: String) -> StlcTerm {
     StlcTerm::Variable(var_name)
 }
 

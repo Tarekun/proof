@@ -1,7 +1,7 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_axiom,
     elaborate_file_root, elaborate_inductive, elaborate_let, elaborate_match,
-    elaborate_type_product, elaborate_var,
+    elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_match,
@@ -35,7 +35,7 @@ impl TypeTheory for Cic {
 
     fn elaborate_expression(ast: Expression) -> CicTerm {
         match ast {
-            Expression::VarUse(var_name) => elaborate_var(var_name),
+            Expression::VarUse(var_name) => elaborate_var_use(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
                 elaborate_abstraction(var_name, *var_type, *body)
             }

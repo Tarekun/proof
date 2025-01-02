@@ -7,7 +7,7 @@ use crate::{
 };
 
 //########################### EXPRESSIONS EVALUATION
-pub fn elaborate_var(var_name: String) -> CicTerm {
+pub fn elaborate_var_use(var_name: String) -> CicTerm {
     CicTerm::Variable(var_name)
 }
 
