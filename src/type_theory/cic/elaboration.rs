@@ -85,7 +85,6 @@ pub fn elaborate_let(
 ) {
     let assigned_term = Cic::elaborate_expression(body);
     let var_type_term = Cic::elaborate_expression(var_type);
-    println!("About to type check body {:?}", assigned_term.clone());
 
     match Cic::type_check(assigned_term.clone(), environment) {
         Ok(assigned_type) => {
