@@ -1,6 +1,6 @@
-#axiom nat:TYPE;
-#let f := (λx : nat. TYPE)   ; #(f f)
-#let g := (\lambda x:nat. f x)   ;
+axiom nat:TYPE;
+let f: (Πx:nat.TYPE) := (λx : nat. TYPE)   ; #(f f)
+let g: (Πx:nat.TYPE) := (\lambda x:nat. f x)   ;
 #let Type := Πx : TYPE. f ;
 #(Πx : TYPE. f) TYPE
 
@@ -9,8 +9,5 @@ inductive nat :=
     | s n
 ;
 
-let t := o;
-let z := match t with
-    | o => t 
-    | s n => o
-;;
+#let t := o;
+#let z := match t with | o => t | s n => o ;;

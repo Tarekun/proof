@@ -67,8 +67,8 @@ impl TypeTheory for Cic {
             Statement::Inductive(type_name, constructors) => {
                 elaborate_inductive(environment, type_name, constructors);
             }
-            Statement::Let(var_name, body) => {
-                elaborate_let(environment, var_name, *body)
+            Statement::Let(var_name, var_type, body) => {
+                elaborate_let(environment, var_name, *var_type, *body)
             }
             _ => panic!("not implemented"),
         }

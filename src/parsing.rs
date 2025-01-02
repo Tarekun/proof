@@ -19,8 +19,8 @@ pub enum Statement {
     FileRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
     Inductive(String, Vec<(String, Vec<Expression>)>),
-    /// (var_name, definition_body)
-    Let(String, Box<Expression>),
+    /// (var_name, var_type, definition_body)
+    Let(String, Box<Expression>, Box<Expression>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -172,11 +172,22 @@ fn parse_expression(input: &str) -> IResult<&str, Expression> {
 fn parse_let(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
     let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    //TODO should allow product type expressions here or only predefined type vars?
+    let (input, type_var) =
+        preceded(multispace0, alt((parse_var, parse_parens)))(input)?;
     let (input, _) = preceded(multispace0, tag(":="))(input)?;
     let (input, term) = preceded(multispace0, parse_expression)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
-    Ok((input, Statement::Let(var_name.to_string(), Box::new(term))))
+    Ok((
+        input,
+        Statement::Let(
+            var_name.to_string(),
+            Box::new(type_var),
+            Box::new(term),
+        ),
+    ))
 }
 
 fn parse_inductive_constructor(
@@ -395,31 +406,32 @@ fn test_type_theory_terms() {
 #[test]
 fn test_let() {
     assert!(
-        parse_let("let n := x;").is_ok(),
+        parse_let("let n: nat := x;").is_ok(),
         "Parser cant read let definitions"
     );
     assert!(
-        parse_let("let \t n    :=\t  x  \t;").is_ok(),
+        parse_let("let \t n  \t:  \t nat  :=\t  x  \t;").is_ok(),
         "Let parser cant cope with multispaces"
     );
     assert!(
-        parse_let("letn := x;").is_err(),
+        parse_let("letn :nat:= x;").is_err(),
         "Let parser doesnt split 'let' keyword and variable identifier"
     );
     assert_eq!(
-        parse_let("let n := x;").unwrap(),
+        parse_let("let n : nat := x;").unwrap(),
         (
             "",
             Statement::Let(
                 "n".to_string(),
+                Box::new(Expression::VarUse("nat".to_string())),
                 Box::new(Expression::VarUse("x".to_string()))
             )
         ),
         "Let definition struct isnt properly constructed"
     );
     assert!(
-        parse_node("let n := x;").is_ok(),
-        "Top level parser can't read axioms"
+        parse_node("let n: nat := x;").is_ok(),
+        "Top level parser can't read let definitions"
     );
 }
 
