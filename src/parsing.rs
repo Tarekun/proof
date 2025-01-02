@@ -19,6 +19,8 @@ pub enum Statement {
     FileRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
     Inductive(String, Vec<(String, Vec<Expression>)>),
+    /// (var_name, definition_body)
+    Let(String, Box<Expression>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -28,8 +30,6 @@ pub enum Expression {
     /// (var_name, var_type, dependent_type)
     TypeProduct(String, Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
-    /// (var_name, definition_body)
-    Let(String, Box<Expression>),
     Num(i64),
     // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
@@ -127,16 +127,6 @@ fn parse_app(input: &str) -> IResult<&str, Expression> {
     ))
 }
 
-fn parse_let(input: &str) -> IResult<&str, Expression> {
-    let (input, _) = preceded(multispace0, tag("let"))(input)?;
-    let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
-    let (input, _) = preceded(multispace0, tag(":="))(input)?;
-    let (input, term) = preceded(multispace0, parse_expression)(input)?;
-    let (input, _) = preceded(multispace0, char(';'))(input)?;
-
-    Ok((input, Expression::Let(var_name.to_string(), Box::new(term))))
-}
-
 fn parse_match_branch(
     input: &str,
 ) -> IResult<&str, (Vec<Expression>, Expression)> {
@@ -174,11 +164,21 @@ fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
 fn parse_expression(input: &str) -> IResult<&str, Expression> {
     //let is here because you dont want 2 consecutive let edfinitions
     //be parsed as an application normally
-    alt((parse_app, parse_let, parse_atomic_expression))(input)
+    alt((parse_app, parse_atomic_expression))(input)
 }
 //########################### EXPRESSION PARSERS
 
 //########################### STATEMENT PARSERS
+fn parse_let(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = preceded(multispace0, tag("let"))(input)?;
+    let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":="))(input)?;
+    let (input, term) = preceded(multispace0, parse_expression)(input)?;
+    let (input, _) = preceded(multispace0, char(';'))(input)?;
+
+    Ok((input, Statement::Let(var_name.to_string(), Box::new(term))))
+}
+
 fn parse_inductive_constructor(
     input: &str,
 ) -> IResult<&str, (String, Vec<Expression>)> {
@@ -228,7 +228,7 @@ fn parse_axiom(input: &str) -> IResult<&str, Statement> {
 }
 
 fn parse_statement(input: &str) -> IResult<&str, Statement> {
-    alt((parse_comment, parse_axiom, parse_inductive_def))(input)
+    alt((parse_comment, parse_let, parse_axiom, parse_inductive_def))(input)
 }
 //########################### STATEMENT PARSERS
 
@@ -410,7 +410,7 @@ fn test_let() {
         parse_let("let n := x;").unwrap(),
         (
             "",
-            Expression::Let(
+            Statement::Let(
                 "n".to_string(),
                 Box::new(Expression::VarUse("x".to_string()))
             )

@@ -13,42 +13,23 @@ use crate::{
 #[test]
 fn test_var_evaluation() {
     let test_var_name = "test_var";
-    let test_var_type = SystemFTerm::Sort("TYPE".to_string());
-    let mut test_env: Environment<SystemFTerm, SystemFTerm> =
-        Environment::with_defaults(
-            vec![(&test_var_name, &test_var_type)],
-            Vec::new(),
-        );
 
-    let (var, var_type) = elaborate_var(&test_env, &test_var_name);
+    let var_term = elaborate_var(&test_var_name);
     assert_eq!(
-        var,
+        var_term,
         SystemFTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
-    assert_eq!(var_type, test_var_type, "Variable type mismatch");
-    let (var, var_type) = Cic::elaborate_expression(
-        Expression::VarUse(test_var_name.to_string()),
-        &mut test_env,
-    );
+    // assert_eq!(var_type, test_var_type, "Variable type mismatch");
+    let var_term = Cic::elaborate_expression(Expression::VarUse(
+        test_var_name.to_string(),
+    ));
     assert_eq!(
-        var,
+        var_term,
         SystemFTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
-    assert_eq!(var_type, test_var_type, "Variable type mismatch");
-}
-
-#[test]
-fn test_unbound_var_evaluation() {
-    let test_env: Environment<SystemFTerm, SystemFTerm> =
-        Environment::with_defaults(vec![], Vec::new());
-    let (_, type_term) = elaborate_var(&test_env, "unbound_var");
-    assert_eq!(
-        type_term,
-        SystemFTerm::MissingType(),
-        "Unbound variable has type"
-    );
+    // assert_eq!(var_type, test_var_type, "Variable type mismatch");
 }
 
 #[test]

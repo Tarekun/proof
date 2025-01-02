@@ -18,10 +18,7 @@ pub trait TypeTheory {
 
     /// Elaborate a single expression, updating the environment and returning
     /// the result as a term of the type theory.
-    fn elaborate_expression(
-        ast: Expression,
-        environment: &mut Environment<Self::Term, Self::Type>,
-    ) -> (Self::Term, Self::Type);
+    fn elaborate_expression(ast: Expression) -> Self::Term;
 
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message

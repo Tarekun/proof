@@ -14,8 +14,6 @@ use crate::type_theory::interface::TypeTheory;
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
 pub enum SystemFTerm {
     MissingType(),
-    /// (constant's token, constant's type)
-    Constant(String, Box<SystemFTerm>),
     /// (sort name)
     Sort(String),
     /// (var name)
@@ -35,28 +33,20 @@ impl TypeTheory for Cic {
     type Term = SystemFTerm;
     type Type = SystemFTerm;
 
-    fn elaborate_expression(
-        ast: Expression,
-        environment: &mut Environment<SystemFTerm, SystemFTerm>,
-    ) -> (SystemFTerm, SystemFTerm) {
+    fn elaborate_expression(ast: Expression) -> SystemFTerm {
         match ast {
-            Expression::VarUse(var_name) => {
-                elaborate_var(&environment, &var_name)
-            }
+            Expression::VarUse(var_name) => elaborate_var(&var_name),
             Expression::Abstraction(var_name, var_type, body) => {
-                elaborate_abstraction(environment, var_name, *var_type, *body)
+                elaborate_abstraction(var_name, *var_type, *body)
             }
             Expression::TypeProduct(var_name, var_type, body) => {
-                elaborate_type_product(environment, var_name, *var_type, *body)
+                elaborate_type_product(var_name, *var_type, *body)
             }
             Expression::Application(left, right) => {
-                elaborate_application(environment, *left, *right)
-            }
-            Expression::Let(var_name, body) => {
-                elaborate_let(environment, var_name, *body)
+                elaborate_application(*left, *right)
             }
             Expression::Match(matched_term, branches) => {
-                elaborate_match(environment, *matched_term, branches)
+                elaborate_match(*matched_term, branches)
             }
             _ => panic!("not implemented"),
         }
@@ -77,6 +67,9 @@ impl TypeTheory for Cic {
             Statement::Inductive(type_name, constructors) => {
                 elaborate_inductive(environment, type_name, constructors);
             }
+            Statement::Let(var_name, body) => {
+                elaborate_let(environment, var_name, *body)
+            }
             _ => panic!("not implemented"),
         }
     }
@@ -86,7 +79,7 @@ impl TypeTheory for Cic {
         match ast {
             NsAst::Stm(stm) => Cic::elaborate_statement(stm, &mut env),
             NsAst::Exp(exp) => {
-                let (_, _) = Cic::elaborate_expression(exp, &mut env);
+                let _ = Cic::elaborate_expression(exp);
             }
         }
 
