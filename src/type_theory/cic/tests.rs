@@ -2,7 +2,7 @@ use crate::{
     parsing::Expression,
     type_theory::{
         cic::{
-            cic::{make_default_environment, Cic, SystemFTerm},
+            cic::{make_default_environment, Cic, CicTerm},
             elaboration::elaborate_var,
         },
         environment::Environment,
@@ -14,10 +14,10 @@ use crate::{
 fn test_var_evaluation() {
     let test_var_name = "test_var";
 
-    let var_term = elaborate_var(&test_var_name);
+    let var_term = elaborate_var(test_var_name.to_string());
     assert_eq!(
         var_term,
-        SystemFTerm::Variable(test_var_name.to_string()),
+        CicTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
     // assert_eq!(var_type, test_var_type, "Variable type mismatch");
@@ -26,7 +26,7 @@ fn test_var_evaluation() {
     ));
     assert_eq!(
         var_term,
-        SystemFTerm::Variable(test_var_name.to_string()),
+        CicTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
     // assert_eq!(var_type, test_var_type, "Variable type mismatch");
@@ -35,64 +35,58 @@ fn test_var_evaluation() {
 #[test]
 fn test_type_check_sort_n_vars() {
     let mut test_env = make_default_environment();
-    test_env
-        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
+    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
     // assumption, the type statement is included in the context
-    test_env.add_variable_to_context(
-        "n",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
+    test_env
+        .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
     // definition, we have the variabled and a typed body
     test_env.add_variable_definition(
         "m",
-        &SystemFTerm::Variable("n".to_string()),
-        &SystemFTerm::Variable("nat".to_string()),
+        &CicTerm::Variable("n".to_string()),
+        &CicTerm::Variable("nat".to_string()),
     );
 
     // sorts
     assert_eq!(
-        Cic::type_check(SystemFTerm::Sort("TYPE".to_string()), &mut test_env)
+        Cic::type_check(CicTerm::Sort("TYPE".to_string()), &mut test_env)
             .unwrap(),
-        SystemFTerm::Sort("TYPE".to_string()),
+        CicTerm::Sort("TYPE".to_string()),
         "Sort 'TYPE' type checking failed"
     );
     assert!(
-        Cic::type_check(SystemFTerm::Sort("PROP".to_string()), &mut test_env)
+        Cic::type_check(CicTerm::Sort("PROP".to_string()), &mut test_env)
             .is_ok(),
         "Sort 'PROP' type checking failed"
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Sort("StupidInvalidSort".to_string()),
+            CicTerm::Sort("StupidInvalidSort".to_string()),
             &mut test_env
         )
         .is_err(),
         "Sort type checker accepts illegal sort"
     );
     assert!(
-        Cic::type_check(
-            SystemFTerm::Variable("TYPE".to_string()),
-            &mut test_env
-        )
-        .is_ok(),
+        Cic::type_check(CicTerm::Variable("TYPE".to_string()), &mut test_env)
+            .is_ok(),
         "Type checker refuses sorts when used as variables"
     );
 
     // variables
     assert_eq!(
-        Cic::type_check(SystemFTerm::Variable("n".to_string()), &mut test_env)
+        Cic::type_check(CicTerm::Variable("n".to_string()), &mut test_env)
             .unwrap(),
-        SystemFTerm::Variable("nat".to_string()),
+        CicTerm::Variable("nat".to_string()),
         "Type checker refuses existing variable"
     );
     assert!(
-        Cic::type_check(SystemFTerm::Variable("m".to_string()), &mut test_env)
+        Cic::type_check(CicTerm::Variable("m".to_string()), &mut test_env)
             .is_ok(),
         "Type checker refuses defined variable"
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Sort("stupidInvalidVar".to_string()),
+            CicTerm::Sort("stupidInvalidVar".to_string()),
             &mut test_env
         )
         .is_err(),
@@ -103,48 +97,45 @@ fn test_type_check_sort_n_vars() {
 #[test]
 fn test_type_check_abstraction() {
     let mut test_env = make_default_environment();
-    test_env
-        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
+    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
     // assumption, the type statement is included in the context
-    test_env.add_variable_to_context(
-        "o",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
+    test_env
+        .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
     // function over nat
     test_env.add_variable_to_context(
         "s",
-        &SystemFTerm::Product(
+        &CicTerm::Product(
             "n".to_string(),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string())),
         ),
     );
 
     assert_eq!(
         Cic::type_check(
-            SystemFTerm::Abstraction(
+            CicTerm::Abstraction(
                 "x".to_string(),
-                Box::new(SystemFTerm::Variable("nat".to_string())),
-                Box::new(SystemFTerm::Variable("x".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string())),
+                Box::new(CicTerm::Variable("x".to_string())),
             ),
             &mut test_env
         )
         .unwrap(),
-        SystemFTerm::Product(
+        CicTerm::Product(
             "x".to_string(),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
-            Box::new(SystemFTerm::Variable("nat".to_string()))
+            Box::new(CicTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string()))
         ),
         "Type checker refuses simple identity function"
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Abstraction(
+            CicTerm::Abstraction(
                 "x".to_string(),
-                Box::new(SystemFTerm::Variable("nat".to_string())),
-                Box::new(SystemFTerm::Application(
-                    Box::new(SystemFTerm::Variable("s".to_string())),
-                    Box::new(SystemFTerm::Variable("x".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string())),
+                Box::new(CicTerm::Application(
+                    Box::new(CicTerm::Variable("s".to_string())),
+                    Box::new(CicTerm::Variable("x".to_string())),
                 )),
             ),
             &mut test_env
@@ -154,12 +145,10 @@ fn test_type_check_abstraction() {
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Abstraction(
+            CicTerm::Abstraction(
                 "x".to_string(),
-                Box::new(SystemFTerm::Variable(
-                    "StupidInvalidType".to_string()
-                )),
-                Box::new(SystemFTerm::Variable("x".to_string())),
+                Box::new(CicTerm::Variable("StupidInvalidType".to_string())),
+                Box::new(CicTerm::Variable("x".to_string())),
             ),
             &mut test_env
         )
@@ -174,32 +163,32 @@ fn test_type_check_product() {
     // polymorphic type constructor
     test_env.add_variable_to_context(
         "list",
-        &SystemFTerm::Product(
+        &CicTerm::Product(
             "T".to_string(),
-            Box::new(SystemFTerm::Sort("TYPE".to_string())),
-            Box::new(SystemFTerm::Sort("TYPE".to_string())),
+            Box::new(CicTerm::Sort("TYPE".to_string())),
+            Box::new(CicTerm::Sort("TYPE".to_string())),
         ),
     );
 
     assert_eq!(
         Cic::type_check(
-            SystemFTerm::Product(
+            CicTerm::Product(
                 "T".to_string(),
-                Box::new(SystemFTerm::Sort("TYPE".to_string())),
-                Box::new(SystemFTerm::Variable("T".to_string())),
+                Box::new(CicTerm::Sort("TYPE".to_string())),
+                Box::new(CicTerm::Variable("T".to_string())),
             ),
             &mut test_env
         )
         .unwrap(),
-        SystemFTerm::Sort("TYPE".to_string()),
+        CicTerm::Sort("TYPE".to_string()),
         "Type checker refuses simple polymorphic identity type"
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Product(
+            CicTerm::Product(
                 "T".to_string(),
-                Box::new(SystemFTerm::Sort("StupidInvalidSort".to_string())),
-                Box::new(SystemFTerm::Variable("T".to_string())),
+                Box::new(CicTerm::Sort("StupidInvalidSort".to_string())),
+                Box::new(CicTerm::Variable("T".to_string())),
             ),
             &mut test_env
         )
@@ -208,12 +197,12 @@ fn test_type_check_product() {
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Product(
+            CicTerm::Product(
                 "T".to_string(),
-                Box::new(SystemFTerm::Sort("TYPE".to_string())),
-                Box::new(SystemFTerm::Application(
-                    Box::new(SystemFTerm::Variable("list".to_string())),
-                    Box::new(SystemFTerm::Variable("T".to_string()))
+                Box::new(CicTerm::Sort("TYPE".to_string())),
+                Box::new(CicTerm::Application(
+                    Box::new(CicTerm::Variable("list".to_string())),
+                    Box::new(CicTerm::Variable("T".to_string()))
                 ))
             ),
             &mut test_env
@@ -227,46 +216,43 @@ fn test_type_check_product() {
 // TODO include tests for polymorphic types
 fn test_type_check_application() {
     let mut test_env = make_default_environment();
-    test_env
-        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
+    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
     // assumption, the type statement is included in the context
-    test_env.add_variable_to_context(
-        "n",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
+    test_env
+        .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
     // definition, we have the variabled and a typed body
     test_env.add_variable_definition(
         "m",
-        &SystemFTerm::Variable("n".to_string()),
-        &SystemFTerm::Variable("nat".to_string()),
+        &CicTerm::Variable("n".to_string()),
+        &CicTerm::Variable("nat".to_string()),
     );
     // function over nat
     test_env.add_variable_to_context(
         "s",
-        &SystemFTerm::Product(
+        &CicTerm::Product(
             "n".to_string(),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string())),
         ),
     );
 
     assert_eq!(
         Cic::type_check(
-            SystemFTerm::Application(
-                Box::new(SystemFTerm::Variable("s".to_string())),
-                Box::new(SystemFTerm::Variable("n".to_string())),
+            CicTerm::Application(
+                Box::new(CicTerm::Variable("s".to_string())),
+                Box::new(CicTerm::Variable("n".to_string())),
             ),
             &mut test_env
         )
         .unwrap(),
-        SystemFTerm::Variable("nat".to_string()),
+        CicTerm::Variable("nat".to_string()),
         "Type checker refuses function application over nat"
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Application(
-                Box::new(SystemFTerm::Variable("s".to_string())),
-                Box::new(SystemFTerm::Variable("m".to_string())),
+            CicTerm::Application(
+                Box::new(CicTerm::Variable("s".to_string())),
+                Box::new(CicTerm::Variable("m".to_string())),
             ),
             &mut test_env
         )
@@ -275,9 +261,9 @@ fn test_type_check_application() {
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Application(
-                Box::new(SystemFTerm::Variable("s".to_string())),
-                Box::new(SystemFTerm::Variable("TYPE".to_string())),
+            CicTerm::Application(
+                Box::new(CicTerm::Variable("s".to_string())),
+                Box::new(CicTerm::Variable("TYPE".to_string())),
             ),
             &mut test_env
         )
@@ -290,70 +276,63 @@ fn test_type_check_application() {
 //TODO add check of exaustiveness of patterns
 fn test_type_check_match() {
     let mut test_env = make_default_environment();
+    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
     test_env
-        .add_variable_to_context("nat", &SystemFTerm::Sort("TYPE".to_string()));
-    test_env.add_variable_to_context(
-        "o",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
+        .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
     test_env.add_variable_to_context(
         "s",
-        &SystemFTerm::Product(
+        &CicTerm::Product(
             "_".to_string(),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
-            Box::new(SystemFTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string())),
+            Box::new(CicTerm::Variable("nat".to_string())),
         ),
     );
-    test_env.add_variable_to_context(
-        "c",
-        &SystemFTerm::Variable("nat".to_string()),
-    );
-    test_env.add_variable_to_context(
-        "d",
-        &SystemFTerm::Variable("TYPE".to_string()),
-    );
+    test_env
+        .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
+    test_env
+        .add_variable_to_context("d", &CicTerm::Variable("TYPE".to_string()));
 
     assert_eq!(
         Cic::type_check(
-            SystemFTerm::Match(
-                Box::new(SystemFTerm::Variable("c".to_string())),
+            CicTerm::Match(
+                Box::new(CicTerm::Variable("c".to_string())),
                 vec![
                     (
-                        vec![SystemFTerm::Variable("o".to_string())],
-                        SystemFTerm::Variable("o".to_string())
+                        vec![CicTerm::Variable("o".to_string())],
+                        CicTerm::Variable("o".to_string())
                     ),
                     (
                         vec![
-                            SystemFTerm::Variable("s".to_string()),
-                            SystemFTerm::Variable("n".to_string())
+                            CicTerm::Variable("s".to_string()),
+                            CicTerm::Variable("n".to_string())
                         ],
-                        SystemFTerm::Variable("c".to_string())
+                        CicTerm::Variable("c".to_string())
                     ),
                 ]
             ),
             &mut test_env
         )
         .unwrap(),
-        SystemFTerm::Variable("nat".to_string()),
+        CicTerm::Variable("nat".to_string()),
         "Type checker refuses matching over naturals"
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Match(
-                Box::new(SystemFTerm::Variable(
+            CicTerm::Match(
+                Box::new(CicTerm::Variable(
                     "stupidUnboundVariable".to_string()
                 )),
                 vec![
                     (
-                        vec![SystemFTerm::Variable("o".to_string())],
-                        SystemFTerm::Variable("o".to_string())
+                        vec![CicTerm::Variable("o".to_string())],
+                        CicTerm::Variable("o".to_string())
                     ),
                     (
                         vec![
-                            SystemFTerm::Variable("s".to_string()),
-                            SystemFTerm::Variable("n".to_string())
+                            CicTerm::Variable("s".to_string()),
+                            CicTerm::Variable("n".to_string())
                         ],
-                        SystemFTerm::Variable("c".to_string())
+                        CicTerm::Variable("c".to_string())
                     ),
                 ]
             ),
@@ -364,19 +343,19 @@ fn test_type_check_match() {
     );
     assert!(
         Cic::type_check(
-            SystemFTerm::Match(
-                Box::new(SystemFTerm::Variable("c".to_string())),
+            CicTerm::Match(
+                Box::new(CicTerm::Variable("c".to_string())),
                 vec![
                     (
-                        vec![SystemFTerm::Variable("o".to_string())],
-                        SystemFTerm::Variable("o".to_string())
+                        vec![CicTerm::Variable("o".to_string())],
+                        CicTerm::Variable("o".to_string())
                     ),
                     (
                         vec![
-                            SystemFTerm::Variable("s".to_string()),
-                            SystemFTerm::Variable("n".to_string())
+                            CicTerm::Variable("s".to_string()),
+                            CicTerm::Variable("n".to_string())
                         ],
-                        SystemFTerm::Variable("d".to_string()) //this body has type : TYPE
+                        CicTerm::Variable("d".to_string()) //this body has type : TYPE
                     ),
                 ]
             ),
@@ -387,19 +366,19 @@ fn test_type_check_match() {
     );
     // assert!(
     //     type_check(
-    //         SystemFTerm::Match(
-    //             Box::new(SystemFTerm::Variable("c".to_string())),
+    //         CicTerm::Match(
+    //             Box::new(CicTerm::Variable("c".to_string())),
     //             vec![
     //                 (
-    //                     vec![SystemFTerm::Variable("c".to_string())], //random variable in place of constr
-    //                     SystemFTerm::Variable("o".to_string())
+    //                     vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
+    //                     CicTerm::Variable("o".to_string())
     //                 ),
     //                 (
     //                     vec![
-    //                         SystemFTerm::Variable("s".to_string()),
-    //                         SystemFTerm::Variable("n".to_string())
+    //                         CicTerm::Variable("s".to_string()),
+    //                         CicTerm::Variable("n".to_string())
     //                     ],
-    //                     SystemFTerm::Variable("n".to_string())
+    //                     CicTerm::Variable("n".to_string())
     //                 ),
     //             ]
     //         ),

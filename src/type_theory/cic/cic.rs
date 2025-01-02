@@ -12,30 +12,30 @@ use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
-pub enum SystemFTerm {
+pub enum CicTerm {
     MissingType(),
     /// (sort name)
     Sort(String),
     /// (var name)
     Variable(String),
     /// (var name, var type, body)
-    Abstraction(String, Box<SystemFTerm>, Box<SystemFTerm>), //add bodytype?
+    Abstraction(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (var name, var type, body)
-    Product(String, Box<SystemFTerm>, Box<SystemFTerm>), //add bodytype?
+    Product(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (function, argument)
-    Application(Box<SystemFTerm>, Box<SystemFTerm>),
+    Application(Box<CicTerm>, Box<CicTerm>),
     /// (matched_term, [ branch: ([pattern], body) ])
-    Match(Box<SystemFTerm>, Vec<(Vec<SystemFTerm>, SystemFTerm)>),
+    Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
 }
 
 pub struct Cic;
 impl TypeTheory for Cic {
-    type Term = SystemFTerm;
-    type Type = SystemFTerm;
+    type Term = CicTerm;
+    type Type = CicTerm;
 
-    fn elaborate_expression(ast: Expression) -> SystemFTerm {
+    fn elaborate_expression(ast: Expression) -> CicTerm {
         match ast {
-            Expression::VarUse(var_name) => elaborate_var(&var_name),
+            Expression::VarUse(var_name) => elaborate_var(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
                 elaborate_abstraction(var_name, *var_type, *body)
             }
@@ -54,7 +54,7 @@ impl TypeTheory for Cic {
 
     fn elaborate_statement(
         ast: Statement,
-        environment: &mut Environment<SystemFTerm, SystemFTerm>,
+        environment: &mut Environment<CicTerm, CicTerm>,
     ) {
         match ast {
             Statement::Comment() => {}
@@ -74,7 +74,7 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn elaborate_ast(ast: NsAst) -> Environment<SystemFTerm, SystemFTerm> {
+    fn elaborate_ast(ast: NsAst) -> Environment<CicTerm, CicTerm> {
         let mut env = make_default_environment();
         match ast {
             NsAst::Stm(stm) => Cic::elaborate_statement(stm, &mut env),
@@ -87,26 +87,24 @@ impl TypeTheory for Cic {
     }
 
     fn type_check(
-        term: SystemFTerm,
-        environment: &mut Environment<SystemFTerm, SystemFTerm>,
-    ) -> Result<SystemFTerm, String> {
+        term: CicTerm,
+        environment: &mut Environment<CicTerm, CicTerm>,
+    ) -> Result<CicTerm, String> {
         match term {
-            SystemFTerm::Sort(sort_name) => {
-                type_check_sort(environment, sort_name)
-            }
-            SystemFTerm::Variable(var_name) => {
+            CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
+            CicTerm::Variable(var_name) => {
                 type_check_variable(environment, var_name)
             }
-            SystemFTerm::Abstraction(var_name, var_type, body) => {
+            CicTerm::Abstraction(var_name, var_type, body) => {
                 type_check_abstraction(environment, var_name, *var_type, *body)
             }
-            SystemFTerm::Product(var_name, var_type, body) => {
+            CicTerm::Product(var_name, var_type, body) => {
                 type_check_product(environment, var_name, *var_type, *body)
             }
-            SystemFTerm::Application(left, right) => {
+            CicTerm::Application(left, right) => {
                 type_check_application(environment, *left, *right)
             }
-            SystemFTerm::Match(matched_term, branches) => {
+            CicTerm::Match(matched_term, branches) => {
                 type_check_match(environment, *matched_term, branches)
             }
 
@@ -116,10 +114,9 @@ impl TypeTheory for Cic {
 }
 
 #[allow(non_snake_case)]
-pub fn make_default_environment() -> Environment<SystemFTerm, SystemFTerm> {
-    let TYPE = SystemFTerm::Sort("TYPE".to_string());
-    let axioms: Vec<(&str, &SystemFTerm)> =
-        vec![("TYPE", &TYPE), ("PROP", &TYPE)];
+pub fn make_default_environment() -> Environment<CicTerm, CicTerm> {
+    let TYPE = CicTerm::Sort("TYPE".to_string());
+    let axioms: Vec<(&str, &CicTerm)> = vec![("TYPE", &TYPE), ("PROP", &TYPE)];
 
     Environment::with_defaults(axioms, Vec::default())
 }
