@@ -8,7 +8,11 @@ use crate::{
 
 //########################### EXPRESSIONS EVALUATION
 pub fn elaborate_var_use(var_name: String) -> CicTerm {
-    CicTerm::Variable(var_name)
+    if var_name.chars().all(|c| c.is_ascii_uppercase()) {
+        CicTerm::Sort(var_name)
+    } else {
+        CicTerm::Variable(var_name)
+    }
 }
 
 pub fn elaborate_abstraction(

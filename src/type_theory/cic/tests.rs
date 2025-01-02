@@ -28,14 +28,11 @@ fn test_var_evaluation() {
         CicTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
-    // assert_eq!(
-    //     elaborate_var_use(&test_env, "TYPE"),
-    //     (
-    //         CicTerm::Sort("TYPE".to_string()),
-    //         SystemFTerm::Sort("TYPE".to_string())
-    //     ),
-    //     "Sort name returns a simple variable instead of a sort term"
-    // );
+    assert_eq!(
+        elaborate_var_use("TYPE".to_string()),
+        CicTerm::Sort("TYPE".to_string()),
+        "Sort name returns a simple variable instead of a sort term"
+    );
     assert_eq!(
         Cic::elaborate_expression(Expression::VarUse(
             test_var_name.to_string()
