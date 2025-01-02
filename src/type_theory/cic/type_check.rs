@@ -1,11 +1,11 @@
-use super::cic::{Cic, SystemFTerm};
+use super::cic::{Cic, CicTerm};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
 pub fn type_check_sort(
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    environment: &mut Environment<CicTerm, CicTerm>,
     sort_name: String,
-) -> Result<SystemFTerm, String> {
+) -> Result<CicTerm, String> {
     match environment.get_variable_type(&sort_name) {
         //TODO check that the type is a sort itself?
         Some(sort_type) => Ok(sort_type),
@@ -14,9 +14,9 @@ pub fn type_check_sort(
 }
 
 pub fn type_check_variable(
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
-) -> Result<SystemFTerm, String> {
+) -> Result<CicTerm, String> {
     match environment.get_variable_type(&var_name) {
         Some(var_type) => Ok(var_type),
         None => Err(format!("Unbound variable: {}", var_name)),
@@ -24,17 +24,17 @@ pub fn type_check_variable(
 }
 
 pub fn type_check_abstraction(
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
-    var_type: SystemFTerm,
-    body: SystemFTerm,
-) -> Result<SystemFTerm, String> {
+    var_type: CicTerm,
+    body: CicTerm,
+) -> Result<CicTerm, String> {
     let _ = Cic::type_check(var_type.clone(), environment)?;
     //TODO update the context only temporarily, during body evaluation
     environment.add_variable_to_context(&var_name, &var_type);
     let body_type = Cic::type_check(body, environment)?;
 
-    Ok(SystemFTerm::Product(
+    Ok(CicTerm::Product(
         var_name,
         Box::new(var_type),
         Box::new(body_type),
@@ -42,32 +42,32 @@ pub fn type_check_abstraction(
 }
 
 pub fn type_check_product(
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
+    environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
-    var_type: SystemFTerm,
-    body: SystemFTerm,
-) -> Result<SystemFTerm, String> {
+    var_type: CicTerm,
+    body: CicTerm,
+) -> Result<CicTerm, String> {
     let _ = Cic::type_check(var_type.clone(), environment)?;
     //TODO update the context only temporarily, during body evaluation
     environment.add_variable_to_context(&var_name, &var_type);
     let body_type = Cic::type_check(body, environment)?;
 
     match body_type {
-        SystemFTerm::Sort(_) => Ok(body_type),
+        CicTerm::Sort(_) => Ok(body_type),
         _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
     }
 }
 
 pub fn type_check_application(
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
-    left: SystemFTerm,
-    right: SystemFTerm,
-) -> Result<SystemFTerm, String> {
+    environment: &mut Environment<CicTerm, CicTerm>,
+    left: CicTerm,
+    right: CicTerm,
+) -> Result<CicTerm, String> {
     let function_type = Cic::type_check(left, environment)?;
     let arg_type = Cic::type_check(right, environment)?;
 
     match function_type {
-        SystemFTerm::Product(_, domain, codomain) => {
+        CicTerm::Product(_, domain, codomain) => {
             if *domain == arg_type {
                 Ok(*codomain)
             } else {
@@ -86,15 +86,15 @@ pub fn type_check_application(
 }
 
 fn type_check_pattern(
-    constr_type: SystemFTerm,
-    variables: Vec<SystemFTerm>,
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
-) -> Result<SystemFTerm, String> {
+    constr_type: CicTerm,
+    variables: Vec<CicTerm>,
+    environment: &mut Environment<CicTerm, CicTerm>,
+) -> Result<CicTerm, String> {
     match variables.len() {
         0 => Ok(constr_type),
         1.. => match variables[0].clone() {
-            SystemFTerm::Variable(var_name) => match constr_type {
-                SystemFTerm::Product(_, domain, codomain) => {
+            CicTerm::Variable(var_name) => match constr_type {
+                CicTerm::Product(_, domain, codomain) => {
                     // TODO local addition for the branch only
                     environment.add_variable_to_context(&var_name, &domain);
                     type_check_pattern(
@@ -115,10 +115,10 @@ fn type_check_pattern(
 }
 
 pub fn type_check_match(
-    environment: &mut Environment<SystemFTerm, SystemFTerm>,
-    matched_term: SystemFTerm,
-    branches: Vec<(Vec<SystemFTerm>, SystemFTerm)>,
-) -> Result<SystemFTerm, String> {
+    environment: &mut Environment<CicTerm, CicTerm>,
+    matched_term: CicTerm,
+    branches: Vec<(Vec<CicTerm>, CicTerm)>,
+) -> Result<CicTerm, String> {
     let matching_type = Cic::type_check(matched_term, environment)?;
     let mut return_type = None;
 

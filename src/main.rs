@@ -3,14 +3,14 @@ mod parsing;
 mod type_theory {
     pub mod cic {
         pub mod cic;
-        pub mod evaluation;
+        pub mod elaboration;
         mod tests;
         pub mod type_check;
     }
     pub mod environment;
     pub mod interface;
     // pub mod stlc {
-    //     pub mod evaluation;
+    //     pub mod elaboration;
     //     pub mod stlc;
     //     mod tests;
     // }
@@ -35,7 +35,7 @@ fn main() {
     println!("Remaining input: '{}'\n", remaining);
 
     // let environment = Stlc::evaluate_ast(ast);
-    let environment = Cic::evaluate_ast(ast);
+    let environment = Cic::elaborate_ast(ast);
     for definition in environment.deltas {
         let (var_name, term) = definition;
         println!("defined term {:?}: {:?}", var_name, term);

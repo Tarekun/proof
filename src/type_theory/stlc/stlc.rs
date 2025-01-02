@@ -1,6 +1,6 @@
-use super::evaluation::{
-    evaluate_abstraction, evaluate_application, evaluate_file_root,
-    evaluate_let, evaluate_var,
+use super::elaboration::{
+    elaborate_abstraction, elaborate_application, elaborate_file_root,
+    elaborate_let, elaborate_var,
 };
 use crate::parsing::{self, Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
@@ -24,39 +24,36 @@ impl TypeTheory for Stlc {
     type Term = StlcTerm;
     type Type = StlcType;
 
-    fn evaluate_expression(
-        ast: parsing::Expression,
-        environment: &mut Environment<StlcTerm, StlcType>,
-    ) -> (StlcTerm, StlcType) {
+    fn elaborate_expression(ast: parsing::Expression) -> StlcTerm {
         match ast {
-            Expression::VarUse(var_name) => evaluate_var(environment, var_name),
+            Expression::VarUse(var_name) => elaborate_var(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
-                evaluate_abstraction(environment, var_name, *var_type, *body)
+                elaborate_abstraction(var_name, *var_type, *body)
             }
             Expression::Application(left, right) => {
-                evaluate_application(environment, *left, *right)
-            }
-            Expression::Let(var_name, ast) => {
-                evaluate_let(environment, var_name, *ast)
+                elaborate_application(*left, *right)
             }
             _ => panic!("non implemented"),
         }
     }
 
-    fn evaluate_statement(
+    fn elaborate_statement(
         ast: Statement,
         environment: &mut Environment<StlcTerm, StlcType>,
     ) {
         match ast {
             Statement::Comment() => {}
             Statement::FileRoot(file_path, asts) => {
-                evaluate_file_root(environment, file_path, asts);
+                elaborate_file_root(environment, file_path, asts);
+            }
+            Statement::Let(var_name, ast) => {
+                elaborate_let(environment, var_name, *ast)
             }
             _ => panic!("not implemented"),
         }
     }
 
-    fn evaluate_ast(ast: NsAst) -> Environment<StlcTerm, StlcType> {
+    fn elaborate_ast(ast: NsAst) -> Environment<StlcTerm, StlcType> {
         let nat = StlcType::Atomic("nat".to_string());
         let mut env =
             Environment::<StlcTerm, StlcType>::with_defaults_lower_order(
@@ -65,9 +62,9 @@ impl TypeTheory for Stlc {
                 vec![("nat", &nat)],
             );
         match ast {
-            NsAst::Stm(stm) => Stlc::evaluate_statement(stm, &mut env),
+            NsAst::Stm(stm) => Stlc::elaborate_statement(stm, &mut env),
             NsAst::Exp(exp) => {
-                let _ = Stlc::evaluate_expression(exp, &mut env);
+                let _ = Stlc::elaborate_expression(exp);
             }
         }
         env
