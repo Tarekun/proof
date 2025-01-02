@@ -80,16 +80,27 @@ pub fn elaborate_match(
 pub fn elaborate_let(
     environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
+    var_type: Expression,
     body: Expression,
 ) {
     let assigned_term = Cic::elaborate_expression(body);
+    let var_type_term = Cic::elaborate_expression(var_type);
+    println!("About to type check body {:?}", assigned_term.clone());
+
     match Cic::type_check(assigned_term.clone(), environment) {
         Ok(assigned_type) => {
-            environment.add_variable_definition(
-                &var_name,
-                &assigned_term,
-                &assigned_type,
-            );
+            if assigned_type == var_type_term {
+                environment.add_variable_definition(
+                    &var_name,
+                    &assigned_term,
+                    &assigned_type,
+                );
+            } else {
+                panic!(
+                    "Missmatch in variable and body types: specified body type is {:?} but body has type {:?}",
+                    var_type_term, assigned_type
+                );
+            }
         }
         Err(_) => panic!("ill-typed body in variable definition"),
     }
