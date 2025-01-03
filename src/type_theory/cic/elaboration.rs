@@ -114,7 +114,7 @@ pub fn elaborate_let(
 pub fn elaborate_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
     type_name: String,
-    constructors: Vec<(String, Vec<Expression>)>,
+    constructors: Vec<(String, Vec<(String, Expression)>)>,
 ) {
     fn make_constr_type(arguments: &[CicTerm], base: CicTerm) -> CicTerm {
         if arguments.is_empty() {
@@ -131,9 +131,9 @@ pub fn elaborate_inductive(
         )
     }
 
-    for (constr_name, arg_types) in constructors {
+    for (constr_name, args) in constructors {
         let mut arg_term_types = vec![];
-        for arg_type_exp in arg_types {
+        for (arg_name, arg_type_exp) in args {
             let arg_type = Cic::elaborate_expression(arg_type_exp);
             arg_term_types.push(arg_type);
         }

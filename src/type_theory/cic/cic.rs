@@ -64,9 +64,9 @@ impl TypeTheory for Cic {
             Statement::Axiom(axiom_name, ast) => {
                 elaborate_axiom(environment, axiom_name, *ast);
             }
-            // Statement::Inductive(type_name, constructors) => {
-            //     elaborate_inductive(environment, type_name, constructors);
-            // }
+            Statement::Inductive(type_name, constructors) => {
+                elaborate_inductive(environment, type_name, constructors);
+            }
             Statement::Let(var_name, var_type, body) => {
                 elaborate_let(environment, var_name, *var_type, *body)
             }

@@ -225,7 +225,10 @@ fn test_inductive_elaboration() {
         "nat".to_string(),
         vec![
             ("o".to_string(), vec![]),
-            ("s".to_string(), vec![Expression::VarUse("nat".to_string())]),
+            (
+                "s".to_string(),
+                vec![("n".to_string(), Expression::VarUse("nat".to_string()))],
+            ),
         ],
     );
     assert_eq!(
@@ -257,7 +260,7 @@ fn test_inductive_elaboration() {
     );
     assert_eq!(
         test_env.get_from_context("zero"),
-        Some(("zero", &CicTerm::Variable("nat".to_string()))),
+        Some(("zero", &CicTerm::Variable("peano".to_string()))),
         "Top level evaluator doesnt support inductive elaboration"
     );
 }
