@@ -1,5 +1,5 @@
 use crate::{
-    parsing::{Expression, Statement},
+    parser::api::{Expression, Statement},
     type_theory::{
         cic::{
             cic::{make_default_environment, Cic, CicTerm},

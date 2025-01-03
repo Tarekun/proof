@@ -1,10 +1,7 @@
 use super::cic::CicTerm;
-use crate::parsing::NsAst;
+use crate::parser::api::{Expression, NsAst};
 use crate::type_theory::interface::TypeTheory;
-use crate::{
-    parsing::Expression,
-    type_theory::{cic::cic::Cic, environment::Environment},
-};
+use crate::type_theory::{cic::cic::Cic, environment::Environment};
 
 fn make_multiarg_fun_type(
     arg_types: &[(String, CicTerm)],

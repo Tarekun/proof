@@ -7,7 +7,7 @@ use super::type_check::{
     type_check_abstraction, type_check_application, type_check_match,
     type_check_product, type_check_sort, type_check_variable,
 };
-use crate::parsing::{Expression, NsAst, Statement};
+use crate::parser::api::{Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 

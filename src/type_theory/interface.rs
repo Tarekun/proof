@@ -1,4 +1,4 @@
-use crate::parsing::{Expression, NsAst, Statement};
+use crate::parser::api::{Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
 
 pub trait TypeTheory {
