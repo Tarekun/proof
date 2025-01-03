@@ -264,6 +264,10 @@ fn test_inductive_elaboration() {
         "Top level evaluator doesnt support inductive elaboration"
     );
 
+    let list_of_t = CicTerm::Application(
+        Box::new(CicTerm::Variable("list".to_string())),
+        Box::new(CicTerm::Variable("T".to_string())),
+    );
     elaborate_inductive(
         &mut test_env,
         "list".to_string(),
@@ -275,7 +279,7 @@ fn test_inductive_elaboration() {
                 vec![
                     ("h".to_string(), Expression::VarUse("T".to_string())),
                     (
-                        "t".to_string(),
+                        "l".to_string(),
                         Expression::Application(
                             Box::new(Expression::VarUse("list".to_string())),
                             Box::new(Expression::VarUse("T".to_string())),
@@ -304,9 +308,28 @@ fn test_inductive_elaboration() {
             &CicTerm::Product(
                 "T".to_string(),
                 Box::new(CicTerm::Sort("TYPE".to_string())),
-                Box::new(CicTerm::Application(
-                    Box::new(CicTerm::Variable("list".to_string())),
-                    Box::new(CicTerm::Variable("T".to_string())),
+                Box::new(list_of_t.clone()),
+            )
+        )),
+        "Inductive elaboration isnt working with unary constructor of dependent types"
+    );
+    assert_eq!(
+        test_env.get_from_context("cons"),
+        Some((
+            "cons",
+            &CicTerm::Product(
+                "T".to_string(),
+                Box::new(CicTerm::Sort("TYPE".to_string())),
+                Box::new(CicTerm::Product(
+                    "h".to_string(), 
+                    Box::new(CicTerm::Variable("T".to_string())), 
+                    Box::new(
+                        CicTerm::Product(
+                            "l".to_string(), 
+                            Box::new(list_of_t.clone()), 
+                            Box::new(list_of_t.clone()),
+                        )
+                    )
                 )),
             )
         )),

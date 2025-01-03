@@ -589,7 +589,7 @@ fn test_inductive() {
         "Inductive parser cant cope with dense notation"
     );
     assert!(
-        parse_inductive_def("inductivenat:=|o|s nat;").is_err(),
+        parse_inductive_def("inductivenat:=|o|s (n: nat);").is_err(),
         "Inductive parser doesnt expect a whitespace after the inductive keyword"
     );
     assert_eq!(

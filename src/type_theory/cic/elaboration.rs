@@ -26,7 +26,8 @@ fn make_multiarg_fun_type(
 
 //########################### EXPRESSIONS ELABORATION
 pub fn elaborate_var_use(var_name: String) -> CicTerm {
-    if var_name.chars().all(|c| c.is_ascii_uppercase()) {
+    //TODO this should probably be at the parser level
+    if var_name.len() > 1 && var_name.chars().all(|c| c.is_ascii_uppercase()) {
         CicTerm::Sort(var_name)
     } else {
         CicTerm::Variable(var_name)
