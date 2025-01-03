@@ -1,5 +1,10 @@
 mod file_manager;
-mod parsing;
+mod parser {
+    pub mod api;
+    mod commons;
+    mod expressions;
+    mod statements;
+}
 mod type_theory {
     pub mod cic {
         pub mod cic;
@@ -17,6 +22,7 @@ mod type_theory {
 }
 
 use crate::type_theory::interface::TypeTheory;
+use parser::api::parse_source_file;
 use std::env;
 use type_theory::cic::cic::Cic;
 
@@ -30,7 +36,7 @@ fn main() {
     }
 
     let filepath = &args[1];
-    let (remaining, ast) = parsing::parse_source_file(&filepath);
+    let (remaining, ast) = parse_source_file(&filepath);
     println!("Parsed AST: {:?}", ast);
     println!("Remaining input: '{}'\n", remaining);
 
