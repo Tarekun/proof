@@ -18,7 +18,8 @@ pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
-    Inductive(String, Vec<(String, Vec<Expression>)>),
+    /// type_name, [( constr_name, [(arg_name : arg_type) ])]
+    Inductive(String, Vec<(String, Vec<(String, Expression)>)>),
     /// (var_name, var_type, definition_body)
     Let(String, Box<Expression>, Box<Expression>),
 }
@@ -175,6 +176,18 @@ fn parse_expression(input: &str) -> IResult<&str, Expression> {
     //be parsed as an application normally
     alt((parse_app, parse_atomic_expression))(input)
 }
+
+fn parse_type_expression(input: &str) -> IResult<&str, Expression> {
+    alt((parse_var, parse_parens))(input)
+}
+fn parse_typed_identifier(input: &str) -> IResult<&str, (String, Expression)> {
+    let (input, identifier) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, type_expression) =
+        preceded(multispace0, parse_type_expression)(input)?;
+
+    Ok((input, (identifier.to_string(), type_expression)))
+}
 //########################### EXPRESSION PARSERS
 
 //########################### STATEMENT PARSERS
@@ -223,22 +236,27 @@ fn parse_theorem(input: &str) -> IResult<&str, Statement> {
 
 fn parse_inductive_constructor(
     input: &str,
-) -> IResult<&str, (String, Vec<Expression>)> {
+) -> IResult<&str, (String, Vec<(String, Expression)>)> {
     let (input, _) = preceded(multispace0, char('|'))(input)?;
     let (input, constructor_name) =
         preceded(multispace0, parse_identifier)(input)?;
-    let (input, args) =
-        many0(preceded(multispace1, alt((parse_var, parse_parens))))(input)?;
+    let (input, args) = many0(preceded(
+        multispace1,
+        delimited(
+            preceded(multispace0, char('(')),
+            parse_typed_identifier,
+            preceded(multispace0, char(')')),
+        ),
+    ))(input)?;
 
     Ok((input, (constructor_name.to_string(), args)))
 }
-
 fn parse_inductive_def(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("inductive"))(input)?;
     let (input, inductive_type_name) =
         preceded(multispace1, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":="))(input)?;
-    let (input, constructors) = many1(parse_inductive_constructor)(input)?;
+    let (input, constructors) = many0(parse_inductive_constructor)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
     Ok((
@@ -310,6 +328,30 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
 }
 
 //########################### UNIT TESTS
+#[test]
+fn test_typed_identifier() {
+    assert_eq!(
+        parse_typed_identifier("x : TYPE").unwrap(),
+        (
+            "",
+            ("x".to_string(), Expression::VarUse("TYPE".to_string()))
+        ),
+        "parse_typed_identifier doesnt return as expected"
+    );
+    assert_eq!(
+        parse_typed_identifier("\r\tx \t  : \t  TYPE").unwrap(),
+        (
+            "",
+            ("x".to_string(), Expression::VarUse("TYPE".to_string()))
+        ),
+        "parse_typed_identifier cant cope with whitespaces"
+    );
+    assert!(
+        parse_typed_identifier("x:TYPE").is_ok(),
+        "parse_typed_identifier cant cope with dense notation"
+    );
+}
+
 #[test]
 fn test_tokens_parser() {
     // identifier tests
@@ -506,27 +548,40 @@ fn test_axiom() {
 #[test]
 fn test_inductive() {
     let test_definition = Statement::Inductive(
-        "T".to_string(),
-        vec![("c".to_string(), vec![]), ("g".to_string(), vec![])],
+        "nat".to_string(),
+        vec![
+            ("o".to_string(), vec![]),
+            (
+                "s".to_string(),
+                vec![("n".to_string(), Expression::VarUse("nat".to_string()))],
+            ),
+        ],
     );
 
     assert_eq!(
-        parse_inductive_def("inductive T := \n| c \n| \tg;").unwrap(),
+        parse_inductive_def("inductive nat := \n| o \n| \ts ( n : nat )  ;")
+            .unwrap(),
         ("", test_definition.clone()),
         "Parser cant read inductive definitions"
     );
+    assert!(
+        parse_inductive_def("inductive Empty := ; ").is_ok(),
+        "Inductive parser doesnt support the Empty type"
+    );
     assert_eq!(
-        parse_inductive_def("inductive T:=|c|g;").unwrap(),
+        parse_inductive_def("inductive nat:=|o|s (n: nat);").unwrap(),
         ("", test_definition.clone()),
-        "Inductive parser cant cope with missing whitespaces"
+        "Inductive parser cant cope with dense notation"
     );
     assert!(
-        parse_inductive_def("inductiveT:=|c|g;").is_err(),
+        parse_inductive_def("inductivenat:=|o|s nat;").is_err(),
         "Inductive parser doesnt expect a whitespace after the inductive keyword"
     );
     assert_eq!(
-        parse_inductive_def("inductive T := | c (list nat) | g nat nat;")
-            .unwrap(),
+        parse_inductive_def(
+            "inductive T := | c (l: (list nat)) | g (n: nat) (m: nat);"
+        )
+        .unwrap(),
         (
             "",
             Statement::Inductive(
@@ -534,16 +589,27 @@ fn test_inductive() {
                 vec![
                     (
                         "c".to_string(),
-                        vec![Expression::Application(
-                            Box::new(Expression::VarUse("list".to_string())),
-                            Box::new(Expression::VarUse("nat".to_string())),
+                        vec![(
+                            "l".to_string(),
+                            Expression::Application(
+                                Box::new(Expression::VarUse(
+                                    "list".to_string()
+                                )),
+                                Box::new(Expression::VarUse("nat".to_string())),
+                            )
                         )]
                     ),
                     (
                         "g".to_string(),
                         vec![
-                            Expression::VarUse("nat".to_string()),
-                            Expression::VarUse("nat".to_string())
+                            (
+                                "n".to_string(),
+                                Expression::VarUse("nat".to_string())
+                            ),
+                            (
+                                "m".to_string(),
+                                Expression::VarUse("nat".to_string())
+                            )
                         ]
                     ),
                 ],
@@ -552,8 +618,10 @@ fn test_inductive() {
         "Inductive constructor parser cant properly parse constructor types"
     );
     assert!(
-        parse_node("inductive T := \n\t| c (list nat) \n\t| g nat nat;")
-            .is_ok(),
+        parse_node(
+            "inductive T := \n\t| c (l: (list nat)) \n\t| g (n: nat) (m: nat);"
+        )
+        .is_ok(),
         "Top level parser cant parse inductive definitions"
     );
 }

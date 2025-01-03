@@ -238,6 +238,28 @@ fn test_inductive_elaboration() {
         Some(("s", &expected_succ_type)),
         "Inductive elaboration isnt working with unary constructor"
     );
+
+    Cic::elaborate_statement(
+        Statement::Inductive(
+            "peano".to_string(),
+            vec![
+                ("zero".to_string(), vec![]),
+                (
+                    "successor".to_string(),
+                    vec![(
+                        "n".to_string(),
+                        Expression::VarUse("nat".to_string()),
+                    )],
+                ),
+            ],
+        ),
+        &mut test_env,
+    );
+    assert_eq!(
+        test_env.get_from_context("zero"),
+        Some(("zero", &CicTerm::Variable("nat".to_string()))),
+        "Top level evaluator doesnt support inductive elaboration"
+    );
 }
 //########################## ELABORATION TESTS
 
