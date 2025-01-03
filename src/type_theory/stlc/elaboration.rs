@@ -18,8 +18,8 @@ fn cast_to_type(
     }
 }
 
-//########################### EXPRESSIONS EVALUATION
-pub fn elaborate_var(var_name: String) -> StlcTerm {
+//########################### EXPRESSIONS ELABORATION
+pub fn elaborate_var_use(var_name: String) -> StlcTerm {
     StlcTerm::Variable(var_name)
 }
 
@@ -64,9 +64,9 @@ pub fn elaborate_let(
         Err(_) => panic!("ill-typed body in variable definition"),
     }
 }
-//########################### EXPRESSIONS EVALUATION
+//########################### EXPRESSIONS ELABORATION
 
-//########################### STATEMENTS EVALUATION
+//########################### STATEMENTS ELABORATION
 pub fn elaborate_file_root(
     environment: &mut Environment<StlcTerm, StlcType>,
     _file_path: String,
@@ -83,4 +83,4 @@ pub fn elaborate_file_root(
         }
     }
 }
-//########################### STATEMENTS EVALUATION
+//########################### STATEMENTS ELABORATION

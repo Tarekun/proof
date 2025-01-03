@@ -6,9 +6,13 @@ use crate::{
     type_theory::{cic::cic::Cic, environment::Environment},
 };
 
-//########################### EXPRESSIONS EVALUATION
-pub fn elaborate_var(var_name: String) -> CicTerm {
-    CicTerm::Variable(var_name)
+//########################### EXPRESSIONS ELABORATION
+pub fn elaborate_var_use(var_name: String) -> CicTerm {
+    if var_name.chars().all(|c| c.is_ascii_uppercase()) {
+        CicTerm::Sort(var_name)
+    } else {
+        CicTerm::Variable(var_name)
+    }
 }
 
 pub fn elaborate_abstraction(
@@ -74,9 +78,9 @@ pub fn elaborate_match(
 
     CicTerm::Match(Box::new(matched_term), branch_terms)
 }
-//########################### EXPRESSIONS EVALUATION
+//########################### EXPRESSIONS ELABORATION
 
-//########################### STATEMENTS EVALUATION
+//########################### STATEMENTS ELABORATION
 pub fn elaborate_let(
     environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
@@ -84,6 +88,7 @@ pub fn elaborate_let(
     body: Expression,
 ) {
     let assigned_term = Cic::elaborate_expression(body);
+    //TODO perform type checking
     let var_type_term = Cic::elaborate_expression(var_type);
 
     match Cic::type_check(assigned_term.clone(), environment) {
@@ -105,6 +110,7 @@ pub fn elaborate_let(
     }
 }
 
+//TODO perform type checking
 pub fn elaborate_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
     type_name: String,
@@ -161,6 +167,7 @@ pub fn elaborate_file_root(
     }
 }
 
+//TODO perform type checking (axiom_forumla should be PROP)
 pub fn elaborate_axiom(
     environment: &mut Environment<CicTerm, CicTerm>,
     axiom_name: String,
@@ -169,4 +176,4 @@ pub fn elaborate_axiom(
     let axiom_forumla = Cic::elaborate_expression(ast);
     environment.add_variable_to_context(&axiom_name, &axiom_forumla);
 }
-//########################### STATEMENTS EVALUATION
+//########################### STATEMENTS ELABORATION

@@ -1,6 +1,6 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_file_root,
-    elaborate_let, elaborate_var,
+    elaborate_let, elaborate_var_use,
 };
 use crate::parsing::{self, Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
@@ -26,7 +26,7 @@ impl TypeTheory for Stlc {
 
     fn elaborate_expression(ast: parsing::Expression) -> StlcTerm {
         match ast {
-            Expression::VarUse(var_name) => elaborate_var(var_name),
+            Expression::VarUse(var_name) => elaborate_var_use(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
                 elaborate_abstraction(var_name, *var_type, *body)
             }

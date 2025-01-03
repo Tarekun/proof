@@ -1,37 +1,247 @@
 use crate::{
-    parsing::Expression,
+    parsing::{Expression, Statement},
     type_theory::{
         cic::{
             cic::{make_default_environment, Cic, CicTerm},
-            elaboration::elaborate_var,
+            elaboration::{
+                elaborate_abstraction, elaborate_application, elaborate_let,
+                elaborate_match, elaborate_type_product, elaborate_var_use,
+            },
         },
         environment::Environment,
         interface::TypeTheory,
     },
 };
 
+use super::elaboration::elaborate_inductive;
+
+//########################## ELABORATION TESTS
 #[test]
-fn test_var_evaluation() {
+fn test_var_elaboration() {
     let test_var_name = "test_var";
 
-    let var_term = elaborate_var(test_var_name.to_string());
     assert_eq!(
-        var_term,
+        elaborate_var_use(test_var_name.to_string()),
         CicTerm::Variable(test_var_name.to_string()),
         "Variable term not properly constructed"
     );
-    // assert_eq!(var_type, test_var_type, "Variable type mismatch");
-    let var_term = Cic::elaborate_expression(Expression::VarUse(
-        test_var_name.to_string(),
-    ));
     assert_eq!(
-        var_term,
-        CicTerm::Variable(test_var_name.to_string()),
-        "Variable term not properly constructed"
+        elaborate_var_use("TYPE".to_string()),
+        CicTerm::Sort("TYPE".to_string()),
+        "Sort name returns a simple variable instead of a sort term"
     );
-    // assert_eq!(var_type, test_var_type, "Variable type mismatch");
+    assert_eq!(
+        Cic::elaborate_expression(Expression::VarUse(
+            test_var_name.to_string()
+        ),),
+        CicTerm::Variable(test_var_name.to_string()),
+        "Top level elaboration doesnt work with variables as expected"
+    );
 }
 
+#[test]
+fn test_abs_elaboration() {
+    let expected_term = CicTerm::Abstraction(
+        "x".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Variable("x".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_abstraction(
+            "x".to_string(),
+            Expression::VarUse("TYPE".to_string()),
+            Expression::VarUse("x".to_string())
+        ),
+        expected_term.clone(),
+        "Abstraction elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Abstraction(
+            "x".to_string(),
+            Box::new(Expression::VarUse("TYPE".to_string())),
+            Box::new(Expression::VarUse("x".to_string())),
+        ),),
+        expected_term,
+        "Top level elaborator isnt working with abstraction"
+    );
+}
+
+#[test]
+fn test_prod_elaboration() {
+    let expected_term = CicTerm::Product(
+        "x".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_type_product(
+            "x".to_string(),
+            Expression::VarUse("TYPE".to_string()),
+            Expression::VarUse("TYPE".to_string())
+        ),
+        expected_term.clone(),
+        "Type abstraction elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::TypeProduct(
+            "x".to_string(),
+            Box::new(Expression::VarUse("TYPE".to_string())),
+            Box::new(Expression::VarUse("TYPE".to_string())),
+        ),),
+        expected_term,
+        "Top level elaborator isnt working with type abstraction"
+    );
+}
+
+#[test]
+fn test_app_elaboration() {
+    let expected_term = CicTerm::Application(
+        Box::new(CicTerm::Variable("s".to_string())),
+        Box::new(CicTerm::Variable("o".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_application(
+            Expression::VarUse("s".to_string()),
+            Expression::VarUse("o".to_string())
+        ),
+        expected_term.clone(),
+        "Application elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Application(
+            Box::new(Expression::VarUse("s".to_string())),
+            Box::new(Expression::VarUse("o".to_string())),
+        ),),
+        expected_term,
+        "Top level elaborator isnt working with applications"
+    );
+}
+
+#[test]
+fn test_match_elaboration() {
+    let expected_term = CicTerm::Match(
+        Box::new(CicTerm::Variable("t".to_string())),
+        vec![
+            (
+                vec![CicTerm::Variable("o".to_string())],
+                CicTerm::Application(
+                    Box::new(CicTerm::Variable("s".to_string())),
+                    Box::new(CicTerm::Variable("o".to_string())),
+                ),
+            ),
+            (
+                vec![
+                    CicTerm::Variable("s".to_string()),
+                    CicTerm::Variable("n".to_string()),
+                ],
+                CicTerm::Variable("n".to_string()),
+            ),
+        ],
+    );
+    let base_pattern = (
+        vec![Expression::VarUse("o".to_string())],
+        Expression::Application(
+            Box::new(Expression::VarUse("s".to_string())),
+            Box::new(Expression::VarUse("o".to_string())),
+        ),
+    );
+    let inductive_patter = (
+        vec![
+            Expression::VarUse("s".to_string()),
+            Expression::VarUse("n".to_string()),
+        ],
+        Expression::VarUse("n".to_string()),
+    );
+
+    assert_eq!(
+        elaborate_match(
+            Expression::VarUse("t".to_string()),
+            vec![base_pattern.clone(), inductive_patter.clone()]
+        ),
+        expected_term,
+        "Match elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Match(
+            Box::new(Expression::VarUse("t".to_string())),
+            vec![base_pattern, inductive_patter]
+        )),
+        expected_term,
+        "Top level elaboration doesnt work with match"
+    );
+}
+
+#[test]
+fn test_let_elaboration() {
+    let mut test_env = make_default_environment();
+    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+    test_env
+        .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
+    let expected_body = CicTerm::Variable("c".to_string());
+    let expected_type = CicTerm::Variable("nat".to_string());
+
+    elaborate_let(
+        &mut test_env,
+        "n".to_string(),
+        Expression::VarUse("nat".to_string()),
+        Expression::VarUse("c".to_string()),
+    );
+    assert_eq!(
+        test_env.get_from_deltas("n"),
+        Some(("n", &(expected_body.clone(), expected_type.clone()))),
+        "Let definition elaboration isnt working as expected"
+    );
+
+    elaborate_let(
+        &mut test_env,
+        "m".to_string(),
+        Expression::VarUse("nat".to_string()),
+        Expression::VarUse("c".to_string()),
+    );
+    assert_eq!(
+        test_env.get_from_deltas("m"),
+        Some(("m", &(expected_body.clone(), expected_type.clone()))),
+        "Top level elaboration isnt working with let"
+    );
+}
+
+#[test]
+fn test_inductive_elaboration() {
+    let mut test_env = make_default_environment();
+    let expected_nat = CicTerm::Variable("nat".to_string());
+    let _expected_zero = CicTerm::Variable("o".to_string());
+    let _expected_succ = CicTerm::Variable("s".to_string());
+    let expected_succ_type = CicTerm::Product(
+        "_".to_string(),
+        Box::new(CicTerm::Variable("nat".to_string())),
+        Box::new(CicTerm::Variable("nat".to_string())),
+    );
+
+    elaborate_inductive(
+        &mut test_env,
+        "nat".to_string(),
+        vec![
+            ("o".to_string(), vec![]),
+            ("s".to_string(), vec![Expression::VarUse("nat".to_string())]),
+        ],
+    );
+    assert_eq!(
+        test_env.get_from_context("o"),
+        Some(("o", &expected_nat)),
+        "Inductive elaboration isnt working with constant constructor"
+    );
+    assert_eq!(
+        test_env.get_from_context("s"),
+        Some(("s", &expected_succ_type)),
+        "Inductive elaboration isnt working with unary constructor"
+    );
+}
+//########################## ELABORATION TESTS
+
+//########################## TYPE CHECK TESTS
 #[test]
 fn test_type_check_sort_n_vars() {
     let mut test_env = make_default_environment();
@@ -388,3 +598,4 @@ fn test_type_check_match() {
     //     "Type checker accepts match with random (properly typed) variable in place of constructor"
     // );
 }
+//########################## TYPE CHECK TESTS
