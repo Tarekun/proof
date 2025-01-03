@@ -6,6 +6,24 @@ use crate::{
     type_theory::{cic::cic::Cic, environment::Environment},
 };
 
+fn make_multiarg_fun_type(
+    arg_types: &[(String, CicTerm)],
+    base: CicTerm,
+) -> CicTerm {
+    if arg_types.is_empty() {
+        return base;
+    }
+
+    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
+    let sub_type = make_multiarg_fun_type(rest, base);
+
+    CicTerm::Product(
+        arg_name.to_string(),
+        Box::new(arg_type.to_owned()),
+        Box::new(sub_type),
+    )
+}
+
 //########################### EXPRESSIONS ELABORATION
 pub fn elaborate_var_use(var_name: String) -> CicTerm {
     if var_name.chars().all(|c| c.is_ascii_uppercase()) {
@@ -114,41 +132,62 @@ pub fn elaborate_let(
 pub fn elaborate_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
     type_name: String,
+    parameters: Vec<(String, Expression)>,
     constructors: Vec<(String, Vec<(String, Expression)>)>,
 ) {
-    fn make_constr_type(arguments: &[CicTerm], base: CicTerm) -> CicTerm {
-        if arguments.is_empty() {
+    fn map_args_to_terms(
+        expressions: Vec<(String, Expression)>,
+    ) -> Vec<(String, CicTerm)> {
+        let mut arg_types = vec![];
+        for (arg_name, arg_type_exp) in expressions {
+            let arg_type = Cic::elaborate_expression(arg_type_exp);
+            arg_types.push((arg_name, arg_type));
+        }
+
+        arg_types
+    }
+
+    fn build_inductive_target(
+        params: &[(String, CicTerm)],
+        base: CicTerm,
+    ) -> CicTerm {
+        if params.is_empty() {
             return base;
         }
 
-        let (arg, rest) = arguments.split_first().unwrap();
-        let sub_type = make_constr_type(rest, base);
-
-        CicTerm::Product(
-            "_".to_string(),
-            Box::new(arg.to_owned()),
-            Box::new(sub_type),
+        let ((param_name, _param_type), rest) = params.split_first().unwrap();
+        build_inductive_target(
+            rest,
+            CicTerm::Application(
+                Box::new(base),
+                Box::new(CicTerm::Variable(param_name.to_string())),
+            ),
         )
     }
 
-    for (constr_name, args) in constructors {
-        let mut arg_term_types = vec![];
-        for (arg_name, arg_type_exp) in args {
-            let arg_type = Cic::elaborate_expression(arg_type_exp);
-            arg_term_types.push(arg_type);
-        }
+    let params_types = map_args_to_terms(parameters);
+    let ind_base = build_inductive_target(
+        &params_types,
+        CicTerm::Variable(type_name.clone()),
+    );
 
-        let constr_type = make_constr_type(
-            &arg_term_types,
-            CicTerm::Variable(type_name.clone()),
-        );
-        environment.add_variable_to_context(&constr_name, &constr_type);
+    for (constr_name, args) in constructors {
+        let arg_types = map_args_to_terms(args);
+        let constr_base_type =
+            make_multiarg_fun_type(&arg_types, ind_base.clone());
+        let constr_full_type =
+            make_multiarg_fun_type(&params_types, constr_base_type);
+
+        environment.add_variable_to_context(&constr_name, &constr_full_type);
     }
 
     environment.add_variable_to_context(
         &type_name,
-        //TODO support selecting the sort TYPE/PROP
-        &CicTerm::Sort("TYPE".to_string()),
+        &make_multiarg_fun_type(
+            &params_types,
+            //TODO support selecting the sort TYPE/PROP (arity)
+            CicTerm::Sort("TYPE".to_string()),
+        ),
     );
 }
 

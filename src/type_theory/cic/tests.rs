@@ -212,10 +212,8 @@ fn test_let_elaboration() {
 fn test_inductive_elaboration() {
     let mut test_env = make_default_environment();
     let expected_nat = CicTerm::Variable("nat".to_string());
-    let _expected_zero = CicTerm::Variable("o".to_string());
-    let _expected_succ = CicTerm::Variable("s".to_string());
     let expected_succ_type = CicTerm::Product(
-        "_".to_string(),
+        "n".to_string(),
         Box::new(CicTerm::Variable("nat".to_string())),
         Box::new(CicTerm::Variable("nat".to_string())),
     );
@@ -223,6 +221,7 @@ fn test_inductive_elaboration() {
     elaborate_inductive(
         &mut test_env,
         "nat".to_string(),
+        vec![],
         vec![
             ("o".to_string(), vec![]),
             (
@@ -245,6 +244,7 @@ fn test_inductive_elaboration() {
     Cic::elaborate_statement(
         Statement::Inductive(
             "peano".to_string(),
+            vec![],
             vec![
                 ("zero".to_string(), vec![]),
                 (
@@ -262,6 +262,55 @@ fn test_inductive_elaboration() {
         test_env.get_from_context("zero"),
         Some(("zero", &CicTerm::Variable("peano".to_string()))),
         "Top level evaluator doesnt support inductive elaboration"
+    );
+
+    elaborate_inductive(
+        &mut test_env,
+        "list".to_string(),
+        vec![("T".to_string(), Expression::VarUse("TYPE".to_string()))],
+        vec![
+            ("nil".to_string(), vec![]),
+            (
+                "cons".to_string(),
+                vec![
+                    ("h".to_string(), Expression::VarUse("T".to_string())),
+                    (
+                        "t".to_string(),
+                        Expression::Application(
+                            Box::new(Expression::VarUse("list".to_string())),
+                            Box::new(Expression::VarUse("T".to_string())),
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    );
+    assert_eq!(
+        test_env.get_from_context("list"),
+        Some((
+            "list",
+            &CicTerm::Product(
+                "T".to_string(),
+                Box::new(CicTerm::Sort("TYPE".to_string())),
+                Box::new(CicTerm::Sort("TYPE".to_string())),
+            )
+        )),
+        "Inductive elaboration isnt working with dependent inductive types"
+    );
+    assert_eq!(
+        test_env.get_from_context("nil"),
+        Some((
+            "nil",
+            &CicTerm::Product(
+                "T".to_string(),
+                Box::new(CicTerm::Sort("TYPE".to_string())),
+                Box::new(CicTerm::Application(
+                    Box::new(CicTerm::Variable("list".to_string())),
+                    Box::new(CicTerm::Variable("T".to_string())),
+                )),
+            )
+        )),
+        "Inductive elaboration isnt working with unary constructor of dependent types"
     );
 }
 //########################## ELABORATION TESTS

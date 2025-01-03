@@ -18,8 +18,12 @@ pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
-    /// type_name, [( constr_name, [(arg_name : arg_type) ])]
-    Inductive(String, Vec<(String, Vec<(String, Expression)>)>),
+    /// type_name, params: [(param_name : param_type)], [( constr_name, [(arg_name : arg_type) ])]
+    Inductive(
+        String,
+        Vec<(String, Expression)>,
+        Vec<(String, Vec<(String, Expression)>)>,
+    ),
     /// (var_name, var_type, definition_body)
     Let(String, Box<Expression>, Box<Expression>),
 }
@@ -188,6 +192,18 @@ fn parse_typed_identifier(input: &str) -> IResult<&str, (String, Expression)> {
 
     Ok((input, (identifier.to_string(), type_expression)))
 }
+fn typed_parameter_list(
+    input: &str,
+) -> IResult<&str, Vec<(String, Expression)>> {
+    many0(preceded(
+        multispace1,
+        delimited(
+            preceded(multispace0, char('(')),
+            parse_typed_identifier,
+            preceded(multispace0, char(')')),
+        ),
+    ))(input)
+}
 //########################### EXPRESSION PARSERS
 
 //########################### STATEMENT PARSERS
@@ -240,14 +256,7 @@ fn parse_inductive_constructor(
     let (input, _) = preceded(multispace0, char('|'))(input)?;
     let (input, constructor_name) =
         preceded(multispace0, parse_identifier)(input)?;
-    let (input, args) = many0(preceded(
-        multispace1,
-        delimited(
-            preceded(multispace0, char('(')),
-            parse_typed_identifier,
-            preceded(multispace0, char(')')),
-        ),
-    ))(input)?;
+    let (input, args) = typed_parameter_list(input)?;
 
     Ok((input, (constructor_name.to_string(), args)))
 }
@@ -255,13 +264,18 @@ fn parse_inductive_def(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("inductive"))(input)?;
     let (input, inductive_type_name) =
         preceded(multispace1, parse_identifier)(input)?;
+    let (input, parameters) = typed_parameter_list(input)?;
     let (input, _) = preceded(multispace0, tag(":="))(input)?;
     let (input, constructors) = many0(parse_inductive_constructor)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
     Ok((
         input,
-        Statement::Inductive(inductive_type_name.to_string(), constructors),
+        Statement::Inductive(
+            inductive_type_name.to_string(),
+            parameters,
+            constructors,
+        ),
     ))
 }
 
@@ -549,6 +563,7 @@ fn test_axiom() {
 fn test_inductive() {
     let test_definition = Statement::Inductive(
         "nat".to_string(),
+        vec![],
         vec![
             ("o".to_string(), vec![]),
             (
@@ -586,6 +601,7 @@ fn test_inductive() {
             "",
             Statement::Inductive(
                 "T".to_string(),
+                vec![],
                 vec![
                     (
                         "c".to_string(),
@@ -623,6 +639,14 @@ fn test_inductive() {
         )
         .is_ok(),
         "Top level parser cant parse inductive definitions"
+    );
+
+    assert!(
+        parse_inductive_def(
+            "inductive list (T: TYPE) := |nil |cons (e:T) (l: (list T) );"
+        )
+        .is_ok(),
+        "Inductive parser doesnt support polymorphic types"
     );
 }
 
