@@ -338,6 +338,11 @@ fn test_type_check_abstraction() {
         ),
         "Type checker refuses simple identity function"
     );
+    assert_eq!(
+        test_env.get_from_context("x"),
+        None,
+        "Abstraction type checker stains context with local variable"
+    );
     assert!(
         Cic::type_check(
             CicTerm::Abstraction(
@@ -392,6 +397,11 @@ fn test_type_check_product() {
         .unwrap(),
         CicTerm::Sort("TYPE".to_string()),
         "Type checker refuses simple polymorphic identity type"
+    );
+    assert_eq!(
+        test_env.get_from_context("T"),
+        None,
+        "Product type checker stains context with local variable"
     );
     assert!(
         Cic::type_check(
@@ -574,28 +584,28 @@ fn test_type_check_match() {
         .is_err(),
         "Type checker accepts match with inconsistent branch types"
     );
-    // assert!(
-    //     type_check(
-    //         CicTerm::Match(
-    //             Box::new(CicTerm::Variable("c".to_string())),
-    //             vec![
-    //                 (
-    //                     vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
-    //                     CicTerm::Variable("o".to_string())
-    //                 ),
-    //                 (
-    //                     vec![
-    //                         CicTerm::Variable("s".to_string()),
-    //                         CicTerm::Variable("n".to_string())
-    //                     ],
-    //                     CicTerm::Variable("n".to_string())
-    //                 ),
-    //             ]
-    //         ),
-    //         &mut test_env
-    //     )
-    //     .is_err(),
-    //     "Type checker accepts match with random (properly typed) variable in place of constructor"
-    // );
+    assert!(
+        Cic::type_check(
+            CicTerm::Match(
+                Box::new(CicTerm::Variable("c".to_string())),
+                vec![
+                    (
+                        vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
+                        CicTerm::Variable("o".to_string())
+                    ),
+                    (
+                        vec![
+                            CicTerm::Variable("s".to_string()),
+                            CicTerm::Variable("n".to_string())
+                        ],
+                        CicTerm::Variable("n".to_string())
+                    ),
+                ]
+            ),
+            &mut test_env
+        )
+        .is_err(),
+        "Type checker accepts match with random (properly typed) variable in place of constructor"
+    );
 }
 //########################## TYPE CHECK TESTS

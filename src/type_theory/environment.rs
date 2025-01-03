@@ -77,6 +77,28 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         self.context.insert(name.to_string(), type_term.clone());
     }
 
+    /// Remove a variable from the context
+    fn remove_variable_from_context(&mut self, name: &str) {
+        self.context.remove(name);
+    }
+
+    /// Add a local variable to the context, execute a closure, and then remove the variable
+    pub fn with_local_declaration<F, R>(
+        &mut self,
+        name: &str,
+        type_term: &Type,
+        callable: F,
+    ) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        self.add_variable_to_context(name, type_term);
+        let result = callable(self);
+        self.remove_variable_from_context(name);
+
+        result
+    }
+
     pub fn get_from_context<'a>(
         &'a self,
         name: &'a str,
