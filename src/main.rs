@@ -34,7 +34,7 @@ fn main() {
     println!("Parsed AST: {:?}", ast);
     println!("Remaining input: '{}'\n", remaining);
 
-    // let environment = Stlc::evaluate_ast(ast);
+    // let environment = Stlc::elaborate_ast(ast);
     let environment = Cic::elaborate_ast(ast);
     for definition in environment.deltas {
         let (var_name, term) = definition;
