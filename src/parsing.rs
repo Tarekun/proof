@@ -40,8 +40,17 @@ pub enum NsAst {
     Exp(Expression),
 }
 
-const RESERVED_KEYWORDS: [&str; 5] =
-    ["let", "axiom", "inductive", "match", "with"];
+const RESERVED_KEYWORDS: [&str; 9] = [
+    "let",
+    "axiom",
+    "inductive",
+    "match",
+    "with",
+    "theorem",
+    "lemma",
+    "proposition",
+    "qed",
+];
 
 //########################### BASIC TOKEN PARSERS
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
@@ -190,6 +199,28 @@ fn parse_let(input: &str) -> IResult<&str, Statement> {
     ))
 }
 
+fn parse_theorem(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = preceded(
+        multispace0,
+        alt((tag("theorem"), tag("lemma"), tag("proposition"))),
+    )(input)?;
+    let (input, theorem_name) = preceded(multispace1, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, formula) = preceded(multispace0, parse_expression)(input)?;
+    let (input, _) = preceded(multispace0, tag(":="))(input)?;
+    let (input, proof) = preceded(multispace0, parse_expression)(input)?;
+    let (input, _) = preceded(multispace0, tag("qed."))(input)?;
+
+    Ok((
+        input,
+        Statement::Let(
+            theorem_name.to_string(),
+            Box::new(formula),
+            Box::new(proof),
+        ),
+    ))
+}
+
 fn parse_inductive_constructor(
     input: &str,
 ) -> IResult<&str, (String, Vec<Expression>)> {
@@ -239,7 +270,13 @@ fn parse_axiom(input: &str) -> IResult<&str, Statement> {
 }
 
 fn parse_statement(input: &str) -> IResult<&str, Statement> {
-    alt((parse_comment, parse_let, parse_axiom, parse_inductive_def))(input)
+    alt((
+        parse_comment,
+        parse_let,
+        parse_axiom,
+        parse_theorem,
+        parse_inductive_def,
+    ))(input)
 }
 //########################### STATEMENT PARSERS
 
@@ -518,6 +555,42 @@ fn test_inductive() {
         parse_node("inductive T := \n\t| c (list nat) \n\t| g nat nat;")
             .is_ok(),
         "Top level parser cant parse inductive definitions"
+    );
+}
+
+#[test]
+fn test_theorem() {
+    assert_eq!(
+        parse_theorem("theorem p : PROP := p qed.").unwrap(),
+        (
+            "",
+            Statement::Let(
+                "p".to_string(),
+                Box::new(Expression::VarUse("PROP".to_string())),
+                Box::new(Expression::VarUse("p".to_string())),
+            )
+        ),
+        "Parser cant theorem proofs"
+    );
+    assert!(
+        parse_theorem("theorem   \tp\t  : \t PROP :=\n\t  p \n\tqed.").is_ok(),
+        "Theorem parser cant cope with whitespaces"
+    );
+    assert!(
+        parse_theorem("lemma p : PROP := p qed.").is_ok(),
+        "Theorem parser doesnt support 'lemma' keyword"
+    );
+    assert!(
+        parse_theorem("proposition p : PROP := p qed.").is_ok(),
+        "Theorem parser doesnt support 'proposition' keyword"
+    );
+    assert!(
+        parse_theorem("theoremp : PROP := pqed.").is_err(),
+        "Theorem parser doesnt split the keywords"
+    );
+    assert!(
+        parse_theorem("theorem p:PROP:=p qed.").is_ok(),
+        "Theorem parser doesnt accept dense text"
     );
 }
 
