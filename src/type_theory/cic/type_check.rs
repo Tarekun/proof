@@ -30,15 +30,20 @@ pub fn type_check_abstraction(
     body: CicTerm,
 ) -> Result<CicTerm, String> {
     let _ = Cic::type_check(var_type.clone(), environment)?;
-    //TODO update the context only temporarily, during body evaluation
-    environment.add_variable_to_context(&var_name, &var_type);
-    let body_type = Cic::type_check(body, environment)?;
 
-    Ok(CicTerm::Product(
-        var_name,
-        Box::new(var_type),
-        Box::new(body_type),
-    ))
+    environment.with_local_declaration(
+        &var_name.clone(),
+        &var_type.clone(),
+        |local_env| {
+            let body_type = Cic::type_check(body, local_env)?;
+
+            Ok(CicTerm::Product(
+                var_name,
+                Box::new(var_type),
+                Box::new(body_type),
+            ))
+        },
+    )
 }
 
 pub fn type_check_product(
@@ -48,14 +53,19 @@ pub fn type_check_product(
     body: CicTerm,
 ) -> Result<CicTerm, String> {
     let _ = Cic::type_check(var_type.clone(), environment)?;
-    //TODO update the context only temporarily, during body evaluation
-    environment.add_variable_to_context(&var_name, &var_type);
-    let body_type = Cic::type_check(body, environment)?;
 
-    match body_type {
-        CicTerm::Sort(_) => Ok(body_type),
-        _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
-    }
+    environment.with_local_declaration(
+        &var_name.clone(),
+        &var_type.clone(),
+        |local_env| {
+            let body_type = Cic::type_check(body, local_env)?;
+
+            match body_type {
+                CicTerm::Sort(_) => Ok(body_type),
+                _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
+            }
+        },
+    )
 }
 
 pub fn type_check_application(
@@ -93,10 +103,9 @@ fn type_check_pattern(
     match variables.len() {
         0 => Ok(constr_type),
         1.. => match variables[0].clone() {
-            CicTerm::Variable(var_name) => match constr_type {
-                CicTerm::Product(_, domain, codomain) => {
-                    // TODO local addition for the branch only
-                    environment.add_variable_to_context(&var_name, &domain);
+            CicTerm::Variable(_) => match constr_type {
+                CicTerm::Product(_, _, codomain) => {
+                    // doesnt need to update the context, here var_name is a type variable, not a term
                     type_check_pattern(
                         *codomain,
                         variables[1..].to_vec(),
