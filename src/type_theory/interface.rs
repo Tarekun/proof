@@ -14,7 +14,7 @@ pub trait TypeTheory {
     fn elaborate_statement(
         ast: Statement,
         environment: &mut Environment<Self::Term, Self::Type>,
-    );
+    ) -> Result<(), String>;
 
     /// Elaborate a single expression, updating the environment and returning
     /// the result as a term of the type theory.
