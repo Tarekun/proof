@@ -3,7 +3,6 @@ use super::{
     commons::{parse_identifier, parse_type_expression, typed_parameter_list},
     expressions::parse_expression,
 };
-use crate::parser::api::parse_node;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -75,6 +74,8 @@ pub fn parse_inductive_def(input: &str) -> IResult<&str, Statement> {
     let (input, inductive_type_name) =
         preceded(multispace1, parse_identifier)(input)?;
     let (input, parameters) = typed_parameter_list(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, ariety) = preceded(multispace0, parse_type_expression)(input)?;
     let (input, _) = preceded(multispace0, tag(":="))(input)?;
     let (input, constructors) = many0(parse_inductive_constructor)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
@@ -84,6 +85,7 @@ pub fn parse_inductive_def(input: &str) -> IResult<&str, Statement> {
         Statement::Inductive(
             inductive_type_name.to_string(),
             parameters,
+            Box::new(ariety),
             constructors,
         ),
     ))
@@ -164,7 +166,7 @@ fn test_let() {
         "Let definition struct isnt properly constructed"
     );
     assert!(
-        parse_node("let n: nat := x;").is_ok(),
+        parse_statement("let n: nat := x;").is_ok(),
         "Top level parser can't read let definitions"
     );
 }
@@ -195,7 +197,7 @@ fn test_axiom() {
         "Axiom node isnt properly constructed"
     );
     assert!(
-        parse_node("axiom nat:TYPE;").is_ok(),
+        parse_statement("axiom nat:TYPE;").is_ok(),
         "Top level parser can't read axioms"
     );
 }
@@ -205,6 +207,7 @@ fn test_inductive() {
     let test_definition = Statement::Inductive(
         "nat".to_string(),
         vec![],
+        Box::new(Expression::VarUse("TYPE".to_string())),
         vec![
             ("o".to_string(), vec![]),
             (
@@ -215,27 +218,29 @@ fn test_inductive() {
     );
 
     assert_eq!(
-        parse_inductive_def("inductive nat := \n| o \n| \ts ( n : nat )  ;")
-            .unwrap(),
+        parse_inductive_def(
+            "inductive nat : TYPE := \n| o \n| \ts ( n : nat )  ;"
+        )
+        .unwrap(),
         ("", test_definition.clone()),
         "Parser cant read inductive definitions"
     );
     assert!(
-        parse_inductive_def("inductive Empty := ; ").is_ok(),
+        parse_inductive_def("inductive Empty : TYPE := ; ").is_ok(),
         "Inductive parser doesnt support the Empty type"
     );
     assert_eq!(
-        parse_inductive_def("inductive nat:=|o|s (n: nat);").unwrap(),
+        parse_inductive_def("inductive nat:TYPE:=|o|s (n: nat);").unwrap(),
         ("", test_definition.clone()),
         "Inductive parser cant cope with dense notation"
     );
     assert!(
-        parse_inductive_def("inductivenat:=|o|s (n: nat);").is_err(),
+        parse_inductive_def("inductivenat:TYPE:=|o|s (n: nat);").is_err(),
         "Inductive parser doesnt expect a whitespace after the inductive keyword"
     );
     assert_eq!(
         parse_inductive_def(
-            "inductive T := | c (l: (list nat)) | g (n: nat) (m: nat);"
+            "inductive T : TYPE := | c (l: (list nat)) | g (n: nat) (m: nat);"
         )
         .unwrap(),
         (
@@ -243,6 +248,7 @@ fn test_inductive() {
             Statement::Inductive(
                 "T".to_string(),
                 vec![],
+                Box::new(Expression::VarUse("TYPE".to_string())),
                 vec![
                     (
                         "c".to_string(),
@@ -275,8 +281,8 @@ fn test_inductive() {
         "Inductive constructor parser cant properly parse constructor types"
     );
     assert!(
-        parse_node(
-            "inductive T := \n\t| c (l: (list nat)) \n\t| g (n: nat) (m: nat);"
+        parse_statement(
+            "inductive T: TYPE := \n\t| c (l: (list nat)) \n\t| g (n: nat) (m: nat);"
         )
         .is_ok(),
         "Top level parser cant parse inductive definitions"
@@ -284,10 +290,17 @@ fn test_inductive() {
 
     assert!(
         parse_inductive_def(
-            "inductive list (T: TYPE) := |nil |cons (e:T) (l: (list T) );"
+            "inductive list (T: TYPE) : TYPE := |nil |cons (e:T) (l: (list T) );"
         )
         .is_ok(),
         "Inductive parser doesnt support polymorphic types"
+    );
+    assert!(
+        parse_inductive_def(
+            "inductive le : (Πn:nat.(Πm:nat. PROP)) := |lez | leS;"
+        )
+        .is_ok(),
+        "Inductive parser doesnt support complex arieties"
     );
 }
 

@@ -1,3 +1,7 @@
+use super::{
+    api::Expression,
+    expressions::{parse_parens, parse_var},
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -9,11 +13,6 @@ use nom::{
     multi::many0,
     sequence::{delimited, pair, preceded},
     IResult,
-};
-
-use super::{
-    api::Expression,
-    expressions::{parse_parens, parse_var},
 };
 
 const RESERVED_KEYWORDS: [&str; 9] = [
