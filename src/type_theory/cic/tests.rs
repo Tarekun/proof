@@ -217,11 +217,14 @@ fn test_inductive_elaboration() {
         Box::new(CicTerm::Variable("nat".to_string())),
         Box::new(CicTerm::Variable("nat".to_string())),
     );
+    // let ariety = CicTerm::Sort("TYPE".to_string());
+    let ariety = Expression::VarUse("TYPE".to_string());
 
     elaborate_inductive(
         &mut test_env,
         "nat".to_string(),
         vec![],
+        ariety.clone(),
         vec![
             ("o".to_string(), vec![]),
             (
@@ -245,6 +248,7 @@ fn test_inductive_elaboration() {
         Statement::Inductive(
             "peano".to_string(),
             vec![],
+            Box::new(Expression::VarUse("TYPE".to_string())),
             vec![
                 ("zero".to_string(), vec![]),
                 (
@@ -272,6 +276,7 @@ fn test_inductive_elaboration() {
         &mut test_env,
         "list".to_string(),
         vec![("T".to_string(), Expression::VarUse("TYPE".to_string()))],
+        ariety.clone(),
         vec![
             ("nil".to_string(), vec![]),
             (
@@ -400,6 +405,7 @@ fn test_type_check_sort_n_vars() {
         "Type checker accepts unbound variable"
     );
 }
+
 
 #[test]
 fn test_type_check_abstraction() {

@@ -131,6 +131,7 @@ pub fn elaborate_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
     type_name: String,
     parameters: Vec<(String, Expression)>,
+    ariety: Expression,
     constructors: Vec<(String, Vec<(String, Expression)>)>,
 ) {
     fn map_args_to_terms(
@@ -164,6 +165,7 @@ pub fn elaborate_inductive(
     }
 
     let params_types = map_args_to_terms(parameters);
+    let ariety_term = Cic::elaborate_expression(ariety);
     let ind_base = build_inductive_target(
         &params_types,
         CicTerm::Variable(type_name.clone()),
@@ -179,14 +181,13 @@ pub fn elaborate_inductive(
         environment.add_variable_to_context(&constr_name, &constr_full_type);
     }
 
-    environment.add_variable_to_context(
-        &type_name,
-        &make_multiarg_fun_type(
-            &params_types,
-            //TODO support selecting the sort TYPE/PROP (arity)
-            CicTerm::Sort("TYPE".to_string()),
+    match Cic::type_check(ariety_term.clone(), environment) {
+        Ok(_) => environment.add_variable_to_context(
+            &type_name,
+            &make_multiarg_fun_type(&params_types, ariety_term),
         ),
-    );
+        Err(_) => panic!("TODO"),
+    }
 }
 
 pub fn elaborate_file_root(
