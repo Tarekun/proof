@@ -164,10 +164,12 @@ pub fn elaborate_inductive(
 
     let params_types = map_args_to_terms(parameters);
     let ariety_term = Cic::elaborate_expression(ariety);
+    let _ = Cic::type_check(ariety_term.clone(), environment);
     let ind_base = build_inductive_target(
         &params_types,
         CicTerm::Variable(type_name.clone()),
     );
+    let _ = Cic::type_check(ind_base.clone(), environment);
 
     for (constr_name, args) in constructors {
         let arg_types = map_args_to_terms(args);
@@ -176,16 +178,16 @@ pub fn elaborate_inductive(
         let constr_full_type =
             make_multiarg_fun_type(&params_types, constr_base_type);
 
+        //TODO add check of the ariety of the constructor
         environment.add_variable_to_context(&constr_name, &constr_full_type);
     }
 
-    match Cic::type_check(ariety_term.clone(), environment) {
-        Ok(_) => environment.add_variable_to_context(
-            &type_name,
-            &make_multiarg_fun_type(&params_types, ariety_term),
-        ),
-        Err(_) => panic!("TODO"),
-    }
+    //TODO check positivity
+    environment.add_variable_to_context(
+        &type_name,
+        &make_multiarg_fun_type(&params_types, ariety_term),
+    );
+    Ok(())
 }
 
 pub fn elaborate_file_root(
@@ -213,7 +215,7 @@ pub fn elaborate_file_root(
         Ok(())
     } else {
         Err(format!(
-            "elaborating the file {} raised errors:\n{}",
+            "Elaborating the file {} raised errors:\n{}",
             file_path,
             errors.join("\n")
         ))
