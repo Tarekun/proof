@@ -67,6 +67,21 @@ pub fn parse_type_abs(input: &str) -> IResult<&str, Expression> {
     ))
 }
 
+pub fn parse_arrow_type(input: &str) -> IResult<&str, Expression> {
+    let (input, domain) = parse_var(input)?;
+    let (input, _) = preceded(multispace0, tag("->"))(input)?;
+    let (input, codomain) = parse_var(input)?;
+
+    Ok((
+        input,
+        Expression::TypeProduct(
+            "_".to_string(),
+            Box::new(domain),
+            Box::new(codomain),
+        ),
+    ))
+}
+
 pub fn parse_app(input: &str) -> IResult<&str, Expression> {
     let (input, left) = preceded(multispace0, parse_atomic_expression)(input)?; // Parse the left term (atomic term)
     let (input, _) = multispace1(input)?;
@@ -106,6 +121,7 @@ pub fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
     alt((
         parse_abs,
         parse_type_abs,
+        parse_arrow_type,
         parse_var,
         parse_numeral,
         parse_parens,
@@ -219,6 +235,34 @@ fn test_type_theory_terms() {
             )
         ),
         "Abstraction struct isnt properly built"
+    );
+}
+
+#[test]
+fn test_arrow_expression() {
+    assert_eq!(
+        parse_arrow_type("A -> B").unwrap(),
+        (
+            "",
+            Expression::TypeProduct(
+                "_".to_string(),
+                Box::new(Expression::VarUse("A".to_string())),
+                Box::new(Expression::VarUse("B".to_string()))
+            )
+        ),
+        "Parser cant read type arrow expressions"
+    );
+    assert!(
+        parse_arrow_type(" \tA   \t \t -> \t B  \n").is_ok(),
+        "Arrow expression parser cant cope with whitespaces"
+    );
+    assert!(
+        parse_arrow_type("A->B").is_ok(),
+        "Arrow expression parser cant cope with dense notation"
+    );
+    assert!(
+        parse_expression("A->B").is_ok(),
+        "Top level parser cant read type arrow expressions"
     );
 }
 

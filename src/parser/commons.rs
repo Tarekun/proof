@@ -1,6 +1,6 @@
 use super::{
     api::Expression,
-    expressions::{parse_parens, parse_var},
+    expressions::{parse_arrow_type, parse_parens, parse_var},
 };
 use nom::{
     branch::alt,
@@ -46,7 +46,7 @@ pub fn parse_numeral(input: &str) -> IResult<&str, Expression> {
 //########################### BASIC TOKEN PARSERS
 
 pub fn parse_type_expression(input: &str) -> IResult<&str, Expression> {
-    alt((parse_var, parse_parens))(input)
+    alt((parse_var, parse_arrow_type, parse_parens))(input)
 }
 
 pub fn parse_typed_identifier(
@@ -87,6 +87,23 @@ fn test_identifier() {
     assert!(
         parse_identifier("test123").is_ok(),
         "Identifier parser cant read numbers/underscores"
+    );
+}
+
+#[test]
+fn test_type_expression() {
+    assert_eq!(
+        parse_type_expression("TYPE").unwrap(),
+        ("", (Expression::VarUse("TYPE".to_string()))),
+        "parse_type_expression cant read simple sorts"
+    );
+    assert!(
+        parse_type_expression("A -> B").is_ok(),
+        "parse_type_expression cant read arrow types"
+    );
+    assert!(
+        parse_type_expression("(ΠT:TYPE.T)").is_ok(),
+        "parse_type_expression cant read types enclosed in parethesis"
     );
 }
 
