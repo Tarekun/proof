@@ -24,6 +24,13 @@ pub enum CicTerm {
     Product(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (function, argument)
     Application(Box<CicTerm>, Box<CicTerm>),
+    /// type_name, params: [(param_name : param_type)], ariety, [( constr_name, [(arg_name : arg_type) ])]
+    InductiveDef(
+        String,
+        Vec<(String, CicTerm)>,
+        Box<CicTerm>,
+        Vec<(String, Vec<(String, CicTerm)>)>,
+    ),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
 }
@@ -45,6 +52,17 @@ impl TypeTheory for Cic {
             Expression::Application(left, right) => {
                 elaborate_application(*left, *right)
             }
+            Expression::Inductive(
+                type_name,
+                parameters,
+                ariety,
+                constructors,
+            ) => elaborate_inductive(
+                type_name,
+                parameters,
+                *ariety,
+                constructors,
+            ),
             Expression::Match(matched_term, branches) => {
                 elaborate_match(*matched_term, branches)
             }
@@ -64,18 +82,6 @@ impl TypeTheory for Cic {
             Statement::Axiom(axiom_name, ast) => {
                 elaborate_axiom(environment, axiom_name, *ast)
             }
-            Statement::Inductive(
-                type_name,
-                parameters,
-                ariety,
-                constructors,
-            ) => elaborate_inductive(
-                environment,
-                type_name,
-                parameters,
-                *ariety,
-                constructors,
-            ),
             Statement::Let(var_name, var_type, body) => {
                 elaborate_let(environment, var_name, *var_type, *body)
             }
