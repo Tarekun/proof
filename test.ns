@@ -6,7 +6,7 @@ let g: (Πx:nat.TYPE) := (\lambda x:nat. f x)   ;
 
 inductive nat := 
     | o
-    | s n
+    | s (n: nat)
 ;
 
 #let t := o;

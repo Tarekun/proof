@@ -55,42 +55,48 @@ impl TypeTheory for Cic {
     fn elaborate_statement(
         ast: Statement,
         environment: &mut Environment<CicTerm, CicTerm>,
-    ) {
+    ) -> Result<(), String> {
         match ast {
-            Statement::Comment() => {}
+            Statement::Comment() => Ok(()),
             Statement::FileRoot(file_path, asts) => {
-                elaborate_file_root(environment, file_path, asts);
+                elaborate_file_root(environment, file_path, asts)
             }
             Statement::Axiom(axiom_name, ast) => {
-                elaborate_axiom(environment, axiom_name, *ast);
+                elaborate_axiom(environment, axiom_name, *ast)
             }
             Statement::Inductive(
                 type_name,
                 parameters,
                 ariety,
                 constructors,
-            ) => {
-                elaborate_inductive(
-                    environment,
-                    type_name,
-                    parameters,
-                    *ariety,
-                    constructors,
-                );
-            }
+            ) => elaborate_inductive(
+                environment,
+                type_name,
+                parameters,
+                *ariety,
+                constructors,
+            ),
             Statement::Let(var_name, var_type, body) => {
                 elaborate_let(environment, var_name, *var_type, *body)
             }
-            _ => panic!("not implemented"),
+            _ => Err(format!(
+                "Language construct {:?} not supported in CIC",
+                ast
+            )),
         }
     }
 
     fn elaborate_ast(ast: NsAst) -> Environment<CicTerm, CicTerm> {
         let mut env = make_default_environment();
         match ast {
-            NsAst::Stm(stm) => Cic::elaborate_statement(stm, &mut env),
+            NsAst::Stm(stm) => {
+                match Cic::elaborate_statement(stm, &mut env) {
+                    Err(message) => panic!("{}", message),
+                    Ok(_) => {}
+                };
+            }
             NsAst::Exp(exp) => {
-                let _ = Cic::elaborate_expression(exp);
+                Cic::elaborate_expression(exp);
             }
         }
 

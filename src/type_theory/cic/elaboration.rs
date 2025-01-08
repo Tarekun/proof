@@ -102,27 +102,25 @@ pub fn elaborate_let(
     var_name: String,
     var_type: Expression,
     body: Expression,
-) {
+) -> Result<(), String> {
     let assigned_term = Cic::elaborate_expression(body);
-    //TODO perform type checking
+    //this type is implicitly typed checked by the equality on assigned_type
     let var_type_term = Cic::elaborate_expression(var_type);
+    let assigned_type = Cic::type_check(assigned_term.clone(), environment)?;
 
-    match Cic::type_check(assigned_term.clone(), environment) {
-        Ok(assigned_type) => {
-            if assigned_type == var_type_term {
-                environment.add_variable_definition(
-                    &var_name,
-                    &assigned_term,
-                    &assigned_type,
-                );
-            } else {
-                panic!(
-                    "Missmatch in variable and body types: specified body type is {:?} but body has type {:?}",
-                    var_type_term, assigned_type
-                );
-            }
-        }
-        Err(_) => panic!("ill-typed body in variable definition"),
+    if assigned_type == var_type_term {
+        environment.add_variable_definition(
+            &var_name,
+            &assigned_term,
+            &assigned_type,
+        );
+        Ok(())
+    } else {
+        Err(
+        format!(
+            "Missmatch in variable and body types: specified body type is {:?} but body has type {:?}",
+            var_type_term, assigned_type
+        ))
     }
 }
 
@@ -133,7 +131,7 @@ pub fn elaborate_inductive(
     parameters: Vec<(String, Expression)>,
     ariety: Expression,
     constructors: Vec<(String, Vec<(String, Expression)>)>,
-) {
+) -> Result<(), String> {
     fn map_args_to_terms(
         expressions: Vec<(String, Expression)>,
     ) -> Vec<(String, CicTerm)> {
@@ -166,10 +164,12 @@ pub fn elaborate_inductive(
 
     let params_types = map_args_to_terms(parameters);
     let ariety_term = Cic::elaborate_expression(ariety);
+    let _ = Cic::type_check(ariety_term.clone(), environment);
     let ind_base = build_inductive_target(
         &params_types,
         CicTerm::Variable(type_name.clone()),
     );
+    let _ = Cic::type_check(ind_base.clone(), environment);
 
     for (constr_name, args) in constructors {
         let arg_types = map_args_to_terms(args);
@@ -178,40 +178,60 @@ pub fn elaborate_inductive(
         let constr_full_type =
             make_multiarg_fun_type(&params_types, constr_base_type);
 
+        //TODO add check of the ariety of the constructor
         environment.add_variable_to_context(&constr_name, &constr_full_type);
     }
 
-    match Cic::type_check(ariety_term.clone(), environment) {
-        Ok(_) => environment.add_variable_to_context(
-            &type_name,
-            &make_multiarg_fun_type(&params_types, ariety_term),
-        ),
-        Err(_) => panic!("TODO"),
-    }
+    //TODO check positivity
+    environment.add_variable_to_context(
+        &type_name,
+        &make_multiarg_fun_type(&params_types, ariety_term),
+    );
+    Ok(())
 }
 
 pub fn elaborate_file_root(
     environment: &mut Environment<CicTerm, CicTerm>,
-    _file_path: String,
+    file_path: String,
     asts: Vec<NsAst>,
-) {
+) -> Result<(), String> {
+    let mut errors = vec![];
+
     for sub_ast in asts {
         match sub_ast {
-            NsAst::Stm(stm) => Cic::elaborate_statement(stm, environment),
+            NsAst::Stm(stm) => {
+                match Cic::elaborate_statement(stm, environment) {
+                    Err(message) => errors.push(message),
+                    Ok(_) => {}
+                }
+            }
             NsAst::Exp(exp) => {
                 let _ = Cic::elaborate_expression(exp);
             }
         }
     }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Elaborating the file {} raised errors:\n{}",
+            file_path,
+            errors.join("\n")
+        ))
+    }
 }
 
-//TODO perform type checking (axiom_forumla should be PROP)
 pub fn elaborate_axiom(
     environment: &mut Environment<CicTerm, CicTerm>,
     axiom_name: String,
     ast: Expression,
-) {
+) -> Result<(), String> {
     let axiom_forumla = Cic::elaborate_expression(ast);
+    // check that _formula_type == PROP?
+    let _formula_type = Cic::type_check(axiom_forumla.clone(), environment)?;
     environment.add_variable_to_context(&axiom_name, &axiom_forumla);
+
+    Ok(())
 }
 //########################### STATEMENTS ELABORATION
