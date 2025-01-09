@@ -1,6 +1,26 @@
+use std::any::type_name;
+
 use super::cic::{Cic, CicTerm};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
+
+fn make_multiarg_fun_type(
+    arg_types: &[(String, CicTerm)],
+    base: CicTerm,
+) -> CicTerm {
+    if arg_types.is_empty() {
+        return base;
+    }
+
+    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
+    let sub_type = make_multiarg_fun_type(rest, base);
+
+    CicTerm::Product(
+        arg_name.to_string(),
+        Box::new(arg_type.to_owned()),
+        Box::new(sub_type),
+    )
+}
 
 pub fn type_check_sort(
     environment: &mut Environment<CicTerm, CicTerm>,
@@ -93,6 +113,38 @@ pub fn type_check_application(
             function_type
         )),
     }
+}
+
+pub fn type_check_inductive(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    type_name: String,
+    params: Vec<(String, CicTerm)>,
+    ariety: CicTerm,
+    constructors: Vec<(String, Vec<(String, CicTerm)>)>,
+) -> Result<CicTerm, String> {
+    //TODO check positivity
+    let _ = Cic::type_check(ariety.clone(), environment)?;
+    let inductive_type = make_multiarg_fun_type(&params, ariety);
+    let _ = Cic::type_check(inductive_type.clone(), environment)?;
+
+    //TODO i think we should also include the variables in params
+    environment.with_local_declaration(
+        &type_name,
+        &inductive_type,
+        |local_env| {
+            for (_constr_name, args) in constructors {
+                //TODO base here should be the instatiation of inductive_type with the body of the constr
+                let constr_type =
+                    make_multiarg_fun_type(&args, inductive_type.clone());
+                let _ = Cic::type_check(constr_type.clone(), local_env)?;
+                //TODO type check body of the constructor
+            }
+
+            Ok::<(), String>(())
+        },
+    )?;
+
+    Ok(CicTerm::Variable("Unit".to_string()))
 }
 
 fn type_check_pattern(

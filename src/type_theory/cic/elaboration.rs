@@ -3,24 +3,6 @@ use crate::parser::api::{Expression, NsAst};
 use crate::type_theory::interface::TypeTheory;
 use crate::type_theory::{cic::cic::Cic, environment::Environment};
 
-fn make_multiarg_fun_type(
-    arg_types: &[(String, CicTerm)],
-    base: CicTerm,
-) -> CicTerm {
-    if arg_types.is_empty() {
-        return base;
-    }
-
-    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-    let sub_type = make_multiarg_fun_type(rest, base);
-
-    CicTerm::Product(
-        arg_name.to_string(),
-        Box::new(arg_type.to_owned()),
-        Box::new(sub_type),
-    )
-}
-
 //########################### EXPRESSIONS ELABORATION
 pub fn elaborate_var_use(var_name: String) -> CicTerm {
     //TODO this should probably be at the parser level

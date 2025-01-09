@@ -4,8 +4,8 @@ use super::elaboration::{
     elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
-    type_check_abstraction, type_check_application, type_check_match,
-    type_check_product, type_check_sort, type_check_variable,
+    type_check_abstraction, type_check_application, type_check_inductive,
+    type_check_match, type_check_product, type_check_sort, type_check_variable,
 };
 use crate::parser::api::{Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
@@ -130,6 +130,15 @@ impl TypeTheory for Cic {
             CicTerm::Match(matched_term, branches) => {
                 type_check_match(environment, *matched_term, branches)
             }
+            CicTerm::InductiveDef(type_name, params, ariety, constructors) => {
+                type_check_inductive(
+                    environment,
+                    type_name,
+                    params,
+                    *ariety,
+                    constructors,
+                )
+            }
 
             _ => Err("Term case is not typable yet".to_string()),
         }
@@ -139,7 +148,8 @@ impl TypeTheory for Cic {
 #[allow(non_snake_case)]
 pub fn make_default_environment() -> Environment<CicTerm, CicTerm> {
     let TYPE = CicTerm::Sort("TYPE".to_string());
-    let axioms: Vec<(&str, &CicTerm)> = vec![("TYPE", &TYPE), ("PROP", &TYPE)];
+    let axioms: Vec<(&str, &CicTerm)> =
+        vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
 
     Environment::with_defaults(axioms, Vec::default())
 }
