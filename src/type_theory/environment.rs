@@ -1,4 +1,4 @@
-use std::{clone, collections::HashMap};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Environment<Term, Type> {
@@ -97,6 +97,27 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         self.remove_variable_from_context(name);
 
         result
+    }
+
+    /// Add a list of local variables to the context, execute a closure, and then remove the variables
+    pub fn with_local_declarations<F, R>(
+        &mut self,
+        assumptions: &[(String, Type)],
+        callable: F,
+    ) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        if assumptions.is_empty() {
+            callable(self)
+        } else {
+            let ((name, type_term), rest) = assumptions.split_first().unwrap();
+            self.add_variable_to_context(name, type_term);
+            let result = self.with_local_declarations(rest, callable);
+            self.remove_variable_from_context(name);
+
+            result
+        }
     }
 
     pub fn get_from_context<'a>(
