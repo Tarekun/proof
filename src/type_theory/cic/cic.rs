@@ -1,7 +1,7 @@
 use super::elaboration::{
-    elaborate_abstraction, elaborate_application, elaborate_axiom,
-    elaborate_file_root, elaborate_inductive, elaborate_let, elaborate_match,
-    elaborate_type_product, elaborate_var_use,
+    elaborate_abstraction, elaborate_application, elaborate_arrow,
+    elaborate_axiom, elaborate_file_root, elaborate_inductive, elaborate_let,
+    elaborate_match, elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_inductive,
@@ -24,12 +24,12 @@ pub enum CicTerm {
     Product(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (function, argument)
     Application(Box<CicTerm>, Box<CicTerm>),
-    /// type_name, params: [(param_name : param_type)], ariety, [( constr_name, [(arg_name : arg_type) ])]
+    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
     InductiveDef(
         String,
         Vec<(String, CicTerm)>,
         Box<CicTerm>,
-        Vec<(String, Vec<(String, CicTerm)>)>,
+        Vec<(String, CicTerm)>,
     ),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
@@ -65,6 +65,9 @@ impl TypeTheory for Cic {
             ),
             Expression::Match(matched_term, branches) => {
                 elaborate_match(*matched_term, branches)
+            }
+            Expression::Arrow(domain, codomain) => {
+                elaborate_arrow(*domain, *codomain)
             }
             _ => panic!("not implemented"),
         }

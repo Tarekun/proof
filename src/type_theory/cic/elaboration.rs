@@ -60,28 +60,28 @@ pub fn elaborate_application(left: Expression, right: Expression) -> CicTerm {
     CicTerm::Application(Box::new(left_term), Box::new(right_term))
 }
 
+pub fn elaborate_arrow(domain: Expression, codomain: Expression) -> CicTerm {
+    let type_term = Cic::elaborate_expression(domain);
+    let body_term = Cic::elaborate_expression(codomain);
+
+    CicTerm::Product("_".to_string(), Box::new(type_term), Box::new(body_term))
+}
+
 pub fn elaborate_inductive(
     type_name: String,
     parameters: Vec<(String, Expression)>,
     ariety: Expression,
-    constructors: Vec<(String, Vec<(String, Expression)>)>,
+    constructors: Vec<(String, Expression)>,
 ) -> CicTerm {
     let parameter_terms: Vec<(String, CicTerm)> =
         map_typed_variables(&parameters);
     let ariety_term: CicTerm = Cic::elaborate_expression(ariety);
-    let constructor_terms: Vec<(String, Vec<(String, CicTerm)>)> = constructors
+    let constructor_terms: Vec<(String, CicTerm)> = constructors
         .iter()
-        .map(|(constr_name, arguments)| {
+        .map(|(constr_name, constr_type)| {
             (
                 constr_name.to_owned(),
-                map_typed_variables(arguments), // .iter()
-                                                // .map(|(arg_name, arg_type)| {
-                                                //     (
-                                                //         arg_name.to_owned(),
-                                                //         Cic::elaborate_expression(arg_type.to_owned()),
-                                                //     )
-                                                // })
-                                                // .collect(),
+                Cic::elaborate_expression(constr_type.to_owned()),
             )
         })
         .collect();

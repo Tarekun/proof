@@ -1,5 +1,3 @@
-use std::any::type_name;
-
 use super::cic::{Cic, CicTerm};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -120,7 +118,7 @@ pub fn type_check_inductive(
     type_name: String,
     params: Vec<(String, CicTerm)>,
     ariety: CicTerm,
-    constructors: Vec<(String, Vec<(String, CicTerm)>)>,
+    constructors: Vec<(String, CicTerm)>,
 ) -> Result<CicTerm, String> {
     //TODO check positivity
     let _ = Cic::type_check(ariety.clone(), environment)?;
@@ -132,10 +130,8 @@ pub fn type_check_inductive(
         &type_name,
         &inductive_type,
         |local_env| {
-            for (_constr_name, args) in constructors {
+            for (_constr_name, constr_type) in constructors {
                 //TODO base here should be the instatiation of inductive_type with the body of the constr
-                let constr_type =
-                    make_multiarg_fun_type(&args, inductive_type.clone());
                 let _ = Cic::type_check(constr_type.clone(), local_env)?;
                 //TODO type check body of the constructor
             }

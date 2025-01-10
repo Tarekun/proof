@@ -71,17 +71,13 @@ pub fn parse_type_abs(input: &str) -> IResult<&str, Expression> {
 }
 
 pub fn parse_arrow_type(input: &str) -> IResult<&str, Expression> {
-    let (input, domain) = parse_var(input)?;
+    let (input, domain) = alt((parse_parens, parse_var))(input)?;
     let (input, _) = preceded(multispace0, tag("->"))(input)?;
-    let (input, codomain) = parse_var(input)?;
+    let (input, codomain) = parse_type_expression(input)?;
 
     Ok((
         input,
-        Expression::TypeProduct(
-            "_".to_string(),
-            Box::new(domain),
-            Box::new(codomain),
-        ),
+        Expression::Arrow(Box::new(domain), Box::new(codomain)),
     ))
 }
 
@@ -98,13 +94,14 @@ pub fn parse_app(input: &str) -> IResult<&str, Expression> {
 
 pub fn parse_inductive_constructor(
     input: &str,
-) -> IResult<&str, (String, Vec<(String, Expression)>)> {
+) -> IResult<&str, (String, Expression)> {
     let (input, _) = preceded(multispace0, char('|'))(input)?;
     let (input, constructor_name) =
         preceded(multispace0, parse_identifier)(input)?;
-    let (input, args) = typed_parameter_list(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, constructor_type) = parse_type_expression(input)?;
 
-    Ok((input, (constructor_name.to_string(), args)))
+    Ok((input, (constructor_name.to_string(), constructor_type)))
 }
 pub fn parse_inductive_def(input: &str) -> IResult<&str, Expression> {
     let (input, _) = preceded(multispace0, tag("inductive"))(input)?;
@@ -277,8 +274,7 @@ fn test_arrow_expression() {
         parse_arrow_type("A -> B").unwrap(),
         (
             "",
-            Expression::TypeProduct(
-                "_".to_string(),
+            Expression::Arrow(
                 Box::new(Expression::VarUse("A".to_string())),
                 Box::new(Expression::VarUse("B".to_string()))
             )
@@ -306,17 +302,20 @@ fn test_inductive() {
         vec![],
         Box::new(Expression::VarUse("TYPE".to_string())),
         vec![
-            ("o".to_string(), vec![]),
+            ("o".to_string(), Expression::VarUse("nat".to_string())),
             (
                 "s".to_string(),
-                vec![("n".to_string(), Expression::VarUse("nat".to_string()))],
+                Expression::Arrow(
+                    Box::new(Expression::VarUse("nat".to_string())),
+                    Box::new(Expression::VarUse("nat".to_string())),
+                ),
             ),
         ],
     );
 
     assert_eq!(
         parse_inductive_def(
-            "inductive nat : TYPE := \n| o \n| \ts ( n : nat )  ;"
+            "inductive nat : TYPE := \n| o: nat \n| \ts : nat -> nat;"
         )
         .unwrap(),
         ("", test_definition.clone()),
@@ -327,17 +326,18 @@ fn test_inductive() {
         "Inductive parser doesnt support the Empty type"
     );
     assert_eq!(
-        parse_inductive_def("inductive nat:TYPE:=|o|s (n: nat);").unwrap(),
+        parse_inductive_def("inductive nat:TYPE:=|o: nat|s :nat->nat;")
+            .unwrap(),
         ("", test_definition.clone()),
         "Inductive parser cant cope with dense notation"
     );
     assert!(
-        parse_inductive_def("inductivenat:TYPE:=|o|s (n: nat);").is_err(),
+        parse_inductive_def("inductivenat:TYPE:=|o: nat|s : nat-> nat;").is_err(),
         "Inductive parser doesnt expect a whitespace after the inductive keyword"
     );
     assert_eq!(
         parse_inductive_def(
-            "inductive T : TYPE := | c (l: (list nat)) | g (n: nat) (m: nat);"
+            "inductive T : TYPE := | c: (list nat) -> T | g: nat -> nat -> T;"
         )
         .unwrap(),
         (
@@ -349,28 +349,25 @@ fn test_inductive() {
                 vec![
                     (
                         "c".to_string(),
-                        vec![(
-                            "l".to_string(),
-                            Expression::Application(
+                        Expression::Arrow(
+                            Box::new(Expression::Application(
                                 Box::new(Expression::VarUse(
                                     "list".to_string()
                                 )),
                                 Box::new(Expression::VarUse("nat".to_string())),
-                            )
-                        )]
+                            )),
+                            Box::new(Expression::VarUse("T".to_string()))
+                        )
                     ),
                     (
                         "g".to_string(),
-                        vec![
-                            (
-                                "n".to_string(),
-                                Expression::VarUse("nat".to_string())
-                            ),
-                            (
-                                "m".to_string(),
-                                Expression::VarUse("nat".to_string())
-                            )
-                        ]
+                        Expression::Arrow(
+                            Box::new(Expression::VarUse("nat".to_string())),
+                            Box::new(Expression::Arrow(
+                                Box::new(Expression::VarUse("nat".to_string())),
+                                Box::new(Expression::VarUse("T".to_string())),
+                            ))
+                        ),
                     ),
                 ],
             )
@@ -379,7 +376,7 @@ fn test_inductive() {
     );
     assert!(
         parse_expression(
-            "inductive T: TYPE := \n\t| c (l: (list nat)) \n\t| g (n: nat) (m: nat);"
+            "inductive T: TYPE := \n\t| c:(list nat) ->T \n\t| g: nat -> nat->T;"
         )
         .is_ok(),
         "Top level parser cant parse inductive definitions"
@@ -387,14 +384,14 @@ fn test_inductive() {
 
     assert!(
         parse_inductive_def(
-            "inductive list (T: TYPE) : TYPE := |nil |cons (e:T) (l: (list T) );"
+            "inductive list (T: TYPE) : TYPE := |nil: (list T) |cons: T -> (list T) ;"
         )
         .is_ok(),
         "Inductive parser doesnt support polymorphic types"
     );
     assert!(
         parse_inductive_def(
-            "inductive le : (Πn:nat.(Πm:nat. PROP)) := |lez | leS;"
+            "inductive le : nat -> nat -> PROP := |lez: PROP | leS : PROP;"
         )
         .is_ok(),
         "Inductive parser doesnt support complex arieties"

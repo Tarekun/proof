@@ -21,12 +21,12 @@ pub enum Expression {
     Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
-    /// type_name, params: [(param_name : param_type)], ariety, [( constr_name, [(arg_name : arg_type) ])]
+    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
     Inductive(
         String,
         Vec<(String, Expression)>,
         Box<Expression>,
-        Vec<(String, Vec<(String, Expression)>)>,
+        Vec<(String, Expression)>,
     ),
     // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
