@@ -3,6 +3,20 @@ use crate::parser::api::{Expression, NsAst};
 use crate::type_theory::interface::TypeTheory;
 use crate::type_theory::{cic::cic::Cic, environment::Environment};
 
+fn map_typed_variables(
+    variables: &Vec<(String, Expression)>,
+) -> Vec<(String, CicTerm)> {
+    variables
+        .iter()
+        .map(|(var_name, var_type_exp)| {
+            (
+                var_name.to_owned(),
+                Cic::elaborate_expression(var_type_exp.to_owned()),
+            )
+        })
+        .collect()
+}
+
 //########################### EXPRESSIONS ELABORATION
 pub fn elaborate_var_use(var_name: String) -> CicTerm {
     //TODO this should probably be at the parser level
@@ -52,30 +66,22 @@ pub fn elaborate_inductive(
     ariety: Expression,
     constructors: Vec<(String, Vec<(String, Expression)>)>,
 ) -> CicTerm {
-    let parameter_terms: Vec<(String, CicTerm)> = parameters
-        .iter()
-        .map(|(var_name, var_type)| {
-            (
-                var_name.to_owned(),
-                Cic::elaborate_expression(var_type.to_owned()),
-            )
-        })
-        .collect();
+    let parameter_terms: Vec<(String, CicTerm)> =
+        map_typed_variables(&parameters);
     let ariety_term: CicTerm = Cic::elaborate_expression(ariety);
     let constructor_terms: Vec<(String, Vec<(String, CicTerm)>)> = constructors
         .iter()
         .map(|(constr_name, arguments)| {
             (
                 constr_name.to_owned(),
-                arguments
-                    .iter()
-                    .map(|(arg_name, arg_type)| {
-                        (
-                            arg_name.to_owned(),
-                            Cic::elaborate_expression(arg_type.to_owned()),
-                        )
-                    })
-                    .collect(),
+                map_typed_variables(arguments), // .iter()
+                                                // .map(|(arg_name, arg_type)| {
+                                                //     (
+                                                //         arg_name.to_owned(),
+                                                //         Cic::elaborate_expression(arg_type.to_owned()),
+                                                //     )
+                                                // })
+                                                // .collect(),
             )
         })
         .collect();
@@ -86,62 +92,6 @@ pub fn elaborate_inductive(
         Box::new(ariety_term),
         constructor_terms,
     )
-    // fn map_args_to_terms(
-    //     expressions: Vec<(String, Expression)>,
-    // ) -> Vec<(String, CicTerm)> {
-    //     let mut arg_types = vec![];
-    //     for (arg_name, arg_type_exp) in expressions {
-    //         let arg_type = Cic::elaborate_expression(arg_type_exp);
-    //         arg_types.push((arg_name, arg_type));
-    //     }
-
-    //     arg_types
-    // }
-
-    // fn build_inductive_target(
-    //     params: &[(String, CicTerm)],
-    //     base: CicTerm,
-    // ) -> CicTerm {
-    //     if params.is_empty() {
-    //         return base;
-    //     }
-
-    //     let ((param_name, _param_type), rest) = params.split_first().unwrap();
-    //     build_inductive_target(
-    //         rest,
-    //         CicTerm::Application(
-    //             Box::new(base),
-    //             Box::new(CicTerm::Variable(param_name.to_string())),
-    //         ),
-    //     )
-    // }
-
-    // let params_types = map_args_to_terms(parameters);
-    // let ariety_term = Cic::elaborate_expression(ariety);
-    // let _ = Cic::type_check(ariety_term.clone(), environment);
-    // let ind_base = build_inductive_target(
-    //     &params_types,
-    //     CicTerm::Variable(type_name.clone()),
-    // );
-    // let _ = Cic::type_check(ind_base.clone(), environment);
-
-    // for (constr_name, args) in constructors {
-    //     let arg_types = map_args_to_terms(args);
-    //     let constr_base_type =
-    //         make_multiarg_fun_type(&arg_types, ind_base.clone());
-    //     let constr_full_type =
-    //         make_multiarg_fun_type(&params_types, constr_base_type);
-
-    //     //TODO add check of the ariety of the constructor
-    //     environment.add_variable_to_context(&constr_name, &constr_full_type);
-    // }
-
-    // //TODO check positivity
-    // environment.add_variable_to_context(
-    //     &type_name,
-    //     &make_multiarg_fun_type(&params_types, ariety_term),
-    // );
-    // Ok(())
 }
 
 pub fn elaborate_match(

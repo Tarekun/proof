@@ -17,6 +17,8 @@ pub enum Expression {
     Abstraction(String, Box<Expression>, Box<Expression>),
     /// (var_name, var_type, dependent_type)
     TypeProduct(String, Box<Expression>, Box<Expression>),
+    /// (domain, codomain)
+    Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
     /// type_name, params: [(param_name : param_type)], ariety, [( constr_name, [(arg_name : arg_type) ])]
