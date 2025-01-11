@@ -1,4 +1,5 @@
 use super::cic::{Cic, CicTerm};
+#[allow(unused_imports)]
 use crate::type_theory::cic::cic::make_default_environment;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -593,5 +594,146 @@ fn test_type_check_match() {
         )
         .is_err(),
         "Type checker accepts match with random (properly typed) variable in place of constructor"
+    );
+}
+
+//TODO add check for positivity
+#[test]
+fn test_type_check_inductive() {
+    let mut test_env = make_default_environment();
+    let constructors = vec![
+        ("o".to_string(), CicTerm::Variable("nat".to_string())),
+        (
+            "s".to_string(),
+            CicTerm::Product(
+                "_".to_string(),
+                Box::new(CicTerm::Variable("nat".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string())),
+            ),
+        ),
+    ];
+    #[allow(non_snake_case)]
+    let TYPE = CicTerm::Sort("TYPE".to_string());
+    let ariety = TYPE.clone();
+
+    assert_eq!(
+        type_check_inductive(
+            &mut test_env,
+            "nat".to_string(),
+            vec![],
+            ariety,
+            constructors.clone()
+        ),
+        Ok(CicTerm::Variable("Unit".to_string())),
+        "Inductive type checking isnt passing nat definition"
+    );
+    assert!(
+        Cic::type_check(
+            CicTerm::InductiveDef(
+                "nat".to_string(),
+                vec![],
+                Box::new(TYPE.clone()),
+                constructors
+            ),
+            &mut test_env
+        )
+        .is_ok(),
+        "Top level type checker doesnt support inductive definitions"
+    );
+    assert!(
+        type_check_inductive(
+            &mut test_env,
+            "Empty".to_string(),
+            vec![],
+            TYPE.clone(),
+            vec![]
+        )
+        .is_ok(),
+        "Inductive type checking is refuting empty type"
+    );
+    assert!(
+        type_check_inductive(
+            &mut test_env,
+            "inc".to_string(),
+            vec![],
+            TYPE.clone(),
+            vec![
+                ("correct".to_string(), CicTerm::Variable("inc".to_string())),
+                (
+                    "wrong".to_string(),
+                    CicTerm::Variable("wrongType".to_string())
+                )
+            ]
+        )
+        .is_err(),
+        "Inductive type checking is accepting ill typed constructor"
+    );
+    assert!(
+        type_check_inductive(
+            &mut test_env,
+            "fail".to_string(),
+            vec![],
+            CicTerm::Sort("UNBOUND_SORT".to_string()),
+            vec![]
+        )
+        .is_err(),
+        "Inductive type checking is accepting definition on non existent arieties"
+    );
+
+    let list_of_t = CicTerm::Application(
+        Box::new(CicTerm::Variable("list".to_string())),
+        Box::new(CicTerm::Variable("T".to_string())),
+    );
+    let constructors = vec![
+        ("nil".to_string(), list_of_t.clone()),
+        (
+            "cons".to_string(),
+            CicTerm::Product(
+                "_".to_string(),
+                Box::new(CicTerm::Variable("T".to_string())),
+                Box::new(CicTerm::Product(
+                    "_".to_string(),
+                    Box::new(list_of_t.clone()),
+                    Box::new(list_of_t.clone()),
+                )),
+            ),
+        ),
+    ];
+    let wrong_constructors = vec![
+        ("nil".to_string(), list_of_t.clone()),
+        (
+            "cons".to_string(),
+            CicTerm::Product(
+                "_".to_string(),
+                Box::new(CicTerm::Variable("T_T".to_string())), //unbound variable
+                Box::new(CicTerm::Product(
+                    "_".to_string(),
+                    Box::new(list_of_t.clone()),
+                    Box::new(list_of_t.clone()),
+                )),
+            ),
+        ),
+    ];
+    assert!(
+        type_check_inductive(
+            &mut test_env,
+            "list".to_string(),
+            vec![("T".to_string(), TYPE.clone())],
+            TYPE.clone(),
+            constructors
+        )
+        .is_ok(),
+        "Inductive type checking isnt working with dependent inductive types"
+    );
+    assert!(
+        type_check_inductive(
+            &mut test_env,
+            "list".to_string(),
+            vec![("T".to_string(), TYPE.clone())],
+            TYPE.clone(),
+            wrong_constructors
+        )
+        .is_err(),
+        "Inductive type checking isnt working with dependent inductive types"
     );
 }
