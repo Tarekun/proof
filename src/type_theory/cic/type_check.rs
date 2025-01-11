@@ -132,7 +132,8 @@ pub fn type_check_inductive(
     constructors: Vec<(String, CicTerm)>,
 ) -> Result<CicTerm, String> {
     //TODO check positivity
-    let _ = Cic::type_check(ariety.clone(), environment)?;
+    let ariety_sort = Cic::type_check(ariety.clone(), environment)?;
+    let _ = check_is_sort(ariety_sort)?;
     let inductive_type = make_multiarg_fun_type(&params, ariety);
     let _ = Cic::type_check(inductive_type.clone(), environment)?;
 
@@ -146,7 +147,9 @@ pub fn type_check_inductive(
         &inductive_assumptions,
         |local_env| {
             for (_constr_name, constr_type) in constructors {
-                let _ = Cic::type_check(constr_type.clone(), local_env)?;
+                let constr_type_sort =
+                    Cic::type_check(constr_type.clone(), local_env)?;
+                let _ = check_is_sort(constr_type_sort)?;
             }
 
             Ok::<(), String>(())
@@ -616,30 +619,7 @@ fn test_type_check_inductive() {
     let TYPE = CicTerm::Sort("TYPE".to_string());
     let ariety = TYPE.clone();
 
-    assert_eq!(
-        type_check_inductive(
-            &mut test_env,
-            "nat".to_string(),
-            vec![],
-            ariety,
-            constructors.clone()
-        ),
-        Ok(CicTerm::Variable("Unit".to_string())),
-        "Inductive type checking isnt passing nat definition"
-    );
-    assert!(
-        Cic::type_check(
-            CicTerm::InductiveDef(
-                "nat".to_string(),
-                vec![],
-                Box::new(TYPE.clone()),
-                constructors
-            ),
-            &mut test_env
-        )
-        .is_ok(),
-        "Top level type checker doesnt support inductive definitions"
-    );
+    // generic checks
     assert!(
         type_check_inductive(
             &mut test_env,
@@ -679,7 +659,66 @@ fn test_type_check_inductive() {
         .is_err(),
         "Inductive type checking is accepting definition on non existent arieties"
     );
+    assert!(
+        test_env.with_local_declarations(&vec![
+            ("nat".to_string(), TYPE.clone()),
+            ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+        ], |local_env| {
+            type_check_inductive(
+                local_env,
+                "fail".to_string(),
+                vec![],
+                CicTerm::Variable("zero".to_string()),  //bound, non-sort variable
+                vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+            )
+            .is_err()
+        }),
+        "Inductive type checking is accepting definition with simple term ariety"
+    );
+    assert!(
+        test_env.with_local_declarations(&vec![
+            ("nat".to_string(), TYPE.clone()),
+            ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+        ], |local_env| {
+            type_check_inductive(
+                local_env,
+                "fail".to_string(),
+                vec![],
+                TYPE.clone(),
+                vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+            )
+            .is_err()
+        }),
+        "Inductive type checking is accepting definition with simple term constructor type"
+    );
 
+    // peano naturals
+    assert_eq!(
+        type_check_inductive(
+            &mut test_env,
+            "nat".to_string(),
+            vec![],
+            ariety,
+            constructors.clone()
+        ),
+        Ok(CicTerm::Variable("Unit".to_string())),
+        "Inductive type checking isnt passing nat definition"
+    );
+    assert!(
+        Cic::type_check(
+            CicTerm::InductiveDef(
+                "nat".to_string(),
+                vec![],
+                Box::new(TYPE.clone()),
+                constructors
+            ),
+            &mut test_env
+        )
+        .is_ok(),
+        "Top level type checker doesnt support inductive definitions"
+    );
+
+    // polymorphic lists
     let list_of_t = CicTerm::Application(
         Box::new(CicTerm::Variable("list".to_string())),
         Box::new(CicTerm::Variable("T".to_string())),
