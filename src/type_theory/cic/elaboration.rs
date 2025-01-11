@@ -1,24 +1,22 @@
 use super::cic::CicTerm;
 use crate::parser::api::{Expression, NsAst};
+#[allow(unused_imports)]
+use crate::type_theory::cic::cic::make_default_environment;
 use crate::type_theory::interface::TypeTheory;
 use crate::type_theory::{cic::cic::Cic, environment::Environment};
 
-fn make_multiarg_fun_type(
-    arg_types: &[(String, CicTerm)],
-    base: CicTerm,
-) -> CicTerm {
-    if arg_types.is_empty() {
-        return base;
-    }
-
-    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-    let sub_type = make_multiarg_fun_type(rest, base);
-
-    CicTerm::Product(
-        arg_name.to_string(),
-        Box::new(arg_type.to_owned()),
-        Box::new(sub_type),
-    )
+fn map_typed_variables(
+    variables: &Vec<(String, Expression)>,
+) -> Vec<(String, CicTerm)> {
+    variables
+        .iter()
+        .map(|(var_name, var_type_exp)| {
+            (
+                var_name.to_owned(),
+                Cic::elaborate_expression(var_type_exp.to_owned()),
+            )
+        })
+        .collect()
 }
 
 //########################### EXPRESSIONS ELABORATION
@@ -62,6 +60,40 @@ pub fn elaborate_application(left: Expression, right: Expression) -> CicTerm {
     let right_term = Cic::elaborate_expression(right);
 
     CicTerm::Application(Box::new(left_term), Box::new(right_term))
+}
+
+pub fn elaborate_arrow(domain: Expression, codomain: Expression) -> CicTerm {
+    let type_term = Cic::elaborate_expression(domain);
+    let body_term = Cic::elaborate_expression(codomain);
+
+    CicTerm::Product("_".to_string(), Box::new(type_term), Box::new(body_term))
+}
+
+pub fn elaborate_inductive(
+    type_name: String,
+    parameters: Vec<(String, Expression)>,
+    ariety: Expression,
+    constructors: Vec<(String, Expression)>,
+) -> CicTerm {
+    let parameter_terms: Vec<(String, CicTerm)> =
+        map_typed_variables(&parameters);
+    let ariety_term: CicTerm = Cic::elaborate_expression(ariety);
+    let constructor_terms: Vec<(String, CicTerm)> = constructors
+        .iter()
+        .map(|(constr_name, constr_type)| {
+            (
+                constr_name.to_owned(),
+                Cic::elaborate_expression(constr_type.to_owned()),
+            )
+        })
+        .collect();
+
+    CicTerm::InductiveDef(
+        type_name,
+        parameter_terms,
+        Box::new(ariety_term),
+        constructor_terms,
+    )
 }
 
 pub fn elaborate_match(
@@ -124,72 +156,6 @@ pub fn elaborate_let(
     }
 }
 
-//TODO perform type checking
-pub fn elaborate_inductive(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    type_name: String,
-    parameters: Vec<(String, Expression)>,
-    ariety: Expression,
-    constructors: Vec<(String, Vec<(String, Expression)>)>,
-) -> Result<(), String> {
-    fn map_args_to_terms(
-        expressions: Vec<(String, Expression)>,
-    ) -> Vec<(String, CicTerm)> {
-        let mut arg_types = vec![];
-        for (arg_name, arg_type_exp) in expressions {
-            let arg_type = Cic::elaborate_expression(arg_type_exp);
-            arg_types.push((arg_name, arg_type));
-        }
-
-        arg_types
-    }
-
-    fn build_inductive_target(
-        params: &[(String, CicTerm)],
-        base: CicTerm,
-    ) -> CicTerm {
-        if params.is_empty() {
-            return base;
-        }
-
-        let ((param_name, _param_type), rest) = params.split_first().unwrap();
-        build_inductive_target(
-            rest,
-            CicTerm::Application(
-                Box::new(base),
-                Box::new(CicTerm::Variable(param_name.to_string())),
-            ),
-        )
-    }
-
-    let params_types = map_args_to_terms(parameters);
-    let ariety_term = Cic::elaborate_expression(ariety);
-    let _ = Cic::type_check(ariety_term.clone(), environment);
-    let ind_base = build_inductive_target(
-        &params_types,
-        CicTerm::Variable(type_name.clone()),
-    );
-    let _ = Cic::type_check(ind_base.clone(), environment);
-
-    for (constr_name, args) in constructors {
-        let arg_types = map_args_to_terms(args);
-        let constr_base_type =
-            make_multiarg_fun_type(&arg_types, ind_base.clone());
-        let constr_full_type =
-            make_multiarg_fun_type(&params_types, constr_base_type);
-
-        //TODO add check of the ariety of the constructor
-        environment.add_variable_to_context(&constr_name, &constr_full_type);
-    }
-
-    //TODO check positivity
-    environment.add_variable_to_context(
-        &type_name,
-        &make_multiarg_fun_type(&params_types, ariety_term),
-    );
-    Ok(())
-}
-
 pub fn elaborate_file_root(
     environment: &mut Environment<CicTerm, CicTerm>,
     file_path: String,
@@ -235,3 +201,236 @@ pub fn elaborate_axiom(
     Ok(())
 }
 //########################### STATEMENTS ELABORATION
+
+#[test]
+fn test_var_elaboration() {
+    let test_var_name = "test_var";
+
+    assert_eq!(
+        elaborate_var_use(test_var_name.to_string()),
+        CicTerm::Variable(test_var_name.to_string()),
+        "Variable term not properly constructed"
+    );
+    assert_eq!(
+        elaborate_var_use("TYPE".to_string()),
+        CicTerm::Sort("TYPE".to_string()),
+        "Sort name returns a simple variable instead of a sort term"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::VarUse(
+            test_var_name.to_string()
+        ),),
+        CicTerm::Variable(test_var_name.to_string()),
+        "Top level elaboration doesnt work with variables as expected"
+    );
+}
+
+#[test]
+fn test_abs_elaboration() {
+    let expected_term = CicTerm::Abstraction(
+        "x".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Variable("x".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_abstraction(
+            "x".to_string(),
+            Expression::VarUse("TYPE".to_string()),
+            Expression::VarUse("x".to_string())
+        ),
+        expected_term.clone(),
+        "Abstraction elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Abstraction(
+            "x".to_string(),
+            Box::new(Expression::VarUse("TYPE".to_string())),
+            Box::new(Expression::VarUse("x".to_string())),
+        ),),
+        expected_term,
+        "Top level elaborator isnt working with abstraction"
+    );
+}
+
+#[test]
+fn test_prod_elaboration() {
+    let expected_term = CicTerm::Product(
+        "x".to_string(),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+        Box::new(CicTerm::Sort("TYPE".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_type_product(
+            "x".to_string(),
+            Expression::VarUse("TYPE".to_string()),
+            Expression::VarUse("TYPE".to_string())
+        ),
+        expected_term.clone(),
+        "Type abstraction elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::TypeProduct(
+            "x".to_string(),
+            Box::new(Expression::VarUse("TYPE".to_string())),
+            Box::new(Expression::VarUse("TYPE".to_string())),
+        ),),
+        expected_term,
+        "Top level elaborator isnt working with type abstraction"
+    );
+}
+
+#[test]
+fn test_app_elaboration() {
+    let expected_term = CicTerm::Application(
+        Box::new(CicTerm::Variable("s".to_string())),
+        Box::new(CicTerm::Variable("o".to_string())),
+    );
+
+    assert_eq!(
+        elaborate_application(
+            Expression::VarUse("s".to_string()),
+            Expression::VarUse("o".to_string())
+        ),
+        expected_term.clone(),
+        "Application elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Application(
+            Box::new(Expression::VarUse("s".to_string())),
+            Box::new(Expression::VarUse("o".to_string())),
+        ),),
+        expected_term,
+        "Top level elaborator isnt working with applications"
+    );
+}
+
+#[test]
+fn test_match_elaboration() {
+    let expected_term = CicTerm::Match(
+        Box::new(CicTerm::Variable("t".to_string())),
+        vec![
+            (
+                vec![CicTerm::Variable("o".to_string())],
+                CicTerm::Application(
+                    Box::new(CicTerm::Variable("s".to_string())),
+                    Box::new(CicTerm::Variable("o".to_string())),
+                ),
+            ),
+            (
+                vec![
+                    CicTerm::Variable("s".to_string()),
+                    CicTerm::Variable("n".to_string()),
+                ],
+                CicTerm::Variable("n".to_string()),
+            ),
+        ],
+    );
+    let base_pattern = (
+        vec![Expression::VarUse("o".to_string())],
+        Expression::Application(
+            Box::new(Expression::VarUse("s".to_string())),
+            Box::new(Expression::VarUse("o".to_string())),
+        ),
+    );
+    let inductive_patter = (
+        vec![
+            Expression::VarUse("s".to_string()),
+            Expression::VarUse("n".to_string()),
+        ],
+        Expression::VarUse("n".to_string()),
+    );
+
+    assert_eq!(
+        elaborate_match(
+            Expression::VarUse("t".to_string()),
+            vec![base_pattern.clone(), inductive_patter.clone()]
+        ),
+        expected_term,
+        "Match elaboration isnt working as expected"
+    );
+    assert_eq!(
+        Cic::elaborate_expression(Expression::Match(
+            Box::new(Expression::VarUse("t".to_string())),
+            vec![base_pattern, inductive_patter]
+        )),
+        expected_term,
+        "Top level elaboration doesnt work with match"
+    );
+}
+
+#[test]
+fn test_let_elaboration() {
+    let mut test_env = make_default_environment();
+    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+    test_env
+        .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
+    let expected_body = CicTerm::Variable("c".to_string());
+    let expected_type = CicTerm::Variable("nat".to_string());
+
+    let _ = elaborate_let(
+        &mut test_env,
+        "n".to_string(),
+        Expression::VarUse("nat".to_string()),
+        Expression::VarUse("c".to_string()),
+    );
+    assert_eq!(
+        test_env.get_from_deltas("n"),
+        Some(("n", &(expected_body.clone(), expected_type.clone()))),
+        "Let definition elaboration isnt working as expected"
+    );
+
+    let _ = elaborate_let(
+        &mut test_env,
+        "m".to_string(),
+        Expression::VarUse("nat".to_string()),
+        Expression::VarUse("c".to_string()),
+    );
+    assert_eq!(
+        test_env.get_from_deltas("m"),
+        Some(("m", &(expected_body.clone(), expected_type.clone()))),
+        "Top level elaboration isnt working with let"
+    );
+}
+
+#[test]
+fn test_inductive_elaboration() {
+    let ariety = Expression::VarUse("TYPE".to_string());
+
+    assert_eq!(
+        elaborate_inductive(
+            "nat".to_string(),
+            vec![],
+            ariety.clone(),
+            vec![
+                ("o".to_string(), Expression::VarUse("nat".to_string())),
+                (
+                    "s".to_string(),
+                    Expression::TypeProduct(
+                        "_".to_string(),
+                        Box::new(Expression::VarUse("nat".to_string())),
+                        Box::new(Expression::VarUse("nat".to_string())),
+                    ),
+                ),
+            ],
+        ),
+        CicTerm::InductiveDef(
+            "nat".to_string(),
+            vec![],
+            Box::new(CicTerm::Sort("TYPE".to_string())),
+            vec![
+                ("o".to_string(), CicTerm::Variable("nat".to_string())),
+                (
+                    "s".to_string(),
+                    CicTerm::Product(
+                        "_".to_string(),
+                        Box::new(CicTerm::Variable("nat".to_string())),
+                        Box::new(CicTerm::Variable("nat".to_string())),
+                    )
+                )
+            ]
+        ),
+        "Inductive elaboration isnt working with constant constructor"
+    );
+}

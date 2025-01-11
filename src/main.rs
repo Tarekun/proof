@@ -9,7 +9,6 @@ mod type_theory {
     pub mod cic {
         pub mod cic;
         pub mod elaboration;
-        mod tests;
         pub mod type_check;
     }
     pub mod environment;

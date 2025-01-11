@@ -7,13 +7,6 @@ pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
-    /// type_name, params: [(param_name : param_type)], ariety, [( constr_name, [(arg_name : arg_type) ])]
-    Inductive(
-        String,
-        Vec<(String, Expression)>,
-        Box<Expression>,
-        Vec<(String, Vec<(String, Expression)>)>,
-    ),
     /// (var_name, var_type, definition_body)
     Let(String, Box<Expression>, Box<Expression>),
 }
@@ -24,8 +17,17 @@ pub enum Expression {
     Abstraction(String, Box<Expression>, Box<Expression>),
     /// (var_name, var_type, dependent_type)
     TypeProduct(String, Box<Expression>, Box<Expression>),
+    /// (domain, codomain)
+    Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
+    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
+    Inductive(
+        String,
+        Vec<(String, Expression)>,
+        Box<Expression>,
+        Vec<(String, Expression)>,
+    ),
     // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
 }
