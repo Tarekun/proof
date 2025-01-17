@@ -146,6 +146,10 @@ impl TypeTheory for Cic {
             _ => Err("Term case is not typable yet".to_string()),
         }
     }
+
+    fn unifies(term1: &CicTerm, term2: &CicTerm) -> bool {
+        term1 == term2
+    }
 }
 
 #[allow(non_snake_case)]

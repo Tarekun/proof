@@ -26,4 +26,7 @@ pub trait TypeTheory {
         term: Self::Term,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
+
+    /// Check if the two terms provided unify with one another
+    fn unifies(term1: &Self::Term, term2: &Self::Term) -> bool;
 }

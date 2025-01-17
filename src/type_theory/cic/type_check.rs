@@ -84,8 +84,8 @@ pub fn type_check_product(
     let _ = check_is_sort(types_sort)?;
 
     environment.with_local_declaration(
-        &var_name.clone(),
-        &var_type.clone(),
+        &var_name,
+        &var_type,
         |local_env| {
             let body_type = Cic::type_check(body, local_env)?;
 
@@ -107,7 +107,7 @@ pub fn type_check_application(
 
     match function_type {
         CicTerm::Product(_, domain, codomain) => {
-            if *domain == arg_type {
+            if Cic::unifies(&(*domain), &arg_type) {
                 Ok(*codomain)
             } else {
                 Err(format!(
@@ -204,7 +204,7 @@ pub fn type_check_match(
             pattern[1..].to_vec(),
             environment,
         )?;
-        if result_type != matching_type {
+        if !Cic::unifies(&result_type, &matching_type) {
             return Err(
                 format!(
                     "Pattern doesnt produce expected type: expected {:?} produced {:?}",
@@ -218,7 +218,7 @@ pub fn type_check_match(
         let body_type = Cic::type_check(body, environment)?;
         if return_type.is_none() {
             return_type = Some(body_type);
-        } else if return_type.clone().unwrap() != body_type {
+        } else if !Cic::unifies(&return_type.clone().unwrap(), &body_type) {
             return Err(
                 format!(
                     "Match branches have different types: found {:?} with previous {:?}",
