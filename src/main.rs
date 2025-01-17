@@ -13,11 +13,10 @@ mod type_theory {
     }
     pub mod environment;
     pub mod interface;
-    // pub mod stlc {
-    //     pub mod elaboration;
-    //     pub mod stlc;
-    //     mod tests;
-    // }
+    pub mod stlc {
+        pub mod elaboration;
+        pub mod stlc;
+    }
 }
 
 use crate::type_theory::interface::TypeTheory;

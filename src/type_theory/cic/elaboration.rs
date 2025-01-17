@@ -140,7 +140,7 @@ pub fn elaborate_let(
     let var_type_term = Cic::elaborate_expression(var_type);
     let assigned_type = Cic::type_check(assigned_term.clone(), environment)?;
 
-    if assigned_type == var_type_term {
+    if Cic::terms_unify(&assigned_type, &var_type_term) {
         environment.add_variable_definition(
             &var_name,
             &assigned_term,
@@ -202,6 +202,7 @@ pub fn elaborate_axiom(
 }
 //########################### STATEMENTS ELABORATION
 
+//########################### UNIT TESTS
 #[test]
 fn test_var_elaboration() {
     let test_var_name = "test_var";
