@@ -150,6 +150,7 @@ impl TypeTheory for Cic {
     fn terms_unify(term1: &CicTerm, term2: &CicTerm) -> bool {
         common_unification(term1, term2)
     }
+
     fn types_unify(type1: &CicTerm, type2: &CicTerm) -> bool {
         common_unification(type1, type2)
     }
