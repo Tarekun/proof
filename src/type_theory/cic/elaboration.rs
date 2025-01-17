@@ -202,6 +202,7 @@ pub fn elaborate_axiom(
 }
 //########################### STATEMENTS ELABORATION
 
+//########################### UNIT TESTS
 #[test]
 fn test_var_elaboration() {
     let test_var_name = "test_var";

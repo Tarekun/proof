@@ -1,16 +1,18 @@
 use super::elaboration::{
-    elaborate_abstraction, elaborate_application, elaborate_file_root,
-    elaborate_let, elaborate_var_use,
+    elaborate_abstraction, elaborate_application, elaborate_arrow,
+    elaborate_file_root, elaborate_let, elaborate_var_use,
 };
-use crate::parsing::{self, Expression, NsAst, Statement};
+use crate::parser::api::{Expression, NsAst, Statement};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
-#[derive(Debug, Clone)] //support toString printing and equality check
+#[derive(Debug, Clone, PartialEq)] //support toString printing and equality check
 pub enum StlcTerm {
     Variable(String),
     Abstraction(String, Box<StlcType>, Box<StlcTerm>),
     Application(Box<StlcTerm>, Box<StlcTerm>),
+    //
+    ArrowTmpTerm(Box<StlcTerm>, Box<StlcTerm>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,7 +26,7 @@ impl TypeTheory for Stlc {
     type Term = StlcTerm;
     type Type = StlcType;
 
-    fn elaborate_expression(ast: parsing::Expression) -> StlcTerm {
+    fn elaborate_expression(ast: Expression) -> StlcTerm {
         match ast {
             Expression::VarUse(var_name) => elaborate_var_use(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
@@ -33,6 +35,9 @@ impl TypeTheory for Stlc {
             Expression::Application(left, right) => {
                 elaborate_application(*left, *right)
             }
+            Expression::Arrow(domain, codomain) => {
+                elaborate_arrow(*domain, *codomain)
+            }
             _ => panic!("non implemented"),
         }
     }
@@ -40,14 +45,16 @@ impl TypeTheory for Stlc {
     fn elaborate_statement(
         ast: Statement,
         environment: &mut Environment<StlcTerm, StlcType>,
-    ) {
+    ) -> Result<(), String> {
         match ast {
-            Statement::Comment() => {}
+            Statement::Comment() => Ok(()),
             Statement::FileRoot(file_path, asts) => {
                 elaborate_file_root(environment, file_path, asts);
+                Ok(())
             }
-            Statement::Let(var_name, ast) => {
-                elaborate_let(environment, var_name, *ast)
+            Statement::Let(var_name, var_type, body) => {
+                elaborate_let(environment, var_name, *var_type, *body);
+                Ok(())
             }
             _ => panic!("not implemented"),
         }
@@ -68,5 +75,20 @@ impl TypeTheory for Stlc {
             }
         }
         env
+    }
+
+    fn type_check(
+        term: StlcTerm,
+        environment: &mut Environment<StlcTerm, StlcType>,
+    ) -> Result<StlcType, String> {
+        return Ok(StlcType::Atomic("TODO".to_string()));
+    }
+
+    fn terms_unify(term1: &StlcTerm, term2: &StlcTerm) -> bool {
+        term1 == term2
+    }
+
+    fn types_unify(type1: &StlcType, type2: &StlcType) -> bool {
+        type1 == type2
     }
 }

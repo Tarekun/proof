@@ -28,5 +28,8 @@ pub trait TypeTheory {
     ) -> Result<Self::Type, String>;
 
     /// Check if the two terms provided unify with one another
-    fn unifies(term1: &Self::Term, term2: &Self::Term) -> bool;
+    fn terms_unify(term1: &Self::Term, term2: &Self::Term) -> bool;
+
+    /// Check if the two terms provided unify with one another
+    fn types_unify(term1: &Self::Type, term2: &Self::Type) -> bool;
 }
