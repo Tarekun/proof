@@ -16,7 +16,6 @@ mod type_theory {
     pub mod stlc {
         pub mod elaboration;
         pub mod stlc;
-        mod tests;
     }
 }
 

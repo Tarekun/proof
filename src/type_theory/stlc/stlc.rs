@@ -69,7 +69,9 @@ impl TypeTheory for Stlc {
                 vec![("nat", &nat)],
             );
         match ast {
-            NsAst::Stm(stm) => Stlc::elaborate_statement(stm, &mut env),
+            NsAst::Stm(stm) => {
+                let _ = Stlc::elaborate_statement(stm, &mut env);
+            }
             NsAst::Exp(exp) => {
                 let _ = Stlc::elaborate_expression(exp);
             }

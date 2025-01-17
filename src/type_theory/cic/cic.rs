@@ -147,9 +147,16 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn unifies(term1: &CicTerm, term2: &CicTerm) -> bool {
-        term1 == term2
+    fn terms_unify(term1: &CicTerm, term2: &CicTerm) -> bool {
+        common_unification(term1, term2)
     }
+    fn types_unify(type1: &CicTerm, type2: &CicTerm) -> bool {
+        common_unification(type1, type2)
+    }
+}
+
+fn common_unification(term1: &CicTerm, term2: &CicTerm) -> bool {
+    term1 == term2
 }
 
 #[allow(non_snake_case)]
