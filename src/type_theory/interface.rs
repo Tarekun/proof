@@ -30,6 +30,6 @@ pub trait TypeTheory {
     /// Check if the two terms provided unify with one another
     fn terms_unify(term1: &Self::Term, term2: &Self::Term) -> bool;
 
-    /// Check if the two terms provided unify with one another
-    fn types_unify(term1: &Self::Type, term2: &Self::Type) -> bool;
+    /// Check if the two types provided unify with one another
+    fn types_unify(type1: &Self::Type, type2: &Self::Type) -> bool;
 }

@@ -6,7 +6,6 @@ use crate::{
 
 fn cast_to_type(term_type: &StlcTerm) -> StlcType {
     match term_type {
-        //what about arrows here?
         StlcTerm::Variable(var_name) => StlcType::Atomic(var_name.clone()),
         StlcTerm::ArrowTmpTerm(domain, codomain) => {
             let domain_type = cast_to_type(&domain);
@@ -45,6 +44,8 @@ pub fn elaborate_arrow(domain: Expression, codomain: Expression) -> StlcTerm {
     let domain_term = Stlc::elaborate_expression(domain);
     let codomain_term = Stlc::elaborate_expression(codomain);
 
+    //TODO this shit ugly af, elaboration should probably return a union typ
+    //of terms and types to avoid this bs
     StlcTerm::ArrowTmpTerm(Box::new(domain_term), Box::new(codomain_term))
 }
 
