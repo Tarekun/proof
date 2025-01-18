@@ -4,6 +4,7 @@ use crate::{
 };
 use std::collections::VecDeque;
 
+#[derive(Debug)]
 pub enum ProgramNode<Term> {
     OfStm(Statement),
     OfTerm(Term),
@@ -43,6 +44,12 @@ where
     /// Add a new term to the queue
     pub fn push_term(&mut self, term: &Term) {
         self.schedule.push_back(ProgramNode::OfTerm(term.clone()));
+    }
+
+    pub fn schedule_iterable(
+        &self,
+    ) -> std::collections::vec_deque::Iter<'_, ProgramNode<Term>> {
+        self.schedule.iter()
     }
 
     /// Execute the prorgam schedule

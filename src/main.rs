@@ -1,3 +1,4 @@
+mod entrypoints;
 mod file_manager;
 mod parser {
     pub mod api;
@@ -23,10 +24,8 @@ mod type_theory {
     }
 }
 
-use crate::type_theory::interface::TypeTheory;
-use parser::api::parse_source_file;
+use entrypoints::parse_and_type_check;
 use std::env;
-use type_theory::cic::cic::Cic;
 
 fn main() {
     println!("################ PROGRAM START #################\n");
@@ -38,21 +37,15 @@ fn main() {
     }
 
     let filepath = &args[1];
-    let (remaining, ast) = parse_source_file(&filepath);
-    println!("Parsed AST: {:?}", ast);
-    println!("Remaining input: '{}'\n", remaining);
 
-    //this is fixed in entrypoint branch
-    // let environment = Stlc::elaborate_ast(ast);
-    // let environment = Cic::elaborate_ast(ast);
-    // for definition in environment.deltas {
-    //     let (var_name, term) = definition;
-    //     println!("defined term {:?}: {:?}", var_name, term);
-    // }
-
-    // println!("\nContext:");
-    // for assumption in environment.context {
-    //     let (var_name, var_type) = assumption;
-    //     println!("var {:?} : {:?}", var_name, var_type);
-    // }
+    match parse_and_type_check(&filepath) {
+        Ok(program) => {
+            for node in program.schedule_iterable() {
+                println!("Program failed: {:?}", node);
+            }
+        }
+        Err(message) => {
+            println!("Program failed: {}", message);
+        }
+    }
 }
