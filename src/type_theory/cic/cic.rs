@@ -98,8 +98,7 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn elaborate_ast(ast: NsAst) -> Environment<CicTerm, CicTerm> {
-        let mut env = make_default_environment();
+    fn elaborate_ast(ast: NsAst) -> Program<CicTerm> {
         let mut program = Program::new();
 
         match ast {
@@ -114,7 +113,7 @@ impl TypeTheory for Cic {
             }
         }
 
-        env
+        program
     }
 
     fn type_check(

@@ -9,7 +9,7 @@ pub trait TypeTheory {
     type Type;
 
     /// Elaborate a full AST into an environment.
-    fn elaborate_ast(ast: NsAst) -> Environment<Self::Term, Self::Type>;
+    fn elaborate_ast(ast: NsAst) -> Program<Self::Term>;
 
     /// Elaborate a statement in the given environment.
     fn elaborate_statement(

@@ -61,14 +61,8 @@ impl TypeTheory for Stlc {
         }
     }
 
-    fn elaborate_ast(ast: NsAst) -> Environment<StlcTerm, StlcType> {
+    fn elaborate_ast(ast: NsAst) -> Program<StlcTerm> {
         let nat = StlcType::Atomic("nat".to_string());
-        let mut env =
-            Environment::<StlcTerm, StlcType>::with_defaults_lower_order(
-                vec![("TYPE", &nat)], //hacky thing to avoid setting up serious testing here
-                Vec::new(),
-                vec![("nat", &nat)],
-            );
         let mut program = Program::new();
 
         match ast {
@@ -79,7 +73,8 @@ impl TypeTheory for Stlc {
                 let _ = Stlc::elaborate_expression(exp);
             }
         }
-        env
+
+        program
     }
 
     fn type_check(
