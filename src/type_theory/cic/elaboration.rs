@@ -1,9 +1,10 @@
 use super::cic::CicTerm;
 use crate::parser::api::{Expression, NsAst};
+use crate::runtime::program::Program;
 #[allow(unused_imports)]
 use crate::type_theory::cic::cic::make_default_environment;
+use crate::type_theory::cic::cic::Cic;
 use crate::type_theory::interface::TypeTheory;
-use crate::type_theory::{cic::cic::Cic, environment::Environment};
 
 fn map_typed_variables(
     variables: &Vec<(String, Expression)>,
@@ -129,35 +130,8 @@ pub fn elaborate_match(
 //########################### EXPRESSIONS ELABORATION
 
 //########################### STATEMENTS ELABORATION
-pub fn elaborate_let(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    var_name: String,
-    var_type: Expression,
-    body: Expression,
-) -> Result<(), String> {
-    let assigned_term = Cic::elaborate_expression(body);
-    //this type is implicitly typed checked by the equality on assigned_type
-    let var_type_term = Cic::elaborate_expression(var_type);
-    let assigned_type = Cic::type_check(assigned_term.clone(), environment)?;
-
-    if Cic::terms_unify(&assigned_type, &var_type_term) {
-        environment.add_variable_definition(
-            &var_name,
-            &assigned_term,
-            &assigned_type,
-        );
-        Ok(())
-    } else {
-        Err(
-        format!(
-            "Missmatch in variable and body types: specified body type is {:?} but body has type {:?}",
-            var_type_term, assigned_type
-        ))
-    }
-}
-
 pub fn elaborate_file_root(
-    environment: &mut Environment<CicTerm, CicTerm>,
+    program: &mut Program<CicTerm>,
     file_path: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -166,13 +140,16 @@ pub fn elaborate_file_root(
     for sub_ast in asts {
         match sub_ast {
             NsAst::Stm(stm) => {
-                match Cic::elaborate_statement(stm, environment) {
+                match Cic::elaborate_statement(stm.clone(), program) {
                     Err(message) => errors.push(message),
-                    Ok(_) => {}
+                    Ok(_) => {
+                        program.push_statement(&stm);
+                    }
                 }
             }
             NsAst::Exp(exp) => {
-                let _ = Cic::elaborate_expression(exp);
+                let term = Cic::elaborate_expression(exp);
+                program.push_term(&term);
             }
         }
     }
@@ -183,22 +160,9 @@ pub fn elaborate_file_root(
         Err(format!(
             "Elaborating the file {} raised errors:\n{}",
             file_path,
-            errors.join("\n")
+            errors.join("\n\n")
         ))
     }
-}
-
-pub fn elaborate_axiom(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    axiom_name: String,
-    ast: Expression,
-) -> Result<(), String> {
-    let axiom_forumla = Cic::elaborate_expression(ast);
-    // check that _formula_type == PROP?
-    let _formula_type = Cic::type_check(axiom_forumla.clone(), environment)?;
-    environment.add_variable_to_context(&axiom_name, &axiom_forumla);
-
-    Ok(())
 }
 //########################### STATEMENTS ELABORATION
 
@@ -358,40 +322,6 @@ fn test_match_elaboration() {
         )),
         expected_term,
         "Top level elaboration doesnt work with match"
-    );
-}
-
-#[test]
-fn test_let_elaboration() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-    test_env
-        .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
-    let expected_body = CicTerm::Variable("c".to_string());
-    let expected_type = CicTerm::Variable("nat".to_string());
-
-    let _ = elaborate_let(
-        &mut test_env,
-        "n".to_string(),
-        Expression::VarUse("nat".to_string()),
-        Expression::VarUse("c".to_string()),
-    );
-    assert_eq!(
-        test_env.get_from_deltas("n"),
-        Some(("n", &(expected_body.clone(), expected_type.clone()))),
-        "Let definition elaboration isnt working as expected"
-    );
-
-    let _ = elaborate_let(
-        &mut test_env,
-        "m".to_string(),
-        Expression::VarUse("nat".to_string()),
-        Expression::VarUse("c".to_string()),
-    );
-    assert_eq!(
-        test_env.get_from_deltas("m"),
-        Some(("m", &(expected_body.clone(), expected_type.clone()))),
-        "Top level elaboration isnt working with let"
     );
 }
 

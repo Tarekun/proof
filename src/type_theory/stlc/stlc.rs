@@ -1,8 +1,9 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_file_root, elaborate_let, elaborate_var_use,
+    elaborate_file_root, elaborate_var_use,
 };
 use crate::parser::api::{Expression, NsAst, Statement};
+use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -44,16 +45,16 @@ impl TypeTheory for Stlc {
 
     fn elaborate_statement(
         ast: Statement,
-        environment: &mut Environment<StlcTerm, StlcType>,
+        program: &mut Program<StlcTerm>,
     ) -> Result<(), String> {
         match ast {
             Statement::Comment() => Ok(()),
             Statement::FileRoot(file_path, asts) => {
-                elaborate_file_root(environment, file_path, asts);
+                elaborate_file_root(program, file_path, asts);
                 Ok(())
             }
-            Statement::Let(var_name, var_type, body) => {
-                elaborate_let(environment, var_name, *var_type, *body);
+            Statement::Let(_, _, _) => {
+                program.push_statement(&ast);
                 Ok(())
             }
             _ => panic!("not implemented"),
@@ -68,9 +69,11 @@ impl TypeTheory for Stlc {
                 Vec::new(),
                 vec![("nat", &nat)],
             );
+        let mut program = Program::new();
+
         match ast {
             NsAst::Stm(stm) => {
-                let _ = Stlc::elaborate_statement(stm, &mut env);
+                let _ = Stlc::elaborate_statement(stm, &mut program);
             }
             NsAst::Exp(exp) => {
                 let _ = Stlc::elaborate_expression(exp);

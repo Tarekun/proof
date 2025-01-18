@@ -5,10 +5,14 @@ mod parser {
     mod expressions;
     mod statements;
 }
+mod runtime {
+    pub mod program;
+}
 mod type_theory {
     pub mod cic {
         pub mod cic;
         pub mod elaboration;
+        pub mod evaluation;
         pub mod type_check;
     }
     pub mod environment;

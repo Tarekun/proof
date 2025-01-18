@@ -1,13 +1,14 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_file_root, elaborate_inductive, elaborate_let,
-    elaborate_match, elaborate_type_product, elaborate_var_use,
+    elaborate_file_root, elaborate_inductive, elaborate_match,
+    elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_inductive,
     type_check_match, type_check_product, type_check_sort, type_check_variable,
 };
 use crate::parser::api::{Expression, NsAst, Statement};
+use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -75,18 +76,20 @@ impl TypeTheory for Cic {
 
     fn elaborate_statement(
         ast: Statement,
-        environment: &mut Environment<CicTerm, CicTerm>,
+        program: &mut Program<CicTerm>,
     ) -> Result<(), String> {
         match ast {
             Statement::Comment() => Ok(()),
             Statement::FileRoot(file_path, asts) => {
-                elaborate_file_root(environment, file_path, asts)
+                elaborate_file_root(program, file_path, asts)
             }
-            Statement::Axiom(axiom_name, ast) => {
-                elaborate_axiom(environment, axiom_name, *ast)
+            Statement::Axiom(_, _) => {
+                program.push_statement(&ast);
+                Ok(())
             }
-            Statement::Let(var_name, var_type, body) => {
-                elaborate_let(environment, var_name, *var_type, *body)
+            Statement::Let(_, _, _) => {
+                program.push_statement(&ast);
+                Ok(())
             }
             _ => Err(format!(
                 "Language construct {:?} not supported in CIC",
@@ -97,9 +100,11 @@ impl TypeTheory for Cic {
 
     fn elaborate_ast(ast: NsAst) -> Environment<CicTerm, CicTerm> {
         let mut env = make_default_environment();
+        let mut program = Program::new();
+
         match ast {
             NsAst::Stm(stm) => {
-                match Cic::elaborate_statement(stm, &mut env) {
+                match Cic::elaborate_statement(stm, &mut program) {
                     Err(message) => panic!("{}", message),
                     Ok(_) => {}
                 };

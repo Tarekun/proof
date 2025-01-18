@@ -1,9 +1,10 @@
 use crate::parser::api::{Expression, NsAst, Statement};
+use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 
 pub trait TypeTheory {
     /// Enum listing all the term constructors.
-    type Term;
+    type Term: Clone;
     /// Enum listing all the type constructors.
     type Type;
 
@@ -13,7 +14,7 @@ pub trait TypeTheory {
     /// Elaborate a statement in the given environment.
     fn elaborate_statement(
         ast: Statement,
-        environment: &mut Environment<Self::Term, Self::Type>,
+        program: &mut Program<Self::Term>,
     ) -> Result<(), String>;
 
     /// Elaborate a single expression, updating the environment and returning
