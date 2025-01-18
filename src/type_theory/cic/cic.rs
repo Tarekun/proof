@@ -1,7 +1,7 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_file_root, elaborate_inductive, elaborate_match,
-    elaborate_type_product, elaborate_var_use,
+    elaborate_dir_root, elaborate_file_root, elaborate_inductive,
+    elaborate_match, elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_inductive,
@@ -90,6 +90,9 @@ impl TypeTheory for Cic {
             Statement::Let(_, _, _) => {
                 program.push_statement(&ast);
                 Ok(())
+            }
+            Statement::DirRoot(dirpath, asts) => {
+                elaborate_dir_root(program, dirpath, asts)
             }
             _ => Err(format!(
                 "Language construct {:?} not supported in CIC",

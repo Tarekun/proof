@@ -130,9 +130,9 @@ pub fn elaborate_match(
 //########################### EXPRESSIONS ELABORATION
 
 //########################### STATEMENTS ELABORATION
-pub fn elaborate_file_root(
+fn elaborate_ast_vector(
     program: &mut Program<CicTerm>,
-    file_path: String,
+    root: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
     let mut errors = vec![];
@@ -158,11 +158,26 @@ pub fn elaborate_file_root(
         Ok(())
     } else {
         Err(format!(
-            "Elaborating the file {} raised errors:\n{}",
-            file_path,
-            errors.join("\n\n")
+            "Elaborating the ASTs rooted at '{}' raised errors:\n{}",
+            root,
+            errors.join("\n")
         ))
     }
+}
+
+pub fn elaborate_file_root(
+    program: &mut Program<CicTerm>,
+    file_path: String,
+    asts: Vec<NsAst>,
+) -> Result<(), String> {
+    elaborate_ast_vector(program, file_path, asts)
+}
+pub fn elaborate_dir_root(
+    program: &mut Program<CicTerm>,
+    dir_path: String,
+    asts: Vec<NsAst>,
+) -> Result<(), String> {
+    elaborate_ast_vector(program, dir_path, asts)
 }
 //########################### STATEMENTS ELABORATION
 

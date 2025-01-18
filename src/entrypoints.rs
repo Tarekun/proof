@@ -1,16 +1,13 @@
+use crate::parser::api::parse_workspace;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::cic::cic::{make_default_environment, CicTerm};
 use crate::type_theory::interface::TypeTheory;
-use crate::{
-    parser::api::{parse_source_file, NsAst},
-    type_theory::cic::cic::Cic,
-};
+use crate::{parser::api::NsAst, type_theory::cic::cic::Cic};
 
 pub fn parse_only(workspace: &str) -> Result<NsAst, String> {
-    println!("Parsing of file: {}", workspace);
-    let (remaining, ast) = parse_source_file(&workspace);
-    println!("Parsed AST: {:?}", ast);
-    println!("Remaining input: '{}'\n", remaining);
+    println!("Parsing of workspace: {}", workspace);
+    let ast = parse_workspace(&workspace);
+    // println!("Parsed AST: {:?}", ast);
 
     Ok(ast)
 }
@@ -42,7 +39,9 @@ pub fn parse_and_type_check(
                     Err(message) => {
                         errors.push(message);
                     }
-                    _ => {}
+                    Ok(term_type) => {
+                        //TODO add term: term_type to context
+                    }
                 }
             }
             ProgramNode::OfStm(_stm) => {
@@ -56,11 +55,32 @@ pub fn parse_and_type_check(
     } else {
         Err(format!(
             "Type checking failed with errors:\n{}",
-            errors.join("\n\n")
+            errors.join("\n")
         ))
     }
 }
 
 //########################### UNIT TESTS
 #[test]
-fn test_parsing() {}
+fn test_parsing() {
+    assert!(
+        parse_only("./library").is_ok(),
+        "Parsing entrypoint cant process std library"
+    );
+}
+
+#[test]
+fn test_elaboration() {
+    assert!(
+        parse_and_elaborate("./library").is_ok(),
+        "Elaboration entrypoint cant process std library"
+    );
+}
+
+#[test]
+fn test_type_check() {
+    assert!(
+        parse_and_type_check("./library").is_ok(),
+        "Type checking entrypoint cant process std library"
+    );
+}

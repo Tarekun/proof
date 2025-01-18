@@ -10,14 +10,14 @@ mod runtime {
     pub mod program;
 }
 mod type_theory {
+    pub mod environment;
+    pub mod interface;
     pub mod cic {
         pub mod cic;
         pub mod elaboration;
         pub mod evaluation;
         pub mod type_check;
     }
-    pub mod environment;
-    pub mod interface;
     pub mod stlc {
         pub mod elaboration;
         pub mod stlc;
