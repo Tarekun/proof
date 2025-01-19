@@ -396,6 +396,13 @@ fn test_inductive() {
         .is_ok(),
         "Inductive parser doesnt support complex arieties"
     );
+    assert!(
+        parse_inductive_def(
+            "inductive eq (T:TYPE) (x:T) : T -> PROP := |refl: (((eq T) x) x);"
+        )
+        .is_ok(),
+        "Inductive parser doesnt support Leibniz equality definition"
+    );
 }
 
 #[test]
