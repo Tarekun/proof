@@ -5,10 +5,14 @@ mod parser {
     mod expressions;
     mod statements;
 }
+mod runtime {
+    pub mod program;
+}
 mod type_theory {
     pub mod cic {
         pub mod cic;
         pub mod elaboration;
+        pub mod evaluation;
         pub mod type_check;
     }
     pub mod environment;
@@ -38,16 +42,17 @@ fn main() {
     println!("Parsed AST: {:?}", ast);
     println!("Remaining input: '{}'\n", remaining);
 
+    //this is fixed in entrypoint branch
     // let environment = Stlc::elaborate_ast(ast);
-    let environment = Cic::elaborate_ast(ast);
-    for definition in environment.deltas {
-        let (var_name, term) = definition;
-        println!("defined term {:?}: {:?}", var_name, term);
-    }
+    // let environment = Cic::elaborate_ast(ast);
+    // for definition in environment.deltas {
+    //     let (var_name, term) = definition;
+    //     println!("defined term {:?}: {:?}", var_name, term);
+    // }
 
-    println!("\nContext:");
-    for assumption in environment.context {
-        let (var_name, var_type) = assumption;
-        println!("var {:?} : {:?}", var_name, var_type);
-    }
+    // println!("\nContext:");
+    // for assumption in environment.context {
+    //     let (var_name, var_type) = assumption;
+    //     println!("var {:?} : {:?}", var_name, var_type);
+    // }
 }
