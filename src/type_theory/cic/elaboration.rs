@@ -1,5 +1,5 @@
 use super::cic::CicTerm;
-use crate::parser::api::{Expression, NsAst};
+use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
 #[allow(unused_imports)]
 use crate::type_theory::cic::cic::make_default_environment;
@@ -174,10 +174,22 @@ pub fn elaborate_file_root(
 }
 pub fn elaborate_dir_root(
     program: &mut Program<CicTerm>,
-    dir_path: String,
+    _dir_path: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
-    elaborate_ast_vector(program, dir_path, asts)
+    // elaborate_ast_vector(program, dir_path, asts);
+    for sub_ast in asts {
+        match sub_ast {
+            NsAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
+                let _ = elaborate_file_root(program, file_path, file_contet);
+            }
+            _ => {
+                return Err(format!("AST nodes of directory node can only be FileRoot, not {:?}", sub_ast));
+            }
+        }
+    }
+
+    Ok(())
 }
 //########################### STATEMENTS ELABORATION
 

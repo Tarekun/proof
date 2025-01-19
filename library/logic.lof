@@ -32,7 +32,7 @@ inductive Or (P: PROP) (Q: PROP) : PROP :=
 # then i constructed a proof that Exists T P 
 # in matita T is at Type[0]
 inductive Exists (T: TYPE) (P: T -> PROP) : PROP :=
-  | excon: Πt:T. (P t) -> (Exists T P)
+  | excon: (Πt:T. (P t) -> ((Exists T) P))
 ;
 
 let iff: PROP -> PROP -> PROP :=

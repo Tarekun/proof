@@ -132,10 +132,10 @@ pub fn type_check_inductive(
     constructors: Vec<(String, CicTerm)>,
 ) -> Result<CicTerm, String> {
     //TODO check positivity
-    let ariety_sort = Cic::type_check(ariety.clone(), environment)?;
-    let _ = check_is_sort(ariety_sort)?;
     let inductive_type = make_multiarg_fun_type(&params, ariety);
-    let _ = Cic::type_check(inductive_type.clone(), environment)?;
+    let inductive_type_sort =
+        Cic::type_check(inductive_type.clone(), environment)?;
+    let _ = check_is_sort(inductive_type_sort)?;
 
     let inductive_assumptions: Vec<(String, CicTerm)> =
         vec![(type_name.clone(), inductive_type)]
@@ -716,6 +716,38 @@ fn test_type_check_inductive() {
         )
         .is_ok(),
         "Top level type checker doesnt support inductive definitions"
+    );
+
+    // logic relations
+    assert!(
+        type_check_inductive(
+            &mut test_env,
+            "Eq".to_string(),
+            vec![
+                ("T".to_string(), TYPE.clone()),
+                ("x".to_string(), CicTerm::Variable("T".to_string()))
+            ],
+            CicTerm::Product(
+                "_".to_string(),
+                Box::new(CicTerm::Variable("T".to_string())),
+                Box::new(CicTerm::Sort("PROP".to_string()))
+            ),
+            vec![(
+                "refl".to_string(),
+                CicTerm::Application(
+                    Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Application(
+                            Box::new(CicTerm::Variable("Eq".to_string())),
+                            Box::new(CicTerm::Variable("T".to_string()))
+                        )),
+                        Box::new(CicTerm::Variable("x".to_string()))
+                    )),
+                    Box::new(CicTerm::Variable("x".to_string()))
+                )
+            )]
+        )
+        .is_ok(),
+        "Inductive type checker doesnt accept equality definition"
     );
 
     // polymorphic lists

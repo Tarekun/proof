@@ -5,9 +5,9 @@ use crate::type_theory::interface::TypeTheory;
 use crate::{parser::api::NsAst, type_theory::cic::cic::Cic};
 
 pub fn parse_only(workspace: &str) -> Result<NsAst, String> {
-    println!("Parsing of workspace: {}", workspace);
+    print!("Parsing of workspace: '{}'... ", workspace);
     let ast = parse_workspace(&workspace);
-    // println!("Parsed AST: {:?}", ast);
+    println!("Done.");
 
     Ok(ast)
 }
@@ -17,8 +17,9 @@ pub fn parse_and_elaborate(
     workspace: &str,
 ) -> Result<Program<CicTerm>, String> {
     let ast = parse_only(workspace)?;
-    println!("Elaboration of the AST into a program");
+    print!("Elaboration of the AST into a program... ");
     let program = Cic::elaborate_ast(ast);
+    println!("Done.");
 
     Ok(program)
 }
@@ -28,7 +29,7 @@ pub fn parse_and_type_check(
     workspace: &str,
 ) -> Result<Program<CicTerm>, String> {
     let program = parse_and_elaborate(workspace)?;
-    println!("Type checking of the program");
+    print!("Type checking of the program... ");
     let environment = &mut make_default_environment();
     let mut errors = vec![];
 
@@ -39,7 +40,7 @@ pub fn parse_and_type_check(
                     Err(message) => {
                         errors.push(message);
                     }
-                    Ok(term_type) => {
+                    Ok(_term_type) => {
                         //TODO add term: term_type to context
                     }
                 }
@@ -49,6 +50,7 @@ pub fn parse_and_type_check(
             }
         }
     }
+    println!("Done.");
 
     if errors.is_empty() {
         Ok(program)
@@ -79,6 +81,13 @@ fn test_elaboration() {
 
 #[test]
 fn test_type_check() {
+    let res = parse_and_type_check("./library");
+    match res {
+        Err(message) => {
+            println!("{}", message)
+        }
+        _ => {}
+    }
     assert!(
         parse_and_type_check("./library").is_ok(),
         "Type checking entrypoint cant process std library"
