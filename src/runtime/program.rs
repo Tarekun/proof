@@ -1,29 +1,27 @@
-use crate::{
-    parser::api::Statement,
-    type_theory::environment::{self, Environment},
-};
 use std::collections::VecDeque;
 
-#[derive(Debug)]
-pub enum ProgramNode<Term> {
-    OfStm(Statement),
+#[derive(Debug, PartialEq)]
+pub enum ProgramNode<Term, Stm> {
+    OfStm(Stm),
     OfTerm(Term),
 }
 
-pub struct Program<Term /*, F1, F2*/>
+pub struct Program<Term, Stm /*, F1, F2*/>
 where
     Term: Clone,
+    Stm: Clone,
     // F1: Fn(&Term) -> Term,
     // F2: Fn(&Statement) -> (),
 {
-    schedule: VecDeque<ProgramNode<Term>>,
+    schedule: VecDeque<ProgramNode<Term, Stm>>,
     // reduce_term: F1,
     // evaluate_statement: F2,
 }
 
-impl<Term /*, F1, F2*/> Program<Term /*, F1, F2*/>
+impl<Term, Stm /*, F1, F2*/> Program<Term, Stm /*, F1, F2*/>
 where
     Term: Clone,
+    Stm: Clone,
     // F1: Fn(&Term) -> Term,
     // F2: Fn(&Statement) -> (),
 {
@@ -36,7 +34,7 @@ where
     }
 
     /// Add a new statement to the queue
-    pub fn push_statement(&mut self, statement: &Statement) {
+    pub fn push_statement(&mut self, statement: &Stm) {
         self.schedule
             .push_back(ProgramNode::OfStm(statement.clone()));
     }
@@ -48,24 +46,28 @@ where
 
     pub fn schedule_iterable(
         &self,
-    ) -> std::collections::vec_deque::Iter<'_, ProgramNode<Term>> {
+    ) -> std::collections::vec_deque::Iter<'_, ProgramNode<Term, Stm>> {
         self.schedule.iter()
     }
 
-    /// Execute the prorgam schedule
-    pub fn execute(&self) -> Result<(), String> {
-        for node in &self.schedule {
-            // match node {
-            //     ProgramNode::OfTerm(term) => {
-            //         let _normal_form = (self.reduce_term)(term);
-            //         //TODO do something with the result
-            //     }
-            //     ProgramNode::OfStm(stm) => {
-            //         let _ = (self.evaluate_statement)(stm);
-            //     }
-            // }
-        }
-
-        Ok(())
+    pub fn peek_top_schedule(&self) -> Option<&ProgramNode<Term, Stm>> {
+        self.schedule.back()
     }
+
+    // /// Execute the prorgam schedule
+    // pub fn execute(&self) -> Result<(), String> {
+    //     for node in &self.schedule {
+    //         match node {
+    //             ProgramNode::OfTerm(term) => {
+    //                 let _normal_form = (self.reduce_term)(term);
+    //                 //TODO do something with the result
+    //             }
+    //             ProgramNode::OfStm(stm) => {
+    //                 let _ = (self.evaluate_statement)(stm);
+    //             }
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
 }

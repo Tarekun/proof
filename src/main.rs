@@ -18,10 +18,10 @@ mod type_theory {
         pub mod evaluation;
         pub mod type_check;
     }
-    pub mod stlc {
-        pub mod elaboration;
-        pub mod stlc;
-    }
+    // pub mod stlc {
+    //     pub mod elaboration;
+    //     pub mod stlc;
+    // }
 }
 
 use entrypoints::parse_and_type_check;

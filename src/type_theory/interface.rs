@@ -7,14 +7,16 @@ pub trait TypeTheory {
     type Term: Clone;
     /// Enum listing all the type constructors.
     type Type;
+    /// Enum listing all the statements elaborated with proper types
+    type Stm: Clone;
 
     /// Elaborate a full AST into an environment.
-    fn elaborate_ast(ast: NsAst) -> Program<Self::Term>;
+    fn elaborate_ast(ast: NsAst) -> Program<Self::Term, Self::Stm>;
 
     /// Elaborate a statement in the given environment.
     fn elaborate_statement(
         ast: Statement,
-        program: &mut Program<Self::Term>,
+        program: &mut Program<Self::Term, Self::Stm>,
     ) -> Result<(), String>;
 
     /// Elaborate a single expression, updating the environment and returning
@@ -23,8 +25,12 @@ pub trait TypeTheory {
 
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message
-    fn type_check(
+    fn type_check_term(
         term: Self::Term,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String>;
+    fn type_check_stm(
+        term: Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 

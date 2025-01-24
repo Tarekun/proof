@@ -10,6 +10,13 @@ pub enum Statement {
     Axiom(String, Box<Expression>),
     /// (var_name, var_type, definition_body)
     Let(String, Box<Expression>, Box<Expression>),
+    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
+    Inductive(
+        String,
+        Vec<(String, Expression)>,
+        Box<Expression>,
+        Vec<(String, Expression)>,
+    ),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -22,13 +29,6 @@ pub enum Expression {
     Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
-    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
-    Inductive(
-        String,
-        Vec<(String, Expression)>,
-        Box<Expression>,
-        Vec<(String, Expression)>,
-    ),
     // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
 }

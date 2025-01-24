@@ -1,6 +1,6 @@
 use crate::parser::api::parse_workspace;
 use crate::runtime::program::{Program, ProgramNode};
-use crate::type_theory::cic::cic::{make_default_environment, CicTerm};
+use crate::type_theory::cic::cic::{make_default_environment, CicStm, CicTerm};
 use crate::type_theory::interface::TypeTheory;
 use crate::{parser::api::NsAst, type_theory::cic::cic::Cic};
 
@@ -15,7 +15,7 @@ pub fn parse_only(workspace: &str) -> Result<NsAst, String> {
 //TODO generalize to different type theories
 pub fn parse_and_elaborate(
     workspace: &str,
-) -> Result<Program<CicTerm>, String> {
+) -> Result<Program<CicTerm, CicStm>, String> {
     let ast = parse_only(workspace)?;
     print!("Elaboration of the AST into a program... ");
     let program = Cic::elaborate_ast(ast);
@@ -27,26 +27,29 @@ pub fn parse_and_elaborate(
 //TODO generalize to different type theories
 pub fn parse_and_type_check(
     workspace: &str,
-) -> Result<Program<CicTerm>, String> {
+) -> Result<Program<CicTerm, CicStm>, String> {
     let program = parse_and_elaborate(workspace)?;
     print!("Type checking of the program... ");
     let environment = &mut make_default_environment();
-    let mut errors = vec![];
+    let mut errors: Vec<_> = vec![];
 
     for node in program.schedule_iterable() {
         match node {
             ProgramNode::OfTerm(term) => {
-                match Cic::type_check(term.clone(), environment) {
+                match Cic::type_check_term(term.clone(), environment) {
                     Err(message) => {
                         errors.push(message);
                     }
-                    Ok(_term_type) => {
-                        //TODO add term: term_type to context
-                    }
+                    Ok(_) => {}
                 }
             }
-            ProgramNode::OfStm(_stm) => {
-                //TODO implement statement type checking
+            ProgramNode::OfStm(stm) => {
+                match Cic::type_check_stm(stm.clone(), environment) {
+                    Err(message) => {
+                        errors.push(message);
+                    }
+                    Ok(_) => {}
+                }
             }
         }
     }

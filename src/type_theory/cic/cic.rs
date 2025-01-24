@@ -1,11 +1,13 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_dir_root, elaborate_file_root, elaborate_inductive,
-    elaborate_match, elaborate_type_product, elaborate_var_use,
+    elaborate_axiom, elaborate_dir_root, elaborate_file_root,
+    elaborate_inductive, elaborate_let, elaborate_match,
+    elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
-    type_check_abstraction, type_check_application, type_check_inductive,
-    type_check_match, type_check_product, type_check_sort, type_check_variable,
+    type_check_abstraction, type_check_application, type_check_axiom,
+    type_check_inductive, type_check_let, type_check_match, type_check_product,
+    type_check_sort, type_check_variable,
 };
 use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
@@ -14,7 +16,6 @@ use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
 pub enum CicTerm {
-    MissingType(),
     /// (sort name)
     Sort(String),
     /// (var name)
@@ -25,6 +26,15 @@ pub enum CicTerm {
     Product(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (function, argument)
     Application(Box<CicTerm>, Box<CicTerm>),
+    /// (matched_term, [ branch: ([pattern], body) ])
+    Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
+}
+#[derive(Debug, PartialEq, Clone)]
+pub enum CicStm {
+    /// axiom_name, formula
+    Axiom(String, Box<CicTerm>),
+    /// (var_name, var_type, definition_body)
+    Let(String, Box<CicTerm>, Box<CicTerm>),
     /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
     InductiveDef(
         String,
@@ -32,14 +42,13 @@ pub enum CicTerm {
         Box<CicTerm>,
         Vec<(String, CicTerm)>,
     ),
-    /// (matched_term, [ branch: ([pattern], body) ])
-    Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
 }
 
 pub struct Cic;
 impl TypeTheory for Cic {
     type Term = CicTerm;
     type Type = CicTerm;
+    type Stm = CicStm;
 
     fn elaborate_expression(ast: Expression) -> CicTerm {
         match ast {
@@ -53,17 +62,6 @@ impl TypeTheory for Cic {
             Expression::Application(left, right) => {
                 elaborate_application(*left, *right)
             }
-            Expression::Inductive(
-                type_name,
-                parameters,
-                ariety,
-                constructors,
-            ) => elaborate_inductive(
-                type_name,
-                parameters,
-                *ariety,
-                constructors,
-            ),
             Expression::Match(matched_term, branches) => {
                 elaborate_match(*matched_term, branches)
             }
@@ -76,32 +74,42 @@ impl TypeTheory for Cic {
 
     fn elaborate_statement(
         ast: Statement,
-        program: &mut Program<CicTerm>,
+        program: &mut Program<CicTerm, CicStm>,
     ) -> Result<(), String> {
         match ast {
             Statement::Comment() => Ok(()),
             Statement::FileRoot(file_path, asts) => {
                 elaborate_file_root(program, file_path, asts)
             }
-            Statement::Axiom(_, _) => {
-                program.push_statement(&ast);
-                Ok(())
+            Statement::Axiom(axiom_name, formula) => {
+                elaborate_axiom(program, axiom_name, *formula)
             }
-            Statement::Let(_, _, _) => {
-                program.push_statement(&ast);
-                Ok(())
+            Statement::Let(var_name, var_type, body) => {
+                elaborate_let(program, var_name, *var_type, *body)
             }
+            Statement::Inductive(
+                type_name,
+                parameters,
+                ariety,
+                constructors,
+            ) => elaborate_inductive(
+                program,
+                type_name,
+                parameters,
+                *ariety,
+                constructors,
+            ),
             Statement::DirRoot(dirpath, asts) => {
                 elaborate_dir_root(program, dirpath, asts)
-            }
-            _ => Err(format!(
-                "Language construct {:?} not supported in CIC",
-                ast
-            )),
+            } //
+              // _ => Err(format!(
+              //     "Language construct {:?} not supported in CIC",
+              //     ast
+              // )),
         }
     }
 
-    fn elaborate_ast(ast: NsAst) -> Program<CicTerm> {
+    fn elaborate_ast(ast: NsAst) -> Program<CicTerm, CicStm> {
         let mut program = Program::new();
 
         match ast {
@@ -119,7 +127,7 @@ impl TypeTheory for Cic {
         program
     }
 
-    fn type_check(
+    fn type_check_term(
         term: CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
@@ -139,8 +147,22 @@ impl TypeTheory for Cic {
             }
             CicTerm::Match(matched_term, branches) => {
                 type_check_match(environment, *matched_term, branches)
+            } // _ => Err(format!("Term case {:?} is not typable yet", term)),
+        }
+    }
+
+    fn type_check_stm(
+        term: CicStm,
+        environment: &mut Environment<CicTerm, CicTerm>,
+    ) -> Result<CicTerm, String> {
+        match term {
+            CicStm::Let(var_name, var_type, body) => {
+                type_check_let(environment, var_name, *var_type, *body)
             }
-            CicTerm::InductiveDef(type_name, params, ariety, constructors) => {
+            CicStm::Axiom(axiom_name, formula) => {
+                type_check_axiom(environment, axiom_name, *formula)
+            }
+            CicStm::InductiveDef(type_name, params, ariety, constructors) => {
                 type_check_inductive(
                     environment,
                     type_name,
@@ -149,8 +171,6 @@ impl TypeTheory for Cic {
                     constructors,
                 )
             }
-
-            _ => Err("Term case is not typable yet".to_string()),
         }
     }
 

@@ -1,6 +1,8 @@
 use super::cic::{Cic, CicTerm};
+#[allow(unused_imports)]
 use crate::type_theory::cic::cic::make_default_environment;
 use crate::type_theory::interface::TypeTheory;
+#[allow(unused_imports)]
 use crate::{
     parser::api::{Expression, NsAst},
     type_theory::environment::Environment,
@@ -16,7 +18,8 @@ pub fn evaluate_let(
     let assigned_term = Cic::elaborate_expression(body);
     //this type is implicitly typed checked by the equality on assigned_type
     let var_type_term = Cic::elaborate_expression(var_type);
-    let assigned_type = Cic::type_check(assigned_term.clone(), environment)?;
+    let assigned_type =
+        Cic::type_check_term(assigned_term.clone(), environment)?;
 
     if Cic::terms_unify(&assigned_type, &var_type_term) {
         environment.add_variable_definition(
@@ -41,7 +44,8 @@ pub fn evaluate_axiom(
 ) -> Result<(), String> {
     let axiom_forumla = Cic::elaborate_expression(ast);
     // check that _formula_type == PROP?
-    let _formula_type = Cic::type_check(axiom_forumla.clone(), environment)?;
+    let _formula_type =
+        Cic::type_check_term(axiom_forumla.clone(), environment)?;
     environment.add_variable_to_context(&axiom_name, &axiom_forumla);
 
     Ok(())
