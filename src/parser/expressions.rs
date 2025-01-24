@@ -81,14 +81,28 @@ pub fn parse_arrow_type(input: &str) -> IResult<&str, Expression> {
     ))
 }
 
+fn applicable_expression(input: &str) -> IResult<&str, Expression> {
+    alt((
+        parse_var,
+        parse_abs,
+        parse_type_abs,
+        // parse_app,
+        parse_parens,
+    ))(input)
+}
+fn argument_expression(input: &str) -> IResult<&str, Expression> {
+    alt((parse_var, parse_numeral, parse_parens))(input)
+}
 pub fn parse_app(input: &str) -> IResult<&str, Expression> {
-    let (input, left) = preceded(multispace0, parse_atomic_expression)(input)?; // Parse the left term (atomic term)
-    let (input, _) = multispace1(input)?;
-    let (input, right) = preceded(multispace0, parse_expression)(input)?;
+    let (input, left) = preceded(multispace0, applicable_expression)(input)?;
+    let (input, args) =
+        many1(preceded(multispace1, argument_expression))(input)?;
 
     Ok((
         input,
-        Expression::Application(Box::new(left), Box::new(right)),
+        args.into_iter().fold(left, |acc, arg| {
+            Expression::Application(Box::new(acc), Box::new(arg))
+        }),
     ))
 }
 
@@ -148,20 +162,21 @@ pub fn parse_pattern_match(input: &str) -> IResult<&str, Expression> {
     Ok((input, Expression::Match(Box::new(term), branches)))
 }
 
-// Atomic term parser used for function application
-pub fn parse_atomic_expression(input: &str) -> IResult<&str, Expression> {
+pub fn parse_expression(input: &str) -> IResult<&str, Expression> {
     alt((
         parse_abs,
         parse_type_abs,
         parse_arrow_type,
+        // application should show up before parse_var
+        // otherwise the function will be parsed as normal variable
+        // and the rest of the string is not properly parsed
+        parse_app,
         parse_var,
         parse_numeral,
         parse_parens,
         parse_pattern_match,
+        parse_inductive_def,
     ))(input)
-}
-pub fn parse_expression(input: &str) -> IResult<&str, Expression> {
-    alt((parse_app, parse_inductive_def, parse_atomic_expression))(input)
 }
 //########################### EXPRESSION PARSERS
 
@@ -227,20 +242,6 @@ fn test_type_theory_terms() {
         "Abstraction struct isnt properly built"
     );
 
-    // application
-    assert_eq!(
-        parse_app("f x").unwrap(),
-        (
-            "",
-            Expression::Application(
-                Box::new(Expression::VarUse("f".to_string())),
-                Box::new(Expression::VarUse("x".to_string()))
-            )
-        ),
-        "Parser cant read function application"
-    );
-    //TODO add testing for left associative application
-
     // type abstraction
     assert!(
         parse_type_abs("ΠT:TYPE.T").is_ok(),
@@ -265,6 +266,68 @@ fn test_type_theory_terms() {
             )
         ),
         "Abstraction struct isnt properly built"
+    );
+}
+
+#[test]
+fn test_application() {
+    assert_eq!(
+        parse_app("f x").unwrap(),
+        (
+            "",
+            Expression::Application(
+                Box::new(Expression::VarUse("f".to_string())),
+                Box::new(Expression::VarUse("x".to_string()))
+            )
+        ),
+        "Parser cant read function application"
+    );
+    assert_eq!(
+        parse_expression("f x").unwrap(),
+        (
+            "",
+            Expression::Application(
+                Box::new(Expression::VarUse("f".to_string())),
+                Box::new(Expression::VarUse("x".to_string()))
+            )
+        ),
+        "Expression parser doesnt recognize application"
+    );
+
+    assert_eq!(
+        parse_app("f x y z").unwrap(),
+        (
+            "",
+            Expression::Application(
+                Box::new(Expression::Application(
+                    Box::new(Expression::Application(
+                        Box::new(Expression::VarUse("f".to_string())),
+                        Box::new(Expression::VarUse("x".to_string()))
+                    )),
+                    Box::new(Expression::VarUse("y".to_string()))
+                )),
+                Box::new(Expression::VarUse("z".to_string()))
+            )
+        ),
+        "Parser should implement left-associative application"
+    );
+
+    assert_eq!(
+        parse_app("f (x y) z").unwrap(),
+        (
+            "",
+            Expression::Application(
+                Box::new(Expression::Application(
+                    Box::new(Expression::VarUse("f".to_string())),
+                    Box::new(Expression::Application(
+                        Box::new(Expression::VarUse("x".to_string())),
+                        Box::new(Expression::VarUse("y".to_string()))
+                    ))
+                )),
+                Box::new(Expression::VarUse("z".to_string()))
+            )
+        ),
+        "Application parser messes up associativity with parenthesis"
     );
 }
 

@@ -1,6 +1,8 @@
 use super::{
     api::Expression,
-    expressions::{parse_app, parse_arrow_type, parse_parens, parse_var},
+    expressions::{
+        parse_app, parse_arrow_type, parse_parens, parse_type_abs, parse_var,
+    },
 };
 use nom::{
     branch::alt,
@@ -46,7 +48,16 @@ pub fn parse_numeral(input: &str) -> IResult<&str, Expression> {
 //########################### BASIC TOKEN PARSERS
 
 pub fn parse_type_expression(input: &str) -> IResult<&str, Expression> {
-    alt((parse_arrow_type, parse_parens, parse_var, parse_app))(input)
+    alt((
+        parse_arrow_type,
+        parse_parens,
+        // application should show up before parse_var
+        // otherwise the function will be parsed as normal variable
+        // and the rest of the string is not properly parsed
+        parse_app,
+        parse_var,
+        parse_type_abs,
+    ))(input)
 }
 
 pub fn parse_typed_identifier(
