@@ -5,6 +5,8 @@ use super::{
     commons::{parse_identifier, parse_type_expression},
     expressions::parse_expression,
 };
+#[allow(unused_imports)]
+use crate::parser::expressions::parse_var;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -310,6 +312,10 @@ fn test_parse_function() {
     assert!(
         parse_function("fun rec myFunction(x: Int): Int").is_err(),
         "Function parser accepts function with no body"
+    );
+    assert!(
+        parse_var("fun").is_err(),
+        "Variable parser is accepting 'fun' as identifier"
     );
 }
 
