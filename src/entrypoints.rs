@@ -91,8 +91,10 @@ fn test_type_check() {
         }
         _ => {}
     }
+    let res = parse_and_type_check("./library");
     assert!(
         parse_and_type_check("./library").is_ok(),
-        "Type checking entrypoint cant process std library"
+        "Type checking entrypoint cant process std library:\n{:?}",
+        res.err()
     );
 }

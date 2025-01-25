@@ -254,8 +254,14 @@ pub fn type_check_axiom(
 }
 //
 //
-fn update_context_inductive(environment: &mut Environment<CicTerm, CicTerm>, name:String, ind_type: CicTerm, constructors: Vec<(String, CicTerm)>) {
+fn update_context_inductive(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    name: String, 
+    ind_type: CicTerm, 
+    constructors: Vec<(String, CicTerm)>
+) {
     //TODO also include eliminator
+    //TODO make a record of the full constructor list for match type checking
     environment.add_variable_to_context(&name, &ind_type);
     for (constr_name, constr_type) in constructors {
         environment.add_variable_to_context(&constr_name, &constr_type);
