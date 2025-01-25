@@ -101,11 +101,12 @@ impl TypeTheory for Cic {
             ),
             Statement::DirRoot(dirpath, asts) => {
                 elaborate_dir_root(program, dirpath, asts)
-            } //
-              // _ => Err(format!(
-              //     "Language construct {:?} not supported in CIC",
-              //     ast
-              // )),
+            }
+
+            _ => Err(format!(
+                "Language construct {:?} not supported in CIC",
+                ast
+            )),
         }
     }
 
