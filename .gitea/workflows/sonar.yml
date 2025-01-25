@@ -6,26 +6,30 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: cimg/rust:1.83.0-node  # Use a Rust-enabled image
+      image: docker:latest  # Use a Rust-enabled image
 
     steps:
       # Step 1: Checkout the repository
       - name: Check out repository code
         uses: actions/checkout@v4
-
       # Step 2: Install SonarScanner linux ARM64
-      - name: Install SonarScanner
-        run: |
-          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
-          unzip sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
-          export PATH=$PATH:$(pwd)/sonar-scanner-cli-6.2.1.4610-linux-aarch64/bin
-
+      # - name: Install SonarScanner
+      #   run: |
+      #     wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
+      #     unzip sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
+      #     export PATH=$PATH:$(pwd)/sonar-scanner-cli-6.2.1.4610-linux-aarch64/bin
       # Step 3: cargo test coverage report
       # - name: Generate coverage report
       #   run: cargo tarpaulin --out Xml
-
       # Step 3: Run SonarQube analysis
+      
       - name: Run SonarQube analysis
-        run: sonar-scanner
-        env:
-          SONAR_HOST_URL: http://your-sonarqube-server-url:9000
-          SONAR_LOGIN: ${{ secrets.SONARQUBE_TOKEN }}
+        run: | #sonar-scanner
+          docker run --rm \
+            -e SONAR_HOST_URL="http://${SONARQUBE_URL}"  \
+            -e SONAR_LOGIN=${{ secrets.SONARQUBE_TOKEN }}  \
+            -v ".:/usr/src" \
+            sonarsource/sonar-scanner-cli
+        # env:
+        #   SONAR_HOST_URL: https://iaisydanieletarek.ddns.net:9001
+        #   SONAR_LOGIN: ${{ secrets.SONARQUBE_TOKEN }}
