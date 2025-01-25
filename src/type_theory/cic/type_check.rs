@@ -150,7 +150,7 @@ fn type_check_pattern(
 ) -> Result<CicTerm, String> {
     match variables.len() {
         0 => Ok(constr_type),
-        1.. => match variables[0].clone() {
+        1.. => match variables[0] {
             CicTerm::Variable(_) => match constr_type {
                 CicTerm::Product(_, _, codomain) => {
                     // doesnt need to update the context, here var_name is a type variable, not a term
@@ -165,7 +165,7 @@ fn type_check_pattern(
             },
             _ => Err(format!(
                 "Found illegal term in place of variable {:?}",
-                variables[0].clone(),
+                variables[0],
             )),
         },
     }
@@ -239,6 +239,31 @@ pub fn type_check_let(
             body_type
         ))
     }
+}
+//
+//
+pub fn type_check_fun(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    fun_name: String,
+    args: Vec<(String, CicTerm)>,
+    out_type: CicTerm,
+    body: CicTerm,
+    is_rec: bool,
+) -> Result<CicTerm, String> {
+    let fun_type = make_multiarg_fun_type(&args, out_type);
+    let mut assumptions = args;
+    if is_rec {
+        assumptions.push((fun_name, fun_type));
+    }
+
+    environment.with_local_declarations(
+        &assumptions,
+        |local_env| {
+            Cic::type_check_term(body, local_env)
+        },
+    )?;
+
+    Ok(CicTerm::Variable("Unit".to_string()))
 }
 //
 //
@@ -881,5 +906,88 @@ fn test_type_check_inductive() {
         )
         .is_err(),
         "Inductive type checking isnt working with dependent inductive types"
+    );
+}
+
+#[test]
+fn test_type_check_fun() {
+    let mut test_env = make_default_environment();
+    test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+    test_env.add_variable_to_context("z", &CicTerm::Variable("Nat".to_string()));
+    test_env.add_variable_to_context("s", 
+        &CicTerm::Product(
+            "_".to_string(),
+            Box::new(CicTerm::Variable("Nat".to_string())), 
+            Box::new(CicTerm::Variable("Nat".to_string()))
+        )
+    );
+
+    assert!(
+        type_check_fun(
+            &mut test_env,
+            "f".to_string(),
+            vec![("t".to_string(), CicTerm::Sort("TYPE".to_string()))], 
+            CicTerm::Sort("TYPE".to_string()),
+            CicTerm::Variable("t".to_string()), 
+            false
+        ).is_ok(),
+        "Type checking refuses identity function"
+    );
+
+    let args = vec![
+        ("n".to_string(), CicTerm::Variable("Nat".to_string())),
+        ("m".to_string(), CicTerm::Variable("Nat".to_string())),
+    ];
+    let zerobranch = (
+        //patter
+        vec![CicTerm::Variable("z".to_string())], 
+        //body
+        CicTerm::Variable("m".to_string())
+    );
+    let succbranch = (
+        //patter
+        vec![CicTerm::Variable("s".to_string()), CicTerm::Variable("nn".to_string())], 
+        //body
+        CicTerm::Application(
+            Box::new(CicTerm::Variable("s".to_string())), 
+            Box::new(CicTerm::Application(
+                    Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Variable("add".to_string())), 
+                        Box::new(CicTerm::Variable("nn".to_string())), 
+                    )),
+                    Box::new(CicTerm::Variable("m".to_string())), 
+                )
+            )
+        )
+    );
+    assert!(
+        type_check_fun(
+            &mut test_env,
+            "add".to_string(),
+            args.clone(), 
+            CicTerm::Sort("Nat".to_string()),
+            CicTerm::Match(
+                Box::new(CicTerm::Variable("n".to_string())), 
+                vec![zerobranch.clone(),succbranch.clone()]
+            ), 
+            false 
+        ).is_err(),
+        "Type checking accepts recursive function not marked as recursive"
+    );
+    let res = type_check_fun(
+        &mut test_env,
+        "add".to_string(),
+        args, 
+        CicTerm::Sort("Nat".to_string()),
+        CicTerm::Match(
+            Box::new(CicTerm::Variable("n".to_string())), 
+            vec![zerobranch,succbranch,]
+        ), 
+        true 
+    );
+    assert!(
+        res.is_ok(),
+        "Type checking refuses recursive functions:\n{:?}",
+        res.err()
     );
 }

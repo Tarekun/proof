@@ -191,6 +191,25 @@ pub fn elaborate_let(
 }
 //
 //
+pub fn elaborate_fun(
+    program: &mut Program<CicTerm, CicStm>,
+    fun_name: String,
+    args: Vec<(String, Expression)>,
+    out_type: Expression,
+    body: Expression,
+    is_rec: bool,
+) -> Result<(), String> {
+    program.push_statement(&CicStm::Fun(
+        fun_name,
+        map_typed_variables(&args),
+        Box::new(Cic::elaborate_expression(out_type)),
+        Box::new(Cic::elaborate_expression(body)),
+        is_rec,
+    ));
+    Ok(())
+}
+//
+//
 pub fn elaborate_inductive(
     program: &mut Program<CicTerm, CicStm>,
     type_name: String,
