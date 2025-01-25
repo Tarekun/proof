@@ -41,7 +41,7 @@ fn main() {
     match parse_and_type_check(&filepath) {
         Ok(program) => {
             for node in program.schedule_iterable() {
-                println!("node in the scheduled program: {:?}", node);
+                println!("node in the scheduled program: {:?}\n", node);
             }
         }
         Err(message) => {

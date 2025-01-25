@@ -34,7 +34,8 @@ pub fn list_sources(workspace: &str) -> Vec<String> {
         .map(|entry| entry.path())
         .filter(|path| {
             path.is_file()
-                && path.extension().and_then(|ext| ext.to_str()) == Some("lof")
+                && path.extension().and_then(|ext| ext.to_str())
+                    == Some(&SOURCE_FILE_EXTENSION[1..])
         })
         .map(|path| path.display().to_string())
         .collect();
