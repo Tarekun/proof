@@ -32,14 +32,15 @@ inductive Or (P: PROP) (Q: PROP) : PROP :=
 # then i constructed a proof that Exists T P 
 # in matita T is at Type[0]
 inductive Exists (T: TYPE) (P: T -> PROP) : PROP :=
-  | excon: Πt:T. (P t) -> (Exists T P)
+  | excon: (Πt:T. (P t) -> ((Exists T) P))
 ;
 
-let iff: PROP -> PROP -> PROP :=
-  \lambda P: PROP. \lambda Q: PROP.
-    And (P -> Q) (Q -> P)
-;
+#available once alpha rename is supported in unification check
+#let iff: PROP -> PROP -> PROP :=
+#  \lambda P: PROP. \lambda Q: PROP.
+#    (And (P -> Q)) (Q -> P)
+#;
 
-let decidable: PROP -> PROP :=
-  \lambda P: PROP. Or P (Not P)
-;
+#let decidable: PROP -> PROP :=
+#  \lambda P: PROP. (Or P) (Not P)
+#;

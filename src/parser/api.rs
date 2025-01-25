@@ -1,14 +1,22 @@
 use super::{expressions::parse_expression, statements::parse_statement};
-use crate::file_manager;
+use crate::file_manager::{list_sources, read_file};
 use nom::{branch::alt, combinator::map, multi::many0, IResult};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
+    DirRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
     /// (var_name, var_type, definition_body)
     Let(String, Box<Expression>, Box<Expression>),
+    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
+    Inductive(
+        String,
+        Vec<(String, Expression)>,
+        Box<Expression>,
+        Vec<(String, Expression)>,
+    ),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -21,13 +29,6 @@ pub enum Expression {
     Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
     Num(i64),
-    /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
-    Inductive(
-        String,
-        Vec<(String, Expression)>,
-        Box<Expression>,
-        Vec<(String, Expression)>,
-    ),
     // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
 }
@@ -46,7 +47,7 @@ pub fn parse_node(input: &str) -> IResult<&str, NsAst> {
 }
 
 pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
-    let source = match file_manager::read_file(filepath) {
+    let source = match read_file(filepath) {
         Ok(content) => content,
         Err(e) => {
             panic!("Error reading file: {:?}", e);
@@ -64,4 +65,19 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
         remaining_input.to_string(),
         NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
     )
+}
+
+pub fn parse_workspace(workspace: &str) -> NsAst {
+    let lof_files: Vec<String> = list_sources(workspace);
+    let mut asts = vec![];
+
+    if lof_files.is_empty() {
+        panic!("Directory {} is not a LoF workspace", workspace);
+    }
+    for filepath in lof_files {
+        let (_, ast) = parse_source_file(&filepath);
+        asts.push(ast);
+    }
+
+    NsAst::Stm(Statement::DirRoot(workspace.to_string(), asts))
 }
