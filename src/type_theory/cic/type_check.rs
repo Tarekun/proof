@@ -119,16 +119,14 @@ pub fn type_check_application(
     left: CicTerm,
     right: CicTerm,
 ) -> Result<CicTerm, String> {
-    let function_type = Cic::type_check_term(left.clone(), environment)?;
-    let arg_type = Cic::type_check_term(right.clone(), environment)?;
+    let function_type = Cic::type_check_term(left, environment)?;
+    let arg_type = Cic::type_check_term(right, environment)?;
 
     match function_type.clone() {
         CicTerm::Product(_, domain, codomain) => {
             if Cic::terms_unify(&(*domain), &arg_type) {
                 Ok(*codomain)
             } else {
-                println!("{}", format!("Checking {:?} {:?}", left, right));
-                println!("{}", format!("with types {:?} {:?}", function_type, arg_type));
                 Err(format!(
                     "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
                     *domain,
@@ -278,18 +276,24 @@ pub fn type_check_fun(
     body: CicTerm,
     is_rec: bool,
 ) -> Result<CicTerm, String> {
-    let fun_type = make_multiarg_fun_type(&args, out_type);
+    let fun_type = make_multiarg_fun_type(&args, out_type.clone());
     let mut assumptions = args;
     if is_rec {
         assumptions.push((fun_name, fun_type));
     }
 
-    environment.with_local_declarations(
+    let body_type = environment.with_local_declarations(
         &assumptions,
         |local_env| {
             Cic::type_check_term(body, local_env)
         },
     )?;
+    if !Cic::terms_unify(&out_type, &body_type) {
+        return Err(format!(
+            "Function type {:?} and body result {:?} are inconsistent", 
+            out_type, body_type
+        ));
+    }
 
     Ok(CicTerm::Variable("Unit".to_string()))
 }
@@ -1021,5 +1025,17 @@ fn test_type_check_fun() {
         res.is_ok(),
         "Type checking refuses recursive functions:\n{:?}",
         res.err()
+    );
+
+    assert!(
+        type_check_fun(
+            &mut test_env,
+            "f".to_string(),
+            vec![], 
+            CicTerm::Variable("Nat".to_string()),
+            CicTerm::Sort("TYPE".to_string()), 
+            false
+        ).is_err(),
+        "Type checking accept function with a inconsistent declared and result type",
     );
 }
