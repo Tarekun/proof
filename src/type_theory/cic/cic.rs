@@ -1,13 +1,13 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_dir_root, elaborate_file_root,
+    elaborate_axiom, elaborate_dir_root, elaborate_file_root, elaborate_fun,
     elaborate_inductive, elaborate_let, elaborate_match,
     elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_axiom,
-    type_check_inductive, type_check_let, type_check_match, type_check_product,
-    type_check_sort, type_check_variable,
+    type_check_fun, type_check_inductive, type_check_let, type_check_match,
+    type_check_product, type_check_sort, type_check_variable,
 };
 use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
@@ -35,6 +35,14 @@ pub enum CicStm {
     Axiom(String, Box<CicTerm>),
     /// (var_name, var_type, definition_body)
     Let(String, Box<CicTerm>, Box<CicTerm>),
+    /// (fun_name, args, out_type, body, is_rec)
+    Fun(
+        String,
+        Vec<(String, CicTerm)>,
+        Box<CicTerm>,
+        Box<CicTerm>,
+        bool,
+    ),
     /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
     InductiveDef(
         String,
@@ -101,8 +109,10 @@ impl TypeTheory for Cic {
             ),
             Statement::DirRoot(dirpath, asts) => {
                 elaborate_dir_root(program, dirpath, asts)
-            } //
-              // _ => Err(format!(
+            }
+            Statement::Fun(fun_name, args, out_type, body, is_rec) => {
+                elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
+            } // _ => Err(format!(
               //     "Language construct {:?} not supported in CIC",
               //     ast
               // )),
@@ -169,6 +179,16 @@ impl TypeTheory for Cic {
                     params,
                     *ariety,
                     constructors,
+                )
+            }
+            CicStm::Fun(fun_name, args, out_type, body, is_rec) => {
+                type_check_fun(
+                    environment,
+                    fun_name,
+                    args,
+                    *out_type,
+                    *body,
+                    is_rec,
                 )
             }
         }

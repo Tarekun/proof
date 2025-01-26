@@ -18,6 +18,7 @@ use nom::{
 };
 
 //########################### STATEMENT PARSERS
+//
 pub fn parse_let(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
     let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
@@ -35,6 +36,34 @@ pub fn parse_let(input: &str) -> IResult<&str, Statement> {
             var_name.to_string(),
             Box::new(type_var),
             Box::new(term),
+        ),
+    ))
+}
+//
+//
+pub fn parse_function(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = preceded(multispace0, tag("fun"))(input)?;
+    let (input, is_rec) = opt(preceded(multispace1, tag("rec")))(input)?;
+    let is_rec = is_rec.is_some();
+
+    let (input, fun_name) = preceded(multispace1, parse_identifier)(input)?;
+    let (input, args) = typed_parameter_list(input)?;
+    let (input, _) = preceded(multispace0, tag(":"))(input)?;
+    let (input, output_type) =
+        preceded(multispace1, parse_type_expression)(input)?;
+
+    let (input, _) = preceded(multispace0, tag("{"))(input)?;
+    let (input, body) = preceded(multispace0, parse_expression)(input)?;
+    let (input, _) = preceded(multispace0, tag("}"))(input)?;
+
+    Ok((
+        input,
+        Statement::Fun(
+            fun_name.to_string(),
+            args,
+            Box::new(output_type),
+            Box::new(body),
+            is_rec,
         ),
     ))
 }
@@ -128,6 +157,7 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
         parse_axiom,
         parse_inductive_def,
         parse_theorem,
+        parse_function,
     ))(input)
 }
 //########################### STATEMENT PARSERS
@@ -176,6 +206,110 @@ fn test_let() {
     assert!(
         parse_statement("let n: nat := x;").is_ok(),
         "Top level parser can't read let definitions"
+    );
+}
+
+#[test]
+fn test_parse_function() {
+    assert_eq!(
+        parse_function("fun f (n: Nat): Nat { s n }"),
+        Ok((
+            "",
+            Statement::Fun(
+                "f".to_string(),
+                vec![("n".to_string(), Expression::VarUse("Nat".to_string()))],
+                Box::new(Expression::VarUse("Nat".to_string())),
+                Box::new(Expression::Application(
+                    Box::new(Expression::VarUse("s".to_string())),
+                    Box::new(Expression::VarUse("n".to_string()))
+                )),
+                false
+            )
+        )),
+        "Function parser doesnt construct the statement properly"
+    );
+    assert_eq!(
+        parse_function("fun rec f (n: Nat): Nat { f n }"),
+        Ok((
+            "",
+            Statement::Fun(
+                "f".to_string(),
+                vec![("n".to_string(), Expression::VarUse("Nat".to_string()))],
+                Box::new(Expression::VarUse("Nat".to_string())),
+                Box::new(Expression::Application(
+                    Box::new(Expression::VarUse("f".to_string())),
+                    Box::new(Expression::VarUse("n".to_string()))
+                )),
+                true
+            )
+        )),
+        "Function parser doesnt recognize recursive functions"
+    );
+
+    assert_eq!(
+        parse_function("fun f : TYPE { TYPE }"),
+        Ok((
+            "",
+            Statement::Fun(
+                "f".to_string(),
+                vec![],
+                Box::new(Expression::VarUse("TYPE".to_string())),
+                Box::new(Expression::VarUse("TYPE".to_string())),
+                false
+            )
+        )),
+        "Function parser cant cope with functions with no arguments"
+    );
+    assert_eq!(
+        parse_function("fun f (l: List Nat): List Nat { l }"),
+        Ok((
+            "",
+            Statement::Fun(
+                "f".to_string(),
+                vec![(
+                    "l".to_string(),
+                    Expression::Application(
+                        Box::new(Expression::VarUse("List".to_string())),
+                        Box::new(Expression::VarUse("Nat".to_string()))
+                    )
+                )],
+                Box::new(Expression::Application(
+                    Box::new(Expression::VarUse("List".to_string())),
+                    Box::new(Expression::VarUse("Nat".to_string()))
+                )),
+                Box::new(Expression::VarUse("l".to_string())),
+                false
+            )
+        )),
+        "Function parser cant cope with arguments that have application types"
+    );
+    assert!(
+        parse_function(
+            "fun  \t \r f \r  \t  ( \t\r x \r\t :  \tNat  )  :  Nat  {  x  }"
+        )
+        .is_ok(),
+        "Function parser cant cope with whitespaces"
+    );
+    assert!(
+        parse_statement("fun f (l: List Nat): List Nat { l }").is_ok(),
+        "Top level stm parser doesnt recognize functions"
+    );
+
+    assert!(
+        parse_function("rec f : TYPE { TYPE }").is_err(),
+        "Function parser accepts function with no 'fun' keyword"
+    );
+    assert!(
+        parse_function("fun rec (x: TYPE): TYPE { TYPE }").is_err(),
+        "Function parser accepts function with no name"
+    );
+    assert!(
+        parse_function("fun rec myFunction (x: TYPE) { TYPE}").is_err(),
+        "Function parser accepts function with no return type"
+    );
+    assert!(
+        parse_function("fun rec myFunction(x: Int): Int").is_err(),
+        "Function parser accepts function with no body"
     );
 }
 

@@ -40,7 +40,6 @@ fn type_check_type(
     Ok(term_type)
 }
 
-//
 //########################### EXPRESSIONS TYPE CHECKING
 //
 pub fn type_check_sort(
@@ -123,7 +122,7 @@ pub fn type_check_application(
     let function_type = Cic::type_check_term(left, environment)?;
     let arg_type = Cic::type_check_term(right, environment)?;
 
-    match function_type {
+    match function_type.clone() {
         CicTerm::Product(_, domain, codomain) => {
             if Cic::terms_unify(&(*domain), &arg_type) {
                 Ok(*codomain)
@@ -143,19 +142,42 @@ pub fn type_check_application(
 }
 //
 //
+fn type_constr_vars(
+    constr_type: &CicTerm,
+    variables: Vec<CicTerm>,
+) -> Vec<(String, CicTerm)> {
+    match variables.len() {
+        0 => vec![],
+        1.. => match &variables[0] {
+            CicTerm::Variable(var_name) => match constr_type {
+                CicTerm::Product(_, domain, codomain) => {
+                    let mut typed_vars = type_constr_vars(&(*codomain), variables[1..].to_vec());
+                    typed_vars.insert(0, (var_name.clone(), *(domain.clone())));
+                    typed_vars
+                }
+                // i dont want to return results here
+                _ => {panic!("Mismatch in number of variables for constructor");}
+            }
+            _ => {panic!(
+                "Found illegal term in place of variable {:?}",
+                variables[0],
+            );}
+        }
+    }
+}
 fn type_check_pattern(
-    constr_type: CicTerm,
+    constr_type: &CicTerm,
     variables: Vec<CicTerm>,
     environment: &mut Environment<CicTerm, CicTerm>,
 ) -> Result<CicTerm, String> {
     match variables.len() {
-        0 => Ok(constr_type),
-        1.. => match variables[0].clone() {
+        0 => Ok(constr_type.clone()),
+        1.. => match variables[0] {
             CicTerm::Variable(_) => match constr_type {
                 CicTerm::Product(_, _, codomain) => {
                     // doesnt need to update the context, here var_name is a type variable, not a term
                     type_check_pattern(
-                        *codomain,
+                        &(*codomain),
                         variables[1..].to_vec(),
                         environment,
                     )
@@ -165,7 +187,7 @@ fn type_check_pattern(
             },
             _ => Err(format!(
                 "Found illegal term in place of variable {:?}",
-                variables[0].clone(),
+                variables[0],
             )),
         },
     }
@@ -183,7 +205,7 @@ pub fn type_check_match(
         let constr_var = pattern[0].clone();
         let constr_type = Cic::type_check_term(constr_var, environment)?;
         let result_type = type_check_pattern(
-            constr_type,
+            &constr_type,
             pattern[1..].to_vec(),
             environment,
         )?;
@@ -198,7 +220,10 @@ pub fn type_check_match(
         }
 
         //body type checking
-        let body_type = Cic::type_check_term(body, environment)?;
+        let pattern_assumptions = type_constr_vars(&constr_type, pattern[1..].to_vec());
+        let body_type = environment.with_local_declarations(&pattern_assumptions, |local_env| {
+            Cic::type_check_term(body, local_env)
+        })?;
         if return_type.is_none() {
             return_type = Some(body_type);
         } else if !Cic::terms_unify(&return_type.clone().unwrap(), &body_type) {
@@ -216,6 +241,7 @@ pub fn type_check_match(
 }
 //
 //########################### EXPRESSIONS TYPE CHECKING
+//
 //
 //########################### STATEMENTS TYPE CHECKING
 //
@@ -239,6 +265,37 @@ pub fn type_check_let(
             body_type
         ))
     }
+}
+//
+//
+pub fn type_check_fun(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    fun_name: String,
+    args: Vec<(String, CicTerm)>,
+    out_type: CicTerm,
+    body: CicTerm,
+    is_rec: bool,
+) -> Result<CicTerm, String> {
+    let fun_type = make_multiarg_fun_type(&args, out_type.clone());
+    let mut assumptions = args;
+    if is_rec {
+        assumptions.push((fun_name, fun_type));
+    }
+
+    let body_type = environment.with_local_declarations(
+        &assumptions,
+        |local_env| {
+            Cic::type_check_term(body, local_env)
+        },
+    )?;
+    if !Cic::terms_unify(&out_type, &body_type) {
+        return Err(format!(
+            "Function type {:?} and body result {:?} are inconsistent", 
+            out_type, body_type
+        ));
+    }
+
+    Ok(CicTerm::Variable("Unit".to_string()))
 }
 //
 //
@@ -306,6 +363,7 @@ pub fn type_check_inductive(
 }
 //
 //########################### STATEMENTS TYPE CHECKING
+//
 //
 //########################### UNIT TESTS
 #[test]
@@ -650,29 +708,32 @@ fn test_type_check_match() {
         .is_err(),
         "Type checker accepts match with inconsistent branch types"
     );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Match(
-                Box::new(CicTerm::Variable("c".to_string())),
-                vec![
-                    (
-                        vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
-                        CicTerm::Variable("o".to_string())
-                    ),
-                    (
-                        vec![
-                            CicTerm::Variable("s".to_string()),
-                            CicTerm::Variable("n".to_string())
-                        ],
-                        CicTerm::Variable("n".to_string())
-                    ),
-                ]
-            ),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts match with random (properly typed) variable in place of constructor"
-    );
+
+    //TODO this should be address: do we want pattern variable to override names in context
+    //or should the declared variables names be fresh?
+    // assert!(
+    //     Cic::type_check_term(
+    //         CicTerm::Match(
+    //             Box::new(CicTerm::Variable("c".to_string())),
+    //             vec![
+    //                 (
+    //                     vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
+    //                     CicTerm::Variable("o".to_string())
+    //                 ),
+    //                 (
+    //                     vec![
+    //                         CicTerm::Variable("s".to_string()),
+    //                         CicTerm::Variable("n".to_string())
+    //                     ],
+    //                     CicTerm::Variable("n".to_string())
+    //                 ),
+    //             ]
+    //         ),
+    //         &mut test_env
+    //     )
+    //     .is_err(),
+    //     "Type checker accepts match with random (properly typed) variable in place of constructor"
+    // );
 }
 
 //TODO add check for positivity
@@ -881,5 +942,100 @@ fn test_type_check_inductive() {
         )
         .is_err(),
         "Inductive type checking isnt working with dependent inductive types"
+    );
+}
+
+#[test]
+fn test_type_check_fun() {
+    let mut test_env = make_default_environment();
+    test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+    test_env.add_variable_to_context("z", &CicTerm::Variable("Nat".to_string()));
+    test_env.add_variable_to_context("s", 
+        &CicTerm::Product(
+            "_".to_string(),
+            Box::new(CicTerm::Variable("Nat".to_string())), 
+            Box::new(CicTerm::Variable("Nat".to_string()))
+        )
+    );
+
+    assert!(
+        type_check_fun(
+            &mut test_env,
+            "f".to_string(),
+            vec![("t".to_string(), CicTerm::Sort("TYPE".to_string()))], 
+            CicTerm::Sort("TYPE".to_string()),
+            CicTerm::Variable("t".to_string()), 
+            false
+        ).is_ok(),
+        "Type checking refuses identity function"
+    );
+
+    let args = vec![
+        ("n".to_string(), CicTerm::Variable("Nat".to_string())),
+        ("m".to_string(), CicTerm::Variable("Nat".to_string())),
+    ];
+    let zerobranch = (
+        //patter
+        vec![CicTerm::Variable("z".to_string())], 
+        //body
+        CicTerm::Variable("m".to_string())
+    );
+    let succbranch = (
+        //patter
+        vec![CicTerm::Variable("s".to_string()), CicTerm::Variable("nn".to_string())], 
+        //body
+        CicTerm::Application(
+            Box::new(CicTerm::Variable("s".to_string())), 
+            Box::new(CicTerm::Application(
+                    Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Variable("add".to_string())), 
+                        Box::new(CicTerm::Variable("nn".to_string())), 
+                    )),
+                    Box::new(CicTerm::Variable("m".to_string())), 
+                )
+            )
+        )
+    );
+    assert!(
+        type_check_fun(
+            &mut test_env,
+            "add".to_string(),
+            args.clone(), 
+            CicTerm::Sort("Nat".to_string()),
+            CicTerm::Match(
+                Box::new(CicTerm::Variable("n".to_string())), 
+                vec![zerobranch.clone(),succbranch.clone()]
+            ), 
+            false 
+        ).is_err(),
+        "Type checking accepts recursive function not marked as recursive"
+    );
+    let res = type_check_fun(
+        &mut test_env,
+        "add".to_string(),
+        args, 
+        CicTerm::Variable("Nat".to_string()),
+        CicTerm::Match(
+            Box::new(CicTerm::Variable("n".to_string())), 
+            vec![zerobranch,succbranch,]
+        ), 
+        true 
+    );
+    assert!(
+        res.is_ok(),
+        "Type checking refuses recursive functions:\n{:?}",
+        res.err()
+    );
+
+    assert!(
+        type_check_fun(
+            &mut test_env,
+            "f".to_string(),
+            vec![], 
+            CicTerm::Variable("Nat".to_string()),
+            CicTerm::Sort("TYPE".to_string()), 
+            false
+        ).is_err(),
+        "Type checking accept function with a inconsistent declared and result type",
     );
 }

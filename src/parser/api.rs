@@ -10,6 +10,14 @@ pub enum Statement {
     Axiom(String, Box<Expression>),
     /// (var_name, var_type, definition_body)
     Let(String, Box<Expression>, Box<Expression>),
+    /// (fun_name, args, out_type, body, is_rec)
+    Fun(
+        String,
+        Vec<(String, Expression)>,
+        Box<Expression>,
+        Box<Expression>,
+        bool,
+    ),
     /// type_name, [(param_name : param_type)], ariety, [( constr_name, constr_type )]
     Inductive(
         String,
