@@ -75,17 +75,28 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
     )
 }
 
-pub fn parse_workspace(workspace: &str) -> NsAst {
+pub fn parse_workspace(workspace: &str) -> Result<NsAst, String> {
     let lof_files: Vec<String> = list_sources(workspace);
     let mut asts = vec![];
+    let mut errors = vec![];
 
     if lof_files.is_empty() {
         panic!("Directory {} is not a LoF workspace", workspace);
     }
     for filepath in lof_files {
-        let (_, ast) = parse_source_file(&filepath);
-        asts.push(ast);
+        let (remainder, ast) = parse_source_file(&filepath);
+        if !remainder.chars().all(|c| c.is_whitespace()) {
+            errors.push(format!(
+                "Error parsing file '{}'. Remaining code:\n'{}'",
+                filepath, remainder
+            ));
+        } else {
+            asts.push(ast);
+        }
     }
 
-    NsAst::Stm(Statement::DirRoot(workspace.to_string(), asts))
+    if !errors.is_empty() {
+        return Err(errors.join("\n"));
+    }
+    Ok(NsAst::Stm(Statement::DirRoot(workspace.to_string(), asts)))
 }
