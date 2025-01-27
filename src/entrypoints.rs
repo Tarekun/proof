@@ -6,7 +6,7 @@ use crate::{parser::api::NsAst, type_theory::cic::cic::Cic};
 
 pub fn parse_only(workspace: &str) -> Result<NsAst, String> {
     print!("Parsing of workspace: '{}'... ", workspace);
-    let ast = parse_workspace(&workspace);
+    let ast = parse_workspace(&workspace)?;
     println!("Done.");
 
     Ok(ast)
