@@ -9,6 +9,7 @@ use super::type_check::{
     type_check_fun, type_check_inductive, type_check_let, type_check_match,
     type_check_product, type_check_sort, type_check_variable,
 };
+use super::unification::alpha_equivalent;
 use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
@@ -194,17 +195,33 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn terms_unify(term1: &CicTerm, term2: &CicTerm) -> bool {
-        common_unification(term1, term2)
+    fn terms_unify(
+        environment: &mut Environment<CicTerm, CicTerm>,
+        term1: &CicTerm,
+        term2: &CicTerm,
+    ) -> bool {
+        common_unification(environment, term1, term2)
     }
 
-    fn types_unify(type1: &CicTerm, type2: &CicTerm) -> bool {
-        common_unification(type1, type2)
-    }
+    // fn types_unify(type1: &CicTerm, type2: &CicTerm) -> bool {
+    //     common_unification(type1, type2)
+    // }
 }
 
-fn common_unification(term1: &CicTerm, term2: &CicTerm) -> bool {
-    term1 == term2
+fn common_unification(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    term1: &CicTerm,
+    term2: &CicTerm,
+) -> bool {
+    // term1 == term2
+    match alpha_equivalent(environment, term1, term2) {
+        Ok(true) => true,
+        Ok(false) => term1 == term2,
+        Err(message) => panic!(
+            "Type Error in alpha equivalence during unification. This should have been caught sooner:\n{}", 
+            message
+        )
+    }
 }
 
 #[allow(non_snake_case)]

@@ -21,7 +21,7 @@ pub fn evaluate_let(
     let assigned_type =
         Cic::type_check_term(assigned_term.clone(), environment)?;
 
-    if Cic::terms_unify(&assigned_type, &var_type_term) {
+    if Cic::terms_unify(environment, &assigned_type, &var_type_term) {
         environment.add_variable_definition(
             &var_name,
             &assigned_term,
