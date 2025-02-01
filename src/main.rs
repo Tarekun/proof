@@ -17,6 +17,7 @@ mod type_theory {
         pub mod elaboration;
         pub mod evaluation;
         pub mod type_check;
+        pub mod unification;
     }
     // pub mod stlc {
     //     pub mod elaboration;
