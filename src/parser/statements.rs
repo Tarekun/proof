@@ -160,6 +160,31 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
         parse_function,
     ))(input)
 }
+//
+//
+pub fn parse_right_infix<'a>(
+    operand: &'a str,
+) -> impl Fn(&'a str) -> IResult<&'a str, Statement> + 'a {
+    move |input: &str| -> IResult<&str, Statement> {
+        let (input, left) = preceded(multispace0, parse_expression)(input)?;
+        let (input, _) = preceded(multispace0, tag(operand))(input)?;
+        let (input, right) = preceded(multispace0, parse_expression)(input)?;
+
+        Ok((input, Statement::Comment()))
+    }
+}
+//
+pub fn parse_notation(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = preceded(multispace0, tag("notation"))(input)?;
+    let (input, _) = preceded(multispace0, char('"'))(input)?;
+    let (input, operand) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, _) = preceded(multispace0, char('"'))(input)?;
+    let (input, _) = preceded(multispace0, tag(":="))(input)?;
+    let (input, expression) = preceded(multispace0, parse_expression)(input)?;
+
+    Ok((input, Statement::Comment()))
+}
+//
 //########################### STATEMENT PARSERS
 
 //########################### UNIT TESTS
