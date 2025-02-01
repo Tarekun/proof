@@ -10,7 +10,6 @@ pub fn alpha_equivalent(
     term1: &CicTerm,
     term2: &CicTerm,
 ) -> Result<bool, String> {
-    println!("Confronting {:?} and {:?}", term1, term2);
     match term1 {
         // if both variable they must have matching types
         CicTerm::Variable(_) => match term2 {
@@ -61,6 +60,9 @@ pub fn alpha_equivalent(
 #[test]
 fn test_alpha_eqivalence() {
     let mut test_env = make_default_environment();
+    test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+    test_env
+        .add_variable_to_context("Bool", &CicTerm::Sort("TYPE".to_string()));
 
     assert_eq!(
         alpha_equivalent(
@@ -113,5 +115,14 @@ fn test_alpha_eqivalence() {
         ),
         Ok(false),
         "Alpha equivalence accepts non-equivalent abstractions"
+    );
+    assert_eq!(
+        alpha_equivalent(
+            &mut test_env,
+            &CicTerm::Variable("Nat".to_string()),
+            &CicTerm::Variable("Bool".to_string()),
+        ),
+        Ok(false),
+        "Alpha equivalence accepts different types as equivalent"
     );
 }

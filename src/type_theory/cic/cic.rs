@@ -217,7 +217,10 @@ fn common_unification(
     match alpha_equivalent(environment, term1, term2) {
         Ok(true) => true,
         Ok(false) => term1 == term2,
-        Err(message) => panic!("Type Error in alpha equivalence. This should have been caught sooner:\n{}", message)
+        Err(message) => panic!(
+            "Type Error in alpha equivalence during unification. This should have been caught sooner:\n{}", 
+            message
+        )
     }
 }
 

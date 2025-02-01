@@ -197,22 +197,18 @@ pub fn type_check_match(
     matched_term: CicTerm,
     branches: Vec<(Vec<CicTerm>, CicTerm)>,
 ) -> Result<CicTerm, String> {
-    println!("Type checking matched term {:?}", matched_term);
     let matching_type = Cic::type_check_term(matched_term, environment)?;
     let mut return_type = None;
 
     for (pattern, body) in branches {
         //pattern type checking
         let constr_var = pattern[0].clone();
-    println!("Type checking constructor variable {:?}", constr_var);
         let constr_type = Cic::type_check_term(constr_var, environment)?;
-    println!("Type checking full pattern");
         let result_type = type_check_pattern(
             &constr_type,
             pattern[1..].to_vec(),
             environment,
         )?;
-    println!("check if result {:?} and target {:?} unify", result_type, matching_type);
         if !Cic::terms_unify(environment, &result_type, &matching_type) {
             return Err(
                 format!(
@@ -225,13 +221,11 @@ pub fn type_check_match(
 
         //body type checking
         let pattern_assumptions = type_constr_vars(&constr_type, pattern[1..].to_vec());
-    println!("Type checking body {:?}", body);
         let body_type = environment.with_local_declarations(&pattern_assumptions, |local_env| {
             Cic::type_check_term(body, local_env)
         })?;
         if return_type.is_none() {
-    println!("setting return_type to {:?}", body_type);
-            return_type = Some(body_type.clone());
+            return_type = Some(body_type);
         } else if !Cic::terms_unify(environment, &return_type.clone().unwrap(), &body_type) {
             return Err(
                 format!(
@@ -241,7 +235,6 @@ pub fn type_check_match(
                 )
             );
         }
-    println!("return_type {:?} and body_type apparently unify {:?}", return_type, body_type);
 }
 
     Ok(return_type.unwrap())
@@ -646,55 +639,55 @@ fn test_type_check_match() {
     test_env
         .add_variable_to_context("true", &CicTerm::Variable("Bool".to_string()));
 
-    // assert_eq!(
-    //     Cic::type_check_term(
-    //         CicTerm::Match(
-    //             Box::new(CicTerm::Variable("c".to_string())),
-    //             vec![
-    //                 (
-    //                     vec![CicTerm::Variable("o".to_string())],
-    //                     CicTerm::Variable("o".to_string())
-    //                 ),
-    //                 (
-    //                     vec![
-    //                         CicTerm::Variable("s".to_string()),
-    //                         CicTerm::Variable("n".to_string())
-    //                     ],
-    //                     CicTerm::Variable("c".to_string())
-    //                 ),
-    //             ]
-    //         ),
-    //         &mut test_env
-    //     )
-    //     .unwrap(),
-    //     CicTerm::Variable("nat".to_string()),
-    //     "Type checker refuses matching over naturals"
-    // );
-    // assert!(
-    //     Cic::type_check_term(
-    //         CicTerm::Match(
-    //             Box::new(CicTerm::Variable(
-    //                 "stupidUnboundVariable".to_string()
-    //             )),
-    //             vec![
-    //                 (
-    //                     vec![CicTerm::Variable("o".to_string())],
-    //                     CicTerm::Variable("o".to_string())
-    //                 ),
-    //                 (
-    //                     vec![
-    //                         CicTerm::Variable("s".to_string()),
-    //                         CicTerm::Variable("n".to_string())
-    //                     ],
-    //                     CicTerm::Variable("c".to_string())
-    //                 ),
-    //             ]
-    //         ),
-    //         &mut test_env
-    //     )
-    //     .is_err(),
-    //     "Type checker accepts matching over unbound variable"
-    // );
+    assert_eq!(
+        Cic::type_check_term(
+            CicTerm::Match(
+                Box::new(CicTerm::Variable("c".to_string())),
+                vec![
+                    (
+                        vec![CicTerm::Variable("o".to_string())],
+                        CicTerm::Variable("o".to_string())
+                    ),
+                    (
+                        vec![
+                            CicTerm::Variable("s".to_string()),
+                            CicTerm::Variable("n".to_string())
+                        ],
+                        CicTerm::Variable("c".to_string())
+                    ),
+                ]
+            ),
+            &mut test_env
+        )
+        .unwrap(),
+        CicTerm::Variable("nat".to_string()),
+        "Type checker refuses matching over naturals"
+    );
+    assert!(
+        Cic::type_check_term(
+            CicTerm::Match(
+                Box::new(CicTerm::Variable(
+                    "stupidUnboundVariable".to_string()
+                )),
+                vec![
+                    (
+                        vec![CicTerm::Variable("o".to_string())],
+                        CicTerm::Variable("o".to_string())
+                    ),
+                    (
+                        vec![
+                            CicTerm::Variable("s".to_string()),
+                            CicTerm::Variable("n".to_string())
+                        ],
+                        CicTerm::Variable("c".to_string())
+                    ),
+                ]
+            ),
+            &mut test_env
+        )
+        .is_err(),
+        "Type checker accepts matching over unbound variable"
+    );
     assert!(
         Cic::type_check_term(
             CicTerm::Match(
