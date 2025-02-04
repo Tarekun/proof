@@ -1,8 +1,5 @@
-use super::cic::{Cic, CicTerm};
-use crate::type_theory::{
-    cic::cic::make_default_environment, environment::Environment,
-    interface::TypeTheory,
-};
+use super::cic::CicTerm;
+use crate::type_theory::environment::Environment;
 
 //TODO support pattern matching equivalence
 pub fn alpha_equivalent(
@@ -57,72 +54,83 @@ pub fn alpha_equivalent(
     }
 }
 
-#[test]
-fn test_alpha_eqivalence() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
-    test_env
-        .add_variable_to_context("Bool", &CicTerm::Sort("TYPE".to_string()));
+#[cfg(test)]
+mod unit_tests {
+    use crate::type_theory::cic::{
+        cic::{make_default_environment, CicTerm},
+        unification::alpha_equivalent,
+    };
 
-    assert_eq!(
-        alpha_equivalent(
-            &mut test_env,
-            &CicTerm::Sort("PROP".to_string()),
-            &CicTerm::Sort("PROP".to_string()),
-        ),
-        Ok(true),
-        "Alpha equivalence refuses equal sorts"
-    );
-    assert_eq!(
-        alpha_equivalent(
-            &mut test_env,
+    #[test]
+    fn test_alpha_eqivalence() {
+        let mut test_env = make_default_environment();
+        test_env
+            .add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_variable_to_context(
+            "Bool",
             &CicTerm::Sort("TYPE".to_string()),
-            &CicTerm::Sort("PROP".to_string()),
-        ),
-        Ok(false),
-        "Alpha equivalence accepts different sorts"
-    );
-    assert_eq!(
-        alpha_equivalent(
-            &mut test_env,
-            &CicTerm::Abstraction(
-                "x".to_string(),
-                Box::new(CicTerm::Sort("PROP".to_string())),
-                Box::new(CicTerm::Sort("TYPE".to_string()))
+        );
+
+        assert_eq!(
+            alpha_equivalent(
+                &mut test_env,
+                &CicTerm::Sort("PROP".to_string()),
+                &CicTerm::Sort("PROP".to_string()),
             ),
-            &CicTerm::Abstraction(
-                "y".to_string(),
-                Box::new(CicTerm::Sort("PROP".to_string())),
-                Box::new(CicTerm::Sort("TYPE".to_string()))
-            )
-        ),
-        Ok(true),
-        "Alpha equivalence refuses equivalent abstractions"
-    );
-    assert_eq!(
-        alpha_equivalent(
-            &mut test_env,
-            &CicTerm::Product(
-                "x".to_string(),
-                Box::new(CicTerm::Sort("PROP".to_string())),
-                Box::new(CicTerm::Sort("TYPE".to_string()))
+            Ok(true),
+            "Alpha equivalence refuses equal sorts"
+        );
+        assert_eq!(
+            alpha_equivalent(
+                &mut test_env,
+                &CicTerm::Sort("TYPE".to_string()),
+                &CicTerm::Sort("PROP".to_string()),
             ),
-            &CicTerm::Product(
-                "y".to_string(),
-                Box::new(CicTerm::Sort("PROP".to_string())),
-                Box::new(CicTerm::Sort("PROP".to_string()))
-            )
-        ),
-        Ok(false),
-        "Alpha equivalence accepts non-equivalent abstractions"
-    );
-    assert_eq!(
-        alpha_equivalent(
-            &mut test_env,
-            &CicTerm::Variable("Nat".to_string()),
-            &CicTerm::Variable("Bool".to_string()),
-        ),
-        Ok(false),
-        "Alpha equivalence accepts different types as equivalent"
-    );
+            Ok(false),
+            "Alpha equivalence accepts different sorts"
+        );
+        assert_eq!(
+            alpha_equivalent(
+                &mut test_env,
+                &CicTerm::Abstraction(
+                    "x".to_string(),
+                    Box::new(CicTerm::Sort("PROP".to_string())),
+                    Box::new(CicTerm::Sort("TYPE".to_string()))
+                ),
+                &CicTerm::Abstraction(
+                    "y".to_string(),
+                    Box::new(CicTerm::Sort("PROP".to_string())),
+                    Box::new(CicTerm::Sort("TYPE".to_string()))
+                )
+            ),
+            Ok(true),
+            "Alpha equivalence refuses equivalent abstractions"
+        );
+        assert_eq!(
+            alpha_equivalent(
+                &mut test_env,
+                &CicTerm::Product(
+                    "x".to_string(),
+                    Box::new(CicTerm::Sort("PROP".to_string())),
+                    Box::new(CicTerm::Sort("TYPE".to_string()))
+                ),
+                &CicTerm::Product(
+                    "y".to_string(),
+                    Box::new(CicTerm::Sort("PROP".to_string())),
+                    Box::new(CicTerm::Sort("PROP".to_string()))
+                )
+            ),
+            Ok(false),
+            "Alpha equivalence accepts non-equivalent abstractions"
+        );
+        assert_eq!(
+            alpha_equivalent(
+                &mut test_env,
+                &CicTerm::Variable("Nat".to_string()),
+                &CicTerm::Variable("Bool".to_string()),
+            ),
+            Ok(false),
+            "Alpha equivalence accepts different types as equivalent"
+        );
+    }
 }

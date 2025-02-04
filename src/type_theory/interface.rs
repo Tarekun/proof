@@ -1,4 +1,4 @@
-use crate::parser::api::{Expression, NsAst, Statement};
+use crate::parser::api::NsAst;
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 
@@ -13,15 +13,15 @@ pub trait TypeTheory {
     /// Elaborate a full AST into an environment.
     fn elaborate_ast(ast: NsAst) -> Program<Self::Term, Self::Stm>;
 
-    /// Elaborate a statement in the given environment.
-    fn elaborate_statement(
-        ast: Statement,
-        program: &mut Program<Self::Term, Self::Stm>,
-    ) -> Result<(), String>;
+    // /// Elaborate a statement in the given environment.
+    // fn elaborate_statement(
+    //     ast: Statement,
+    //     program: &mut Program<Self::Term, Self::Stm>,
+    // ) -> Result<(), String>;
 
     /// Elaborate a single expression, updating the environment and returning
     /// the result as a term of the type theory.
-    fn elaborate_expression(ast: Expression) -> Self::Term;
+    // fn elaborate_expression(ast: Expression) -> impl Exp;
 
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message
@@ -41,6 +41,10 @@ pub trait TypeTheory {
         term2: &Self::Term,
     ) -> bool;
 
-    // /// Check if the two types provided unify with one another
-    // fn types_unify(type1: &Self::Type, type2: &Self::Type) -> bool;
+    /// Check if the two types provided unify with one another
+    fn types_unify(
+        environment: &mut Environment<Self::Term, Self::Type>,
+        type1: &Self::Type,
+        type2: &Self::Type,
+    ) -> bool;
 }

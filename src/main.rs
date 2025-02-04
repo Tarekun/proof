@@ -1,5 +1,6 @@
 mod entrypoints;
 mod file_manager;
+mod misc;
 mod parser {
     pub mod api;
     mod commons;
@@ -23,6 +24,11 @@ mod type_theory {
     //     pub mod elaboration;
     //     pub mod stlc;
     // }
+    pub mod fol {
+        pub mod elaboration;
+        pub mod fol;
+        pub mod type_check;
+    }
 }
 
 use entrypoints::parse_and_type_check;

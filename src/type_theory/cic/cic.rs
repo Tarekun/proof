@@ -54,12 +54,8 @@ pub enum CicStm {
 }
 
 pub struct Cic;
-impl TypeTheory for Cic {
-    type Term = CicTerm;
-    type Type = CicTerm;
-    type Stm = CicStm;
-
-    fn elaborate_expression(ast: Expression) -> CicTerm {
+impl Cic {
+    pub fn elaborate_expression(ast: Expression) -> CicTerm {
         match ast {
             Expression::VarUse(var_name) => elaborate_var_use(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
@@ -81,7 +77,7 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn elaborate_statement(
+    pub fn elaborate_statement(
         ast: Statement,
         program: &mut Program<CicTerm, CicStm>,
     ) -> Result<(), String> {
@@ -119,6 +115,12 @@ impl TypeTheory for Cic {
               // )),
         }
     }
+}
+
+impl TypeTheory for Cic {
+    type Term = CicTerm;
+    type Type = CicTerm;
+    type Stm = CicStm;
 
     fn elaborate_ast(ast: NsAst) -> Program<CicTerm, CicStm> {
         let mut program = Program::new();
@@ -203,9 +205,13 @@ impl TypeTheory for Cic {
         common_unification(environment, term1, term2)
     }
 
-    // fn types_unify(type1: &CicTerm, type2: &CicTerm) -> bool {
-    //     common_unification(type1, type2)
-    // }
+    fn types_unify(
+        environment: &mut Environment<CicTerm, CicTerm>,
+        type1: &CicTerm,
+        type2: &CicTerm,
+    ) -> bool {
+        common_unification(environment, type1, type2)
+    }
 }
 
 fn common_unification(
