@@ -25,6 +25,10 @@ jobs:
       
       - name: Run SonarQube analysis
         run: | #sonar-scanner
+          cargo tarpaulin --help
+          cargo clippy --help
+          cargo tarpaulin --all-features --out Xml
+          cargo clippy --message-format=json &> clippy.json
           docker run --rm \
             -e SONAR_HOST_URL="http://${SONARQUBE_URL}"  \
             -e SONAR_LOGIN=${{ secrets.SONARQUBE_TOKEN }}  \
