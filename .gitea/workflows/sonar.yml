@@ -1,17 +1,5 @@
 name: SonarQube Analysis
 on: [push]
-
-jobs:
-  sonarqube-analysis:
-    runs-on: ubuntu-latest
-    container:
-      image: cimg/rust:1.83.0-node  # Use a Rust-enabled image
-      image: docker:latest  # Use a Rust-enabled image
-
-    steps:
-      # Step 1: Checkout the repository
-      - name: Check out repository code
-        uses: actions/checkout@v4
       # Step 2: Install SonarScanner linux ARM64
       # - name: Install SonarScanner
       #   run: |
@@ -21,19 +9,40 @@ jobs:
       # Step 3: cargo test coverage report
       # - name: Generate coverage report
       #   run: cargo tarpaulin --out Xml
-      # Step 3: Run SonarQube analysis
+
+jobs:
+  sonarqube-analysis:
+    runs-on: ubuntu-latest
+    container:
+      image: cimg/rust:1.83.0-node  # Use a Rust-enabled image
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Install SonarScanner
+        run: |
+          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
+          unzip sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
+          # cp sonar-scanner-6.2.1.4610-linux-aarch64/bin/sonar-scanner /var/opt/sonar-scanner
+          echo "$(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin" >> $GITHUB_PATH
+          export PATH="$(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin:$PATH"
+          echo "PERCORSO"
+          echo "$(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin"
+          ls sonar-scanner-6.2.1.4610-linux-aarch64/bin
+          sonar-scanner --version
+
+      - name: Rust analysis dependencies
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --help
+          cargo clippy --help
       
       - name: Run SonarQube analysis
         run: | #sonar-scanner
-          cargo tarpaulin --help
-          cargo clippy --help
           cargo tarpaulin --all-features --out Xml
           cargo clippy --message-format=json &> clippy.json
-          docker run --rm \
-            -e SONAR_HOST_URL="http://${SONARQUBE_URL}"  \
-            -e SONAR_LOGIN=${{ secrets.SONARQUBE_TOKEN }}  \
-            -v ".:/usr/src" \
-            sonarsource/sonar-scanner-cli
+          sonar-scanner
         # env:
         #   SONAR_HOST_URL: https://iaisydanieletarek.ddns.net:9001
         #   SONAR_LOGIN: ${{ secrets.SONARQUBE_TOKEN }}

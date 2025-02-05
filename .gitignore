@@ -1,2 +1,4 @@
 target
 .scannerwork
+clippy.json
+cobertura.xml
