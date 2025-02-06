@@ -144,24 +144,14 @@ impl TypeTheory for Cic {
         term: CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
-        match term {
-            CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
-            CicTerm::Variable(var_name) => {
-                type_check_variable(environment, var_name)
-            }
-            CicTerm::Abstraction(var_name, var_type, body) => {
-                type_check_abstraction(environment, var_name, *var_type, *body)
-            }
-            CicTerm::Product(var_name, var_type, body) => {
-                type_check_product(environment, var_name, *var_type, *body)
-            }
-            CicTerm::Application(left, right) => {
-                type_check_application(environment, *left, *right)
-            }
-            CicTerm::Match(matched_term, branches) => {
-                type_check_match(environment, *matched_term, branches)
-            } // _ => Err(format!("Term case {:?} is not typable yet", term)),
-        }
+        common_type_checking(term, environment)
+    }
+
+    fn type_check_type(
+        term: CicTerm,
+        environment: &mut Environment<CicTerm, CicTerm>,
+    ) -> Result<CicTerm, String> {
+        common_type_checking(term, environment)
     }
 
     fn type_check_stm(
@@ -227,6 +217,30 @@ fn common_unification(
             "Type Error in alpha equivalence during unification. This should have been caught sooner:\n{}", 
             message
         )
+    }
+}
+
+fn common_type_checking(
+    term: CicTerm,
+    environment: &mut Environment<CicTerm, CicTerm>,
+) -> Result<CicTerm, String> {
+    match term {
+        CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
+        CicTerm::Variable(var_name) => {
+            type_check_variable(environment, var_name)
+        }
+        CicTerm::Abstraction(var_name, var_type, body) => {
+            type_check_abstraction(environment, var_name, *var_type, *body)
+        }
+        CicTerm::Product(var_name, var_type, body) => {
+            type_check_product(environment, var_name, *var_type, *body)
+        }
+        CicTerm::Application(left, right) => {
+            type_check_application(environment, *left, *right)
+        }
+        CicTerm::Match(matched_term, branches) => {
+            type_check_match(environment, *matched_term, branches)
+        } // _ => Err(format!("Term case {:?} is not typable yet", term)),
     }
 }
 

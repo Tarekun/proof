@@ -368,677 +368,687 @@ pub fn type_check_inductive(
 //
 //
 //########################### UNIT TESTS
-#[test]
-fn test_type_check_sort_n_vars() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-    // assumption, the type statement is included in the context
-    test_env
-        .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
-    // definition, we have the variabled and a typed body
-    test_env.add_variable_definition(
-        "m",
-        &CicTerm::Variable("n".to_string()),
-        &CicTerm::Variable("nat".to_string()),
-    );
+#[cfg(test)]
+mod unit_tests {
+    use crate::type_theory::cic::{
+        cic::{make_default_environment, Cic, CicStm, CicTerm}, 
+        type_check::{type_check_fun, type_check_inductive}
+    };
+    use crate::type_theory::interface::TypeTheory;
 
-    // sorts
-    assert_eq!(
-        Cic::type_check_term(CicTerm::Sort("TYPE".to_string()), &mut test_env)
-            .unwrap(),
-        CicTerm::Sort("TYPE".to_string()),
-        "Sort 'TYPE' type checking failed"
-    );
-    assert!(
-        Cic::type_check_term(CicTerm::Sort("PROP".to_string()), &mut test_env)
-            .is_ok(),
-        "Sort 'PROP' type checking failed"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Sort("StupidInvalidSort".to_string()),
-            &mut test_env
-        )
-        .is_err(),
-        "Sort type checker accepts illegal sort"
-    );
-    assert!(
-        Cic::type_check_term(CicTerm::Variable("TYPE".to_string()), &mut test_env)
-            .is_ok(),
-        "Type checker refuses sorts when used as variables"
-    );
+    #[test]
+    fn test_type_check_sort_n_vars() {
+        let mut test_env = make_default_environment();
+        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        // assumption, the type statement is included in the context
+        test_env
+            .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
+        // definition, we have the variabled and a typed body
+        test_env.add_variable_definition(
+            "m",
+            &CicTerm::Variable("n".to_string()),
+            &CicTerm::Variable("nat".to_string()),
+        );
 
-    // variables
-    assert_eq!(
-        Cic::type_check_term(CicTerm::Variable("n".to_string()), &mut test_env)
-            .unwrap(),
-        CicTerm::Variable("nat".to_string()),
-        "Type checker refuses existing variable"
-    );
-    assert!(
-        Cic::type_check_term(CicTerm::Variable("m".to_string()), &mut test_env)
-            .is_ok(),
-        "Type checker refuses defined variable"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Sort("stupidInvalidVar".to_string()),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts unbound variable"
-    );
-}
+        // sorts
+        assert_eq!(
+            Cic::type_check_term(CicTerm::Sort("TYPE".to_string()), &mut test_env)
+                .unwrap(),
+            CicTerm::Sort("TYPE".to_string()),
+            "Sort 'TYPE' type checking failed"
+        );
+        assert!(
+            Cic::type_check_term(CicTerm::Sort("PROP".to_string()), &mut test_env)
+                .is_ok(),
+            "Sort 'PROP' type checking failed"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Sort("StupidInvalidSort".to_string()),
+                &mut test_env
+            )
+            .is_err(),
+            "Sort type checker accepts illegal sort"
+        );
+        assert!(
+            Cic::type_check_term(CicTerm::Variable("TYPE".to_string()), &mut test_env)
+                .is_ok(),
+            "Type checker refuses sorts when used as variables"
+        );
 
-#[test]
-fn test_type_check_abstraction() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-    // assumption, the type statement is included in the context
-    test_env
-        .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
-    // function over nat
-    test_env.add_variable_to_context(
-        "s",
-        &CicTerm::Product(
-            "n".to_string(),
-            Box::new(CicTerm::Variable("nat".to_string())),
-            Box::new(CicTerm::Variable("nat".to_string())),
-        ),
-    );
+        // variables
+        assert_eq!(
+            Cic::type_check_term(CicTerm::Variable("n".to_string()), &mut test_env)
+                .unwrap(),
+            CicTerm::Variable("nat".to_string()),
+            "Type checker refuses existing variable"
+        );
+        assert!(
+            Cic::type_check_term(CicTerm::Variable("m".to_string()), &mut test_env)
+                .is_ok(),
+            "Type checker refuses defined variable"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Sort("stupidInvalidVar".to_string()),
+                &mut test_env
+            )
+            .is_err(),
+            "Type checker accepts unbound variable"
+        );
+    }
 
-    assert_eq!(
-        Cic::type_check_term(
-            CicTerm::Abstraction(
-                "x".to_string(),
+    #[test]
+    fn test_type_check_abstraction() {
+        let mut test_env = make_default_environment();
+        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        // assumption, the type statement is included in the context
+        test_env
+            .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
+        // function over nat
+        test_env.add_variable_to_context(
+            "s",
+            &CicTerm::Product(
+                "n".to_string(),
                 Box::new(CicTerm::Variable("nat".to_string())),
-                Box::new(CicTerm::Variable("x".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string())),
             ),
-            &mut test_env
-        )
-        .unwrap(),
-        CicTerm::Product(
-            "x".to_string(),
-            Box::new(CicTerm::Variable("nat".to_string())),
-            Box::new(CicTerm::Variable("nat".to_string()))
-        ),
-        "Type checker refuses simple identity function"
-    );
-    assert_eq!(
-        test_env.get_from_context("x"),
-        None,
-        "Abstraction type checker stains context with local variable"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Abstraction(
-                "x".to_string(),
-                Box::new(CicTerm::Variable("nat".to_string())),
-                Box::new(CicTerm::Application(
-                    Box::new(CicTerm::Variable("s".to_string())),
+        );
+
+        assert_eq!(
+            Cic::type_check_term(
+                CicTerm::Abstraction(
+                    "x".to_string(),
+                    Box::new(CicTerm::Variable("nat".to_string())),
                     Box::new(CicTerm::Variable("x".to_string())),
-                )),
-            ),
-            &mut test_env
-        )
-        .is_ok(),
-        "Type checker refuses function with more complex body"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Abstraction(
+                ),
+                &mut test_env
+            )
+            .unwrap(),
+            CicTerm::Product(
                 "x".to_string(),
-                Box::new(CicTerm::Variable("StupidInvalidType".to_string())),
-                Box::new(CicTerm::Variable("x".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string()))
             ),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts function defined over non existant type"
-    );
-}
+            "Type checker refuses simple identity function"
+        );
+        assert_eq!(
+            test_env.get_from_context("x"),
+            None,
+            "Abstraction type checker stains context with local variable"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Abstraction(
+                    "x".to_string(),
+                    Box::new(CicTerm::Variable("nat".to_string())),
+                    Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Variable("s".to_string())),
+                        Box::new(CicTerm::Variable("x".to_string())),
+                    )),
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "Type checker refuses function with more complex body"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Abstraction(
+                    "x".to_string(),
+                    Box::new(CicTerm::Variable("StupidInvalidType".to_string())),
+                    Box::new(CicTerm::Variable("x".to_string())),
+                ),
+                &mut test_env
+            )
+            .is_err(),
+            "Type checker accepts function defined over non existant type"
+        );
+    }
 
-#[test]
-fn test_type_check_product() {
-    let mut test_env = make_default_environment();
-    // polymorphic type constructor
-    test_env.add_variable_to_context(
-        "list",
-        &CicTerm::Product(
-            "T".to_string(),
-            Box::new(CicTerm::Sort("TYPE".to_string())),
-            Box::new(CicTerm::Sort("TYPE".to_string())),
-        ),
-    );
-
-    assert_eq!(
-        Cic::type_check_term(
-            CicTerm::Product(
+    #[test]
+    fn test_type_check_product() {
+        let mut test_env = make_default_environment();
+        // polymorphic type constructor
+        test_env.add_variable_to_context(
+            "list",
+            &CicTerm::Product(
                 "T".to_string(),
                 Box::new(CicTerm::Sort("TYPE".to_string())),
-                Box::new(CicTerm::Variable("T".to_string())),
-            ),
-            &mut test_env
-        )
-        .unwrap(),
-        CicTerm::Sort("TYPE".to_string()),
-        "Type checker refuses simple polymorphic identity type"
-    );
-    assert_eq!(
-        test_env.get_from_context("T"),
-        None,
-        "Product type checker stains context with local variable"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Product(
-                "T".to_string(),
-                Box::new(CicTerm::Sort("StupidInvalidSort".to_string())),
-                Box::new(CicTerm::Variable("T".to_string())),
-            ),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts polymorphic type over illegal sort"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Product(
-                "T".to_string(),
                 Box::new(CicTerm::Sort("TYPE".to_string())),
-                Box::new(CicTerm::Application(
-                    Box::new(CicTerm::Variable("list".to_string())),
-                    Box::new(CicTerm::Variable("T".to_string()))
-                ))
             ),
-            &mut test_env
-        )
-        .is_ok(),
-        "Type checker refuses polymorphic types with more complex bodies"
-    );
-}
+        );
 
-#[test]
-// TODO include tests for polymorphic types
-fn test_type_check_application() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-    // assumption, the type statement is included in the context
-    test_env
-        .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
-    // definition, we have the variabled and a typed body
-    test_env.add_variable_definition(
-        "m",
-        &CicTerm::Variable("n".to_string()),
-        &CicTerm::Variable("nat".to_string()),
-    );
-    // function over nat
-    test_env.add_variable_to_context(
-        "s",
-        &CicTerm::Product(
-            "n".to_string(),
-            Box::new(CicTerm::Variable("nat".to_string())),
-            Box::new(CicTerm::Variable("nat".to_string())),
-        ),
-    );
+        assert_eq!(
+            Cic::type_check_term(
+                CicTerm::Product(
+                    "T".to_string(),
+                    Box::new(CicTerm::Sort("TYPE".to_string())),
+                    Box::new(CicTerm::Variable("T".to_string())),
+                ),
+                &mut test_env
+            )
+            .unwrap(),
+            CicTerm::Sort("TYPE".to_string()),
+            "Type checker refuses simple polymorphic identity type"
+        );
+        assert_eq!(
+            test_env.get_from_context("T"),
+            None,
+            "Product type checker stains context with local variable"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Product(
+                    "T".to_string(),
+                    Box::new(CicTerm::Sort("StupidInvalidSort".to_string())),
+                    Box::new(CicTerm::Variable("T".to_string())),
+                ),
+                &mut test_env
+            )
+            .is_err(),
+            "Type checker accepts polymorphic type over illegal sort"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Product(
+                    "T".to_string(),
+                    Box::new(CicTerm::Sort("TYPE".to_string())),
+                    Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Variable("list".to_string())),
+                        Box::new(CicTerm::Variable("T".to_string()))
+                    ))
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "Type checker refuses polymorphic types with more complex bodies"
+        );
+    }
 
-    assert_eq!(
-        Cic::type_check_term(
-            CicTerm::Application(
-                Box::new(CicTerm::Variable("s".to_string())),
-                Box::new(CicTerm::Variable("n".to_string())),
+    #[test]
+    // TODO include tests for polymorphic types
+    fn test_type_check_application() {
+        let mut test_env = make_default_environment();
+        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        // assumption, the type statement is included in the context
+        test_env
+            .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
+        // definition, we have the variabled and a typed body
+        test_env.add_variable_definition(
+            "m",
+            &CicTerm::Variable("n".to_string()),
+            &CicTerm::Variable("nat".to_string()),
+        );
+        // function over nat
+        test_env.add_variable_to_context(
+            "s",
+            &CicTerm::Product(
+                "n".to_string(),
+                Box::new(CicTerm::Variable("nat".to_string())),
+                Box::new(CicTerm::Variable("nat".to_string())),
             ),
-            &mut test_env
-        )
-        .unwrap(),
-        CicTerm::Variable("nat".to_string()),
-        "Type checker refuses function application over nat"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Application(
-                Box::new(CicTerm::Variable("s".to_string())),
-                Box::new(CicTerm::Variable("m".to_string())),
-            ),
-            &mut test_env
-        )
-        .is_ok(),
-        "Type checker refuses function application over a variable when defined and not assumed"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Application(
-                Box::new(CicTerm::Variable("s".to_string())),
-                Box::new(CicTerm::Variable("TYPE".to_string())),
-            ),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts illegal function application"
-    );
-}
+        );
 
-#[test]
-//TODO add check of exaustiveness of patterns
-fn test_type_check_match() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-    test_env.add_variable_to_context("Bool", &CicTerm::Sort("TYPE".to_string()));
-    test_env
-        .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
-    test_env.add_variable_to_context(
-        "s",
-        &CicTerm::Product(
-            "_".to_string(),
-            Box::new(CicTerm::Variable("nat".to_string())),
-            Box::new(CicTerm::Variable("nat".to_string())),
-        ),
-    );
-    test_env
-        .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
-    test_env
-        .add_variable_to_context("true", &CicTerm::Variable("Bool".to_string()));
+        assert_eq!(
+            Cic::type_check_term(
+                CicTerm::Application(
+                    Box::new(CicTerm::Variable("s".to_string())),
+                    Box::new(CicTerm::Variable("n".to_string())),
+                ),
+                &mut test_env
+            )
+            .unwrap(),
+            CicTerm::Variable("nat".to_string()),
+            "Type checker refuses function application over nat"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Application(
+                    Box::new(CicTerm::Variable("s".to_string())),
+                    Box::new(CicTerm::Variable("m".to_string())),
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "Type checker refuses function application over a variable when defined and not assumed"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Application(
+                    Box::new(CicTerm::Variable("s".to_string())),
+                    Box::new(CicTerm::Variable("TYPE".to_string())),
+                ),
+                &mut test_env
+            )
+            .is_err(),
+            "Type checker accepts illegal function application"
+        );
+    }
 
-    assert_eq!(
-        Cic::type_check_term(
-            CicTerm::Match(
-                Box::new(CicTerm::Variable("c".to_string())),
-                vec![
-                    (
-                        vec![CicTerm::Variable("o".to_string())],
-                        CicTerm::Variable("o".to_string())
-                    ),
-                    (
-                        vec![
-                            CicTerm::Variable("s".to_string()),
-                            CicTerm::Variable("n".to_string())
-                        ],
-                        CicTerm::Variable("c".to_string())
-                    ),
-                ]
-            ),
-            &mut test_env
-        )
-        .unwrap(),
-        CicTerm::Variable("nat".to_string()),
-        "Type checker refuses matching over naturals"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Match(
-                Box::new(CicTerm::Variable(
-                    "stupidUnboundVariable".to_string()
-                )),
-                vec![
-                    (
-                        vec![CicTerm::Variable("o".to_string())],
-                        CicTerm::Variable("o".to_string())
-                    ),
-                    (
-                        vec![
-                            CicTerm::Variable("s".to_string()),
-                            CicTerm::Variable("n".to_string())
-                        ],
-                        CicTerm::Variable("c".to_string())
-                    ),
-                ]
-            ),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts matching over unbound variable"
-    );
-    assert!(
-        Cic::type_check_term(
-            CicTerm::Match(
-                Box::new(CicTerm::Variable("c".to_string())),
-                vec![
-                    (
-                        vec![CicTerm::Variable("o".to_string())],
-                        CicTerm::Variable("o".to_string())
-                    ),
-                    (
-                        vec![
-                            CicTerm::Variable("s".to_string()),
-                            CicTerm::Variable("n".to_string())
-                        ],
-                        CicTerm::Variable("true".to_string()) //this body has type : Bool
-                    ),
-                ]
-            ),
-            &mut test_env
-        )
-        .is_err(),
-        "Type checker accepts match with inconsistent branch types"
-    );
-
-    //TODO this should be address: do we want pattern variable to override names in context
-    //or should the declared variables names be fresh?
-    // assert!(
-    //     Cic::type_check_term(
-    //         CicTerm::Match(
-    //             Box::new(CicTerm::Variable("c".to_string())),
-    //             vec![
-    //                 (
-    //                     vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
-    //                     CicTerm::Variable("o".to_string())
-    //                 ),
-    //                 (
-    //                     vec![
-    //                         CicTerm::Variable("s".to_string()),
-    //                         CicTerm::Variable("n".to_string())
-    //                     ],
-    //                     CicTerm::Variable("n".to_string())
-    //                 ),
-    //             ]
-    //         ),
-    //         &mut test_env
-    //     )
-    //     .is_err(),
-    //     "Type checker accepts match with random (properly typed) variable in place of constructor"
-    // );
-}
-
-//TODO add check for positivity
-#[test]
-fn test_type_check_inductive() {
-    let mut test_env = make_default_environment();
-    let constructors = vec![
-        ("o".to_string(), CicTerm::Variable("nat".to_string())),
-        (
-            "s".to_string(),
-            CicTerm::Product(
+    #[test]
+    //TODO add check of exaustiveness of patterns
+    fn test_type_check_match() {
+        let mut test_env = make_default_environment();
+        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_variable_to_context("Bool", &CicTerm::Sort("TYPE".to_string()));
+        test_env
+            .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
+        test_env.add_variable_to_context(
+            "s",
+            &CicTerm::Product(
                 "_".to_string(),
                 Box::new(CicTerm::Variable("nat".to_string())),
                 Box::new(CicTerm::Variable("nat".to_string())),
             ),
-        ),
-    ];
-    #[allow(non_snake_case)]
-    let TYPE = CicTerm::Sort("TYPE".to_string());
-    let ariety = TYPE.clone();
+        );
+        test_env
+            .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
+        test_env
+            .add_variable_to_context("true", &CicTerm::Variable("Bool".to_string()));
 
-    // generic checks
-    assert!(
-        type_check_inductive(
-            &mut test_env,
-            "Empty".to_string(),
-            vec![],
-            TYPE.clone(),
-            vec![]
-        )
-        .is_ok(),
-        "Inductive type checking is refuting empty type"
-    );
-    assert!(
-        type_check_inductive(
-            &mut test_env,
-            "inc".to_string(),
-            vec![],
-            TYPE.clone(),
-            vec![
-                ("correct".to_string(), CicTerm::Variable("inc".to_string())),
-                (
-                    "wrong".to_string(),
-                    CicTerm::Variable("wrongType".to_string())
-                )
-            ]
-        )
-        .is_err(),
-        "Inductive type checking is accepting ill typed constructor"
-    );
-    assert!(
-        type_check_inductive(
-            &mut test_env,
-            "fail".to_string(),
-            vec![],
-            CicTerm::Sort("UNBOUND_SORT".to_string()),
-            vec![]
-        )
-        .is_err(),
-        "Inductive type checking is accepting definition on non existent arieties"
-    );
-    assert!(
-        test_env.with_local_declarations(&vec![
-            ("nat".to_string(), TYPE.clone()),
-            ("zero".to_string(), CicTerm::Variable("nat".to_string()))
-        ], |local_env| {
-            type_check_inductive(
-                local_env,
-                "fail".to_string(),
-                vec![],
-                CicTerm::Variable("zero".to_string()),  //bound, non-sort variable
-                vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+        assert_eq!(
+            Cic::type_check_term(
+                CicTerm::Match(
+                    Box::new(CicTerm::Variable("c".to_string())),
+                    vec![
+                        (
+                            vec![CicTerm::Variable("o".to_string())],
+                            CicTerm::Variable("o".to_string())
+                        ),
+                        (
+                            vec![
+                                CicTerm::Variable("s".to_string()),
+                                CicTerm::Variable("n".to_string())
+                            ],
+                            CicTerm::Variable("c".to_string())
+                        ),
+                    ]
+                ),
+                &mut test_env
             )
-            .is_err()
-        }),
-        "Inductive type checking is accepting definition with simple term ariety"
-    );
-    assert!(
-        test_env.with_local_declarations(&vec![
-            ("nat".to_string(), TYPE.clone()),
-            ("zero".to_string(), CicTerm::Variable("nat".to_string()))
-        ], |local_env| {
+            .unwrap(),
+            CicTerm::Variable("nat".to_string()),
+            "Type checker refuses matching over naturals"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Match(
+                    Box::new(CicTerm::Variable(
+                        "stupidUnboundVariable".to_string()
+                    )),
+                    vec![
+                        (
+                            vec![CicTerm::Variable("o".to_string())],
+                            CicTerm::Variable("o".to_string())
+                        ),
+                        (
+                            vec![
+                                CicTerm::Variable("s".to_string()),
+                                CicTerm::Variable("n".to_string())
+                            ],
+                            CicTerm::Variable("c".to_string())
+                        ),
+                    ]
+                ),
+                &mut test_env
+            )
+            .is_err(),
+            "Type checker accepts matching over unbound variable"
+        );
+        assert!(
+            Cic::type_check_term(
+                CicTerm::Match(
+                    Box::new(CicTerm::Variable("c".to_string())),
+                    vec![
+                        (
+                            vec![CicTerm::Variable("o".to_string())],
+                            CicTerm::Variable("o".to_string())
+                        ),
+                        (
+                            vec![
+                                CicTerm::Variable("s".to_string()),
+                                CicTerm::Variable("n".to_string())
+                            ],
+                            CicTerm::Variable("true".to_string()) //this body has type : Bool
+                        ),
+                    ]
+                ),
+                &mut test_env
+            )
+            .is_err(),
+            "Type checker accepts match with inconsistent branch types"
+        );
+
+        //TODO this should be address: do we want pattern variable to override names in context
+        //or should the declared variables names be fresh?
+        // assert!(
+        //     Cic::type_check_term(
+        //         CicTerm::Match(
+        //             Box::new(CicTerm::Variable("c".to_string())),
+        //             vec![
+        //                 (
+        //                     vec![CicTerm::Variable("c".to_string())], //random variable in place of constr
+        //                     CicTerm::Variable("o".to_string())
+        //                 ),
+        //                 (
+        //                     vec![
+        //                         CicTerm::Variable("s".to_string()),
+        //                         CicTerm::Variable("n".to_string())
+        //                     ],
+        //                     CicTerm::Variable("n".to_string())
+        //                 ),
+        //             ]
+        //         ),
+        //         &mut test_env
+        //     )
+        //     .is_err(),
+        //     "Type checker accepts match with random (properly typed) variable in place of constructor"
+        // );
+    }
+
+    //TODO add check for positivity
+    #[test]
+    fn test_type_check_inductive() {
+        let mut test_env = make_default_environment();
+        let constructors = vec![
+            ("o".to_string(), CicTerm::Variable("nat".to_string())),
+            (
+                "s".to_string(),
+                CicTerm::Product(
+                    "_".to_string(),
+                    Box::new(CicTerm::Variable("nat".to_string())),
+                    Box::new(CicTerm::Variable("nat".to_string())),
+                ),
+            ),
+        ];
+        #[allow(non_snake_case)]
+        let TYPE = CicTerm::Sort("TYPE".to_string());
+        let ariety = TYPE.clone();
+
+        // generic checks
+        assert!(
             type_check_inductive(
-                local_env,
-                "fail".to_string(),
+                &mut test_env,
+                "Empty".to_string(),
                 vec![],
                 TYPE.clone(),
-                vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                vec![]
             )
-            .is_err()
-        }),
-        "Inductive type checking is accepting definition with simple term constructor type"
-    );
+            .is_ok(),
+            "Inductive type checking is refuting empty type"
+        );
+        assert!(
+            type_check_inductive(
+                &mut test_env,
+                "inc".to_string(),
+                vec![],
+                TYPE.clone(),
+                vec![
+                    ("correct".to_string(), CicTerm::Variable("inc".to_string())),
+                    (
+                        "wrong".to_string(),
+                        CicTerm::Variable("wrongType".to_string())
+                    )
+                ]
+            )
+            .is_err(),
+            "Inductive type checking is accepting ill typed constructor"
+        );
+        assert!(
+            type_check_inductive(
+                &mut test_env,
+                "fail".to_string(),
+                vec![],
+                CicTerm::Sort("UNBOUND_SORT".to_string()),
+                vec![]
+            )
+            .is_err(),
+            "Inductive type checking is accepting definition on non existent arieties"
+        );
+        assert!(
+            test_env.with_local_declarations(&vec![
+                ("nat".to_string(), TYPE.clone()),
+                ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+            ], |local_env| {
+                type_check_inductive(
+                    local_env,
+                    "fail".to_string(),
+                    vec![],
+                    CicTerm::Variable("zero".to_string()),  //bound, non-sort variable
+                    vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                )
+                .is_err()
+            }),
+            "Inductive type checking is accepting definition with simple term ariety"
+        );
+        assert!(
+            test_env.with_local_declarations(&vec![
+                ("nat".to_string(), TYPE.clone()),
+                ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+            ], |local_env| {
+                type_check_inductive(
+                    local_env,
+                    "fail".to_string(),
+                    vec![],
+                    TYPE.clone(),
+                    vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                )
+                .is_err()
+            }),
+            "Inductive type checking is accepting definition with simple term constructor type"
+        );
 
-    // peano naturals
-    assert_eq!(
-        type_check_inductive(
-            &mut test_env,
-            "nat".to_string(),
-            vec![],
-            ariety,
-            constructors.clone()
-        ),
-        Ok(CicTerm::Variable("Unit".to_string())),
-        "Inductive type checking isnt passing nat definition"
-    );
-    assert!(
-        Cic::type_check_stm(
-            CicStm::InductiveDef(
+        // peano naturals
+        assert_eq!(
+            type_check_inductive(
+                &mut test_env,
                 "nat".to_string(),
                 vec![],
-                Box::new(TYPE.clone()),
-                constructors
+                ariety,
+                constructors.clone()
             ),
-            &mut test_env
-        )
-        .is_ok(),
-        "Top level type checker doesnt support inductive definitions"
-    );
+            Ok(CicTerm::Variable("Unit".to_string())),
+            "Inductive type checking isnt passing nat definition"
+        );
+        assert!(
+            Cic::type_check_stm(
+                CicStm::InductiveDef(
+                    "nat".to_string(),
+                    vec![],
+                    Box::new(TYPE.clone()),
+                    constructors
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "Top level type checker doesnt support inductive definitions"
+        );
 
-    // logic relations
-    assert!(
-        type_check_inductive(
-            &mut test_env,
-            "Eq".to_string(),
-            vec![
-                ("T".to_string(), TYPE.clone()),
-                ("x".to_string(), CicTerm::Variable("T".to_string()))
-            ],
-            CicTerm::Product(
-                "_".to_string(),
-                Box::new(CicTerm::Variable("T".to_string())),
-                Box::new(CicTerm::Sort("PROP".to_string()))
-            ),
-            vec![(
-                "refl".to_string(),
-                CicTerm::Application(
-                    Box::new(CicTerm::Application(
+        // logic relations
+        assert!(
+            type_check_inductive(
+                &mut test_env,
+                "Eq".to_string(),
+                vec![
+                    ("T".to_string(), TYPE.clone()),
+                    ("x".to_string(), CicTerm::Variable("T".to_string()))
+                ],
+                CicTerm::Product(
+                    "_".to_string(),
+                    Box::new(CicTerm::Variable("T".to_string())),
+                    Box::new(CicTerm::Sort("PROP".to_string()))
+                ),
+                vec![(
+                    "refl".to_string(),
+                    CicTerm::Application(
                         Box::new(CicTerm::Application(
-                            Box::new(CicTerm::Variable("Eq".to_string())),
-                            Box::new(CicTerm::Variable("T".to_string()))
+                            Box::new(CicTerm::Application(
+                                Box::new(CicTerm::Variable("Eq".to_string())),
+                                Box::new(CicTerm::Variable("T".to_string()))
+                            )),
+                            Box::new(CicTerm::Variable("x".to_string()))
                         )),
                         Box::new(CicTerm::Variable("x".to_string()))
-                    )),
-                    Box::new(CicTerm::Variable("x".to_string()))
-                )
-            )]
-        )
-        .is_ok(),
-        "Inductive type checker doesnt accept equality definition"
-    );
+                    )
+                )]
+            )
+            .is_ok(),
+            "Inductive type checker doesnt accept equality definition"
+        );
 
-    // polymorphic lists
-    let list_of_t = CicTerm::Application(
-        Box::new(CicTerm::Variable("list".to_string())),
-        Box::new(CicTerm::Variable("T".to_string())),
-    );
-    let constructors = vec![
-        ("nil".to_string(), list_of_t.clone()),
-        (
-            "cons".to_string(),
-            CicTerm::Product(
-                "_".to_string(),
-                Box::new(CicTerm::Variable("T".to_string())),
-                Box::new(CicTerm::Product(
+        // polymorphic lists
+        let list_of_t = CicTerm::Application(
+            Box::new(CicTerm::Variable("list".to_string())),
+            Box::new(CicTerm::Variable("T".to_string())),
+        );
+        let constructors = vec![
+            ("nil".to_string(), list_of_t.clone()),
+            (
+                "cons".to_string(),
+                CicTerm::Product(
                     "_".to_string(),
-                    Box::new(list_of_t.clone()),
-                    Box::new(list_of_t.clone()),
-                )),
-            ),
-        ),
-    ];
-    let wrong_constructors = vec![
-        ("nil".to_string(), list_of_t.clone()),
-        (
-            "cons".to_string(),
-            CicTerm::Product(
-                "_".to_string(),
-                Box::new(CicTerm::Variable("T_T".to_string())), //unbound variable
-                Box::new(CicTerm::Product(
-                    "_".to_string(),
-                    Box::new(list_of_t.clone()),
-                    Box::new(list_of_t.clone()),
-                )),
-            ),
-        ),
-    ];
-    assert!(
-        type_check_inductive(
-            &mut test_env,
-            "list".to_string(),
-            vec![("T".to_string(), TYPE.clone())],
-            TYPE.clone(),
-            constructors
-        )
-        .is_ok(),
-        "Inductive type checking isnt working with dependent inductive types"
-    );
-    assert!(
-        type_check_inductive(
-            &mut test_env,
-            "list".to_string(),
-            vec![("T".to_string(), TYPE.clone())],
-            TYPE.clone(),
-            wrong_constructors
-        )
-        .is_err(),
-        "Inductive type checking isnt working with dependent inductive types"
-    );
-}
-
-#[test]
-fn test_type_check_fun() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
-    test_env.add_variable_to_context("z", &CicTerm::Variable("Nat".to_string()));
-    test_env.add_variable_to_context("s", 
-        &CicTerm::Product(
-            "_".to_string(),
-            Box::new(CicTerm::Variable("Nat".to_string())), 
-            Box::new(CicTerm::Variable("Nat".to_string()))
-        )
-    );
-
-    assert!(
-        type_check_fun(
-            &mut test_env,
-            "f".to_string(),
-            vec![("t".to_string(), CicTerm::Sort("TYPE".to_string()))], 
-            CicTerm::Sort("TYPE".to_string()),
-            CicTerm::Variable("t".to_string()), 
-            false
-        ).is_ok(),
-        "Type checking refuses identity function"
-    );
-
-    let args = vec![
-        ("n".to_string(), CicTerm::Variable("Nat".to_string())),
-        ("m".to_string(), CicTerm::Variable("Nat".to_string())),
-    ];
-    let zerobranch = (
-        //patter
-        vec![CicTerm::Variable("z".to_string())], 
-        //body
-        CicTerm::Variable("m".to_string())
-    );
-    let succbranch = (
-        //patter
-        vec![CicTerm::Variable("s".to_string()), CicTerm::Variable("nn".to_string())], 
-        //body
-        CicTerm::Application(
-            Box::new(CicTerm::Variable("s".to_string())), 
-            Box::new(CicTerm::Application(
-                    Box::new(CicTerm::Application(
-                        Box::new(CicTerm::Variable("add".to_string())), 
-                        Box::new(CicTerm::Variable("nn".to_string())), 
+                    Box::new(CicTerm::Variable("T".to_string())),
+                    Box::new(CicTerm::Product(
+                        "_".to_string(),
+                        Box::new(list_of_t.clone()),
+                        Box::new(list_of_t.clone()),
                     )),
-                    Box::new(CicTerm::Variable("m".to_string())), 
+                ),
+            ),
+        ];
+        let wrong_constructors = vec![
+            ("nil".to_string(), list_of_t.clone()),
+            (
+                "cons".to_string(),
+                CicTerm::Product(
+                    "_".to_string(),
+                    Box::new(CicTerm::Variable("T_T".to_string())), //unbound variable
+                    Box::new(CicTerm::Product(
+                        "_".to_string(),
+                        Box::new(list_of_t.clone()),
+                        Box::new(list_of_t.clone()),
+                    )),
+                ),
+            ),
+        ];
+        assert!(
+            type_check_inductive(
+                &mut test_env,
+                "list".to_string(),
+                vec![("T".to_string(), TYPE.clone())],
+                TYPE.clone(),
+                constructors
+            )
+            .is_ok(),
+            "Inductive type checking isnt working with dependent inductive types"
+        );
+        assert!(
+            type_check_inductive(
+                &mut test_env,
+                "list".to_string(),
+                vec![("T".to_string(), TYPE.clone())],
+                TYPE.clone(),
+                wrong_constructors
+            )
+            .is_err(),
+            "Inductive type checking isnt working with dependent inductive types"
+        );
+    }
+
+    #[test]
+    fn test_type_check_fun() {
+        let mut test_env = make_default_environment();
+        test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_variable_to_context("z", &CicTerm::Variable("Nat".to_string()));
+        test_env.add_variable_to_context("s", 
+            &CicTerm::Product(
+                "_".to_string(),
+                Box::new(CicTerm::Variable("Nat".to_string())), 
+                Box::new(CicTerm::Variable("Nat".to_string()))
+            )
+        );
+
+        assert!(
+            type_check_fun(
+                &mut test_env,
+                "f".to_string(),
+                vec![("t".to_string(), CicTerm::Sort("TYPE".to_string()))], 
+                CicTerm::Sort("TYPE".to_string()),
+                CicTerm::Variable("t".to_string()), 
+                false
+            ).is_ok(),
+            "Type checking refuses identity function"
+        );
+
+        let args = vec![
+            ("n".to_string(), CicTerm::Variable("Nat".to_string())),
+            ("m".to_string(), CicTerm::Variable("Nat".to_string())),
+        ];
+        let zerobranch = (
+            //patter
+            vec![CicTerm::Variable("z".to_string())], 
+            //body
+            CicTerm::Variable("m".to_string())
+        );
+        let succbranch = (
+            //patter
+            vec![CicTerm::Variable("s".to_string()), CicTerm::Variable("nn".to_string())], 
+            //body
+            CicTerm::Application(
+                Box::new(CicTerm::Variable("s".to_string())), 
+                Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Application(
+                            Box::new(CicTerm::Variable("add".to_string())), 
+                            Box::new(CicTerm::Variable("nn".to_string())), 
+                        )),
+                        Box::new(CicTerm::Variable("m".to_string())), 
+                    )
                 )
             )
-        )
-    );
-    assert!(
-        type_check_fun(
+        );
+        assert!(
+            type_check_fun(
+                &mut test_env,
+                "add".to_string(),
+                args.clone(), 
+                CicTerm::Sort("Nat".to_string()),
+                CicTerm::Match(
+                    Box::new(CicTerm::Variable("n".to_string())), 
+                    vec![zerobranch.clone(),succbranch.clone()]
+                ), 
+                false 
+            ).is_err(),
+            "Type checking accepts recursive function not marked as recursive"
+        );
+        let res = type_check_fun(
             &mut test_env,
             "add".to_string(),
-            args.clone(), 
-            CicTerm::Sort("Nat".to_string()),
+            args, 
+            CicTerm::Variable("Nat".to_string()),
             CicTerm::Match(
                 Box::new(CicTerm::Variable("n".to_string())), 
-                vec![zerobranch.clone(),succbranch.clone()]
+                vec![zerobranch,succbranch,]
             ), 
-            false 
-        ).is_err(),
-        "Type checking accepts recursive function not marked as recursive"
-    );
-    let res = type_check_fun(
-        &mut test_env,
-        "add".to_string(),
-        args, 
-        CicTerm::Variable("Nat".to_string()),
-        CicTerm::Match(
-            Box::new(CicTerm::Variable("n".to_string())), 
-            vec![zerobranch,succbranch,]
-        ), 
-        true 
-    );
-    assert!(
-        res.is_ok(),
-        "Type checking refuses recursive functions:\n{:?}",
-        res.err()
-    );
+            true 
+        );
+        assert!(
+            res.is_ok(),
+            "Type checking refuses recursive functions:\n{:?}",
+            res.err()
+        );
 
-    assert!(
-        type_check_fun(
-            &mut test_env,
-            "f".to_string(),
-            vec![], 
-            CicTerm::Variable("Nat".to_string()),
-            CicTerm::Sort("TYPE".to_string()), 
-            false
-        ).is_err(),
-        "Type checking accept function with a inconsistent declared and result type",
-    );
+        assert!(
+            type_check_fun(
+                &mut test_env,
+                "f".to_string(),
+                vec![], 
+                CicTerm::Variable("Nat".to_string()),
+                CicTerm::Sort("TYPE".to_string()), 
+                false
+            ).is_err(),
+            "Type checking accept function with a inconsistent declared and result type",
+        );
+    }
+
 }

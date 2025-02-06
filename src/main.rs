@@ -11,6 +11,7 @@ mod runtime {
     pub mod program;
 }
 mod type_theory {
+    // pub mod commons;
     pub mod environment;
     pub mod interface;
     pub mod cic {

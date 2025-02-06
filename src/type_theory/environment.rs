@@ -145,16 +145,6 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             .map(|type_obj| (type_name, type_obj))
     }
 
-    pub fn check_var_type(&self, var_name: &str, target_type: Type) -> bool {
-        match self.get_from_context(var_name) {
-            Some((_, var_type)) => *var_type == target_type,
-            None => match self.get_from_deltas(var_name) {
-                Some((_, (_, var_type))) => *var_type == target_type,
-                None => false,
-            },
-        }
-    }
-
     pub fn is_var_bound(&self, var_name: &str) -> bool {
         match self.get_from_context(var_name) {
             Some(_) => true,

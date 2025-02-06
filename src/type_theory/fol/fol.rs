@@ -3,14 +3,21 @@ use super::elaboration::{
     elaborate_axiom, elaborate_dir_root, elaborate_file_root, elaborate_forall,
     elaborate_fun, elaborate_let, elaborate_var_use,
 };
-use super::type_check::{type_check_abstraction, type_check_var};
+use super::type_check::{
+    type_check_abstraction, type_check_application, type_check_arrow,
+    type_check_axiom, type_check_forall, type_check_fun, type_check_let,
+    type_check_var,
+};
 use crate::misc::Union;
 use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
+use crate::type_theory::fol::fol::FolStm::{Axiom, Fun, Let};
 use crate::type_theory::fol::fol::FolTerm::{
     Abstraction, Application, Variable,
 };
+use crate::type_theory::fol::fol::FolType::{Arrow, Atomic, ForAll};
+use crate::type_theory::fol::type_check::type_check_atomic;
 use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, Clone, PartialEq)] //support toString printing and equality check
@@ -132,15 +139,49 @@ impl TypeTheory for Fol {
             Abstraction(var_name, var_type, body) => {
                 type_check_abstraction(environment, var_name, *var_type, *body)
             }
-            Application(left, right) => panic!("not implemented"),
+            Application(left, right) => {
+                type_check_application(environment, *left, *right)
+            }
         }
     }
 
-    fn type_check_stm(
-        term: Self::Stm,
+    // TODO i need to decide what exact type to return here
+    fn type_check_type(
+        typee: Self::Type,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String> {
-        return Ok(FolType::Atomic("TODO".to_string()));
+        match typee {
+            Atomic(type_name) => type_check_atomic(environment, type_name),
+            Arrow(domain, codomain) => {
+                type_check_arrow(environment, *domain, *codomain)
+            }
+            ForAll(var_name, var_type, predicate) => {
+                type_check_forall(environment, var_name, *var_type, *predicate)
+            }
+        }
+    }
+
+    // TODO i need to decide what exact type to return here
+    fn type_check_stm(
+        stm: Self::Stm,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String> {
+        match stm {
+            Axiom(axiom_name, predicate) => {
+                type_check_axiom(environment, axiom_name, *predicate)
+            }
+            Let(var_name, var_type, body) => {
+                type_check_let(environment, var_name, *var_type, *body)
+            }
+            Fun(fun_name, args, out_type, body, is_rec) => type_check_fun(
+                environment,
+                fun_name,
+                args,
+                *out_type,
+                *body,
+                is_rec,
+            ),
+        }
     }
 
     fn terms_unify(

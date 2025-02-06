@@ -29,6 +29,10 @@ pub trait TypeTheory {
         term: Self::Term,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
+    fn type_check_type(
+        typee: Self::Type,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String>;
     fn type_check_stm(
         term: Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
