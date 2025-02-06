@@ -1,5 +1,8 @@
 name: SonarQube Analysis
-on: [push]
+on:
+  push:
+    branches:
+    - main
 
 jobs:
   sonarqube-analysis:
@@ -11,14 +14,6 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Install SonarScanner
-        run: |
-          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
-          unzip sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
-          echo "sonar-scanner path: $(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin"
-          export PATH="$(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin:$PATH"
-          sonar-scanner --version
-
       - name: Rust analysis dependencies
         run: |
           cargo install cargo-tarpaulin
@@ -27,6 +22,11 @@ jobs:
           cargo tarpaulin --all-features --out Xml
           cargo clippy --message-format=json &> clippy.json
       
-      - name: Run SonarQube analysis
+      - name: Install and run SonarQube analysis
         run: |
+          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
+          unzip sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
+          echo "sonar-scanner path: $(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin"
+          export PATH="$(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin:$PATH"
+          sonar-scanner --version
           sonar-scanner -Dsonar.login=${{ secrets.SONARQUBE_TOKEN }}
