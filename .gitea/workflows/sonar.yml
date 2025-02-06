@@ -19,14 +19,14 @@ jobs:
           cargo install cargo-tarpaulin
           cargo tarpaulin --version
           cargo clippy --version
-          cargo tarpaulin --all-features --out Xml
-          cargo clippy --message-format=json &> clippy.json
       
-      - name: Install and run SonarQube analysis
+      - name: Install and run SonarScanner
         run: |
           wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
           unzip sonar-scanner-cli-6.2.1.4610-linux-aarch64.zip
           echo "sonar-scanner path: $(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin"
           export PATH="$(pwd)/sonar-scanner-6.2.1.4610-linux-aarch64/bin:$PATH"
           sonar-scanner --version
+          cargo tarpaulin --all-features --out Xml
+          cargo clippy --message-format=json &> clippy.json
           sonar-scanner -Dsonar.login=${{ secrets.SONARQUBE_TOKEN }}
