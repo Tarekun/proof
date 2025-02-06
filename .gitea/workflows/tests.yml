@@ -3,7 +3,7 @@ run-name: ${{ gitea.actor }} is running tests after a push
 on: [push]
 
 jobs:
-  Tests_Execution:
+  tests-execution:
     runs-on: ubuntu-latest
     container:
       # this also includes node, needed for the checkout by gitea
