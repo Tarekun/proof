@@ -54,12 +54,8 @@ pub enum CicStm {
 }
 
 pub struct Cic;
-impl TypeTheory for Cic {
-    type Term = CicTerm;
-    type Type = CicTerm;
-    type Stm = CicStm;
-
-    fn elaborate_expression(ast: Expression) -> CicTerm {
+impl Cic {
+    pub fn elaborate_expression(ast: Expression) -> CicTerm {
         match ast {
             Expression::VarUse(var_name) => elaborate_var_use(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
@@ -81,7 +77,7 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn elaborate_statement(
+    pub fn elaborate_statement(
         ast: Statement,
         program: &mut Program<CicTerm, CicStm>,
     ) -> Result<(), String> {
@@ -119,6 +115,12 @@ impl TypeTheory for Cic {
               // )),
         }
     }
+}
+
+impl TypeTheory for Cic {
+    type Term = CicTerm;
+    type Type = CicTerm;
+    type Stm = CicStm;
 
     fn elaborate_ast(ast: NsAst) -> Program<CicTerm, CicStm> {
         let mut program = Program::new();
@@ -142,24 +144,14 @@ impl TypeTheory for Cic {
         term: CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
-        match term {
-            CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
-            CicTerm::Variable(var_name) => {
-                type_check_variable(environment, var_name)
-            }
-            CicTerm::Abstraction(var_name, var_type, body) => {
-                type_check_abstraction(environment, var_name, *var_type, *body)
-            }
-            CicTerm::Product(var_name, var_type, body) => {
-                type_check_product(environment, var_name, *var_type, *body)
-            }
-            CicTerm::Application(left, right) => {
-                type_check_application(environment, *left, *right)
-            }
-            CicTerm::Match(matched_term, branches) => {
-                type_check_match(environment, *matched_term, branches)
-            } // _ => Err(format!("Term case {:?} is not typable yet", term)),
-        }
+        common_type_checking(term, environment)
+    }
+
+    fn type_check_type(
+        term: CicTerm,
+        environment: &mut Environment<CicTerm, CicTerm>,
+    ) -> Result<CicTerm, String> {
+        common_type_checking(term, environment)
     }
 
     fn type_check_stm(
@@ -203,9 +195,13 @@ impl TypeTheory for Cic {
         common_unification(environment, term1, term2)
     }
 
-    // fn types_unify(type1: &CicTerm, type2: &CicTerm) -> bool {
-    //     common_unification(type1, type2)
-    // }
+    fn types_unify(
+        environment: &mut Environment<CicTerm, CicTerm>,
+        type1: &CicTerm,
+        type2: &CicTerm,
+    ) -> bool {
+        common_unification(environment, type1, type2)
+    }
 }
 
 fn common_unification(
@@ -221,6 +217,30 @@ fn common_unification(
             "Type Error in alpha equivalence during unification. This should have been caught sooner:\n{}", 
             message
         )
+    }
+}
+
+fn common_type_checking(
+    term: CicTerm,
+    environment: &mut Environment<CicTerm, CicTerm>,
+) -> Result<CicTerm, String> {
+    match term {
+        CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
+        CicTerm::Variable(var_name) => {
+            type_check_variable(environment, var_name)
+        }
+        CicTerm::Abstraction(var_name, var_type, body) => {
+            type_check_abstraction(environment, var_name, *var_type, *body)
+        }
+        CicTerm::Product(var_name, var_type, body) => {
+            type_check_product(environment, var_name, *var_type, *body)
+        }
+        CicTerm::Application(left, right) => {
+            type_check_application(environment, *left, *right)
+        }
+        CicTerm::Match(matched_term, branches) => {
+            type_check_match(environment, *matched_term, branches)
+        } // _ => Err(format!("Term case {:?} is not typable yet", term)),
     }
 }
 
