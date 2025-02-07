@@ -48,24 +48,24 @@ pub enum FolStm {
     ),
 }
 
-fn wrap_term(term_exp: Result<FolTerm, String>) -> Union<FolTerm, FolType> {
-    match term_exp {
-        Ok(term_exp) => Union::L(term_exp),
-        //TODO fix this shit in any way, cant panic here
-        Err(message) => panic!("{}", message),
-    }
+fn wrap_term(
+    term_exp: Result<FolTerm, String>,
+) -> Result<Union<FolTerm, FolType>, String> {
+    let term_exp = term_exp?;
+    Ok(Union::L(term_exp))
 }
-fn wrap_type(type_exp: Result<FolType, String>) -> Union<FolTerm, FolType> {
-    match type_exp {
-        Ok(type_exp) => Union::R(type_exp),
-        //TODO fix this shit in any way, cant panic here
-        Err(message) => panic!("{}", message),
-    }
+fn wrap_type(
+    type_exp: Result<FolType, String>,
+) -> Result<Union<FolTerm, FolType>, String> {
+    let type_exp = type_exp?;
+    Ok(Union::R(type_exp))
 }
 
 pub struct Fol;
 impl Fol {
-    pub fn elaborate_expression(ast: Expression) -> Union<FolTerm, FolType> {
+    pub fn elaborate_expression(
+        ast: Expression,
+    ) -> Result<Union<FolTerm, FolType>, String> {
         match ast {
             Expression::VarUse(var_name) => elaborate_var_use(var_name),
             Expression::Abstraction(var_name, var_type, body) => {
@@ -205,6 +205,9 @@ pub fn default_environment() -> Environment<FolTerm, FolType> {
     Environment::with_defaults_lower_order(
         vec![],
         vec![],
-        vec![("Unit", &FolType::Atomic("Unit".to_string()))],
+        vec![
+            ("Unit", &FolType::Atomic("Unit".to_string())),
+            ("Top", &FolType::Atomic("Top".to_string())),
+        ],
     )
 }
