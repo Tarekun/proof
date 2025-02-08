@@ -2,3 +2,6 @@ target
 .scannerwork
 clippy.json
 cobertura.xml
+
+vscode_extension/node_modules/
+vscode_extension/out/
