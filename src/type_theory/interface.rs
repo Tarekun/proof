@@ -1,17 +1,21 @@
 use crate::parser::api::NsAst;
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
+use std::fmt::Debug;
 
 pub trait TypeTheory {
     /// Enum listing all the term constructors.
-    type Term: Clone;
+    type Term: Debug + Clone;
     /// Enum listing all the type constructors.
-    type Type;
+    type Type: Debug;
     /// Enum listing all the statements elaborated with proper types
-    type Stm: Clone;
+    type Stm: Debug + Clone;
 
     /// Elaborate a full AST into an environment.
     fn elaborate_ast(ast: NsAst) -> Program<Self::Term, Self::Stm>;
+
+    /// Create the default environment
+    fn default_environment() -> Environment<Self::Term, Self::Type>;
 
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message

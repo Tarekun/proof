@@ -1,12 +1,6 @@
 use super::cic::{Cic, CicTerm};
-#[allow(unused_imports)]
-use crate::type_theory::cic::cic::make_default_environment;
 use crate::type_theory::interface::TypeTheory;
-#[allow(unused_imports)]
-use crate::{
-    parser::api::{Expression, NsAst},
-    type_theory::environment::Environment,
-};
+use crate::{parser::api::Expression, type_theory::environment::Environment};
 
 //########################### STATEMENTS ELABORATION
 pub fn evaluate_let(
@@ -53,36 +47,51 @@ pub fn evaluate_axiom(
 //########################### STATEMENTS ELABORATION
 
 //########################### UNIT TESTS
-#[test]
-fn test_let_elaboration() {
-    let mut test_env = make_default_environment();
-    test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-    test_env
-        .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
-    let expected_body = CicTerm::Variable("c".to_string());
-    let expected_type = CicTerm::Variable("nat".to_string());
+#[cfg(test)]
+mod unit_tests {
+    use crate::{
+        parser::api::Expression,
+        type_theory::cic::{
+            cic::{Cic, CicTerm},
+            evaluation::evaluate_let,
+        },
+        type_theory::interface::TypeTheory,
+    };
 
-    let _ = evaluate_let(
-        &mut test_env,
-        "n".to_string(),
-        Expression::VarUse("nat".to_string()),
-        Expression::VarUse("c".to_string()),
-    );
-    assert_eq!(
-        test_env.get_from_deltas("n"),
-        Some(("n", &(expected_body.clone(), expected_type.clone()))),
-        "Let definition elaboration isnt working as expected"
-    );
+    #[test]
+    fn test_let_elaboration() {
+        let mut test_env = Cic::default_environment();
+        test_env
+            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_variable_to_context(
+            "c",
+            &CicTerm::Variable("nat".to_string()),
+        );
+        let expected_body = CicTerm::Variable("c".to_string());
+        let expected_type = CicTerm::Variable("nat".to_string());
 
-    let _ = evaluate_let(
-        &mut test_env,
-        "m".to_string(),
-        Expression::VarUse("nat".to_string()),
-        Expression::VarUse("c".to_string()),
-    );
-    assert_eq!(
-        test_env.get_from_deltas("m"),
-        Some(("m", &(expected_body.clone(), expected_type.clone()))),
-        "Top level elaboration isnt working with let"
-    );
+        let _ = evaluate_let(
+            &mut test_env,
+            "n".to_string(),
+            Expression::VarUse("nat".to_string()),
+            Expression::VarUse("c".to_string()),
+        );
+        assert_eq!(
+            test_env.get_from_deltas("n"),
+            Some(("n", &(expected_body.clone(), expected_type.clone()))),
+            "Let definition elaboration isnt working as expected"
+        );
+
+        let _ = evaluate_let(
+            &mut test_env,
+            "m".to_string(),
+            Expression::VarUse("nat".to_string()),
+            Expression::VarUse("c".to_string()),
+        );
+        assert_eq!(
+            test_env.get_from_deltas("m"),
+            Some(("m", &(expected_body.clone(), expected_type.clone()))),
+            "Top level elaboration isnt working with let"
+        );
+    }
 }

@@ -1,5 +1,8 @@
 use super::{expressions::parse_expression, statements::parse_statement};
-use crate::file_manager::{list_sources, read_source_file};
+use crate::{
+    config::Config,
+    file_manager::{list_sources, read_source_file},
+};
 use nom::{branch::alt, combinator::map, multi::many0, IResult};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -75,7 +78,10 @@ pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
     )
 }
 
-pub fn parse_workspace(workspace: &str) -> Result<NsAst, String> {
+pub fn parse_workspace(
+    _config: &Config,
+    workspace: &str,
+) -> Result<NsAst, String> {
     let lof_files: Vec<String> = list_sources(workspace);
     let mut asts = vec![];
     let mut errors = vec![];

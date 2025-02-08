@@ -20,7 +20,7 @@ use crate::type_theory::fol::fol::FolType::{Arrow, Atomic, ForAll};
 use crate::type_theory::fol::type_check::type_check_atomic;
 use crate::type_theory::interface::TypeTheory;
 
-#[derive(Debug, Clone, PartialEq)] //support toString printing and equality check
+#[derive(Debug, Clone, PartialEq)]
 pub enum FolTerm {
     Variable(String),
     Abstraction(String, Box<FolType>, Box<FolTerm>),
@@ -115,6 +115,17 @@ impl TypeTheory for Fol {
     type Type = FolType;
     type Stm = FolStm;
 
+    fn default_environment() -> Environment<FolTerm, FolType> {
+        Environment::with_defaults_lower_order(
+            vec![],
+            vec![],
+            vec![
+                ("Unit", &FolType::Atomic("Unit".to_string())),
+                ("Top", &FolType::Atomic("Top".to_string())),
+            ],
+        )
+    }
+
     fn elaborate_ast(ast: NsAst) -> Program<FolTerm, FolStm> {
         let mut program = Program::new();
 
@@ -199,15 +210,4 @@ impl TypeTheory for Fol {
     ) -> bool {
         type1 == type2
     }
-}
-
-pub fn default_environment() -> Environment<FolTerm, FolType> {
-    Environment::with_defaults_lower_order(
-        vec![],
-        vec![],
-        vec![
-            ("Unit", &FolType::Atomic("Unit".to_string())),
-            ("Top", &FolType::Atomic("Top".to_string())),
-        ],
-    )
 }

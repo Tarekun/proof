@@ -19,7 +19,7 @@ mod type_theory {
     pub mod cic {
         pub mod cic;
         pub mod elaboration;
-        pub mod evaluation;
+        // pub mod evaluation;
         pub mod type_check;
         pub mod unification;
     }
@@ -35,9 +35,21 @@ mod type_theory {
 }
 
 use cli::get_flag_value;
-use config::load_config;
+use config::{load_config, Config, TypeSystem};
 use entrypoints::parse_and_type_check;
 use std::env;
+use type_theory::{cic::cic::Cic, fol::fol::Fol, interface::TypeTheory};
+
+fn run_with_theory<T: TypeTheory>(config: Config, filepath: &str) {
+    match parse_and_type_check::<T>(&config, filepath) {
+        Ok(program) => {
+            for node in program.schedule_iterable() {
+                println!("node in the scheduled program: {:?}\n", node);
+            }
+        }
+        Err(message) => println!("Program failed: {}", message),
+    }
+}
 
 fn main() {
     println!("################ PROGRAM START #################\n");
@@ -49,6 +61,7 @@ fn main() {
     }
 
     let filepath = &args[1];
+
     let config_path = match get_flag_value(&args, "--config") {
         Some(path) => path,
         None => "./config.yml".to_string(),
@@ -56,14 +69,8 @@ fn main() {
     let config: config::Config = load_config(&config_path).unwrap();
     println!("Specified config: {:?}", config);
 
-    match parse_and_type_check(config, &filepath) {
-        Ok(program) => {
-            for node in program.schedule_iterable() {
-                println!("node in the scheduled program: {:?}\n", node);
-            }
-        }
-        Err(message) => {
-            println!("Program failed: {}", message);
-        }
-    }
+    match config.system {
+        TypeSystem::Cic() => run_with_theory::<Cic>(config, &filepath),
+        TypeSystem::Fol() => run_with_theory::<Fol>(config, &filepath),
+    };
 }

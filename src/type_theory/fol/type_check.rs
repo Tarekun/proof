@@ -209,7 +209,7 @@ mod unit_tests {
         environment::Environment,
         fol::{
             fol::{
-                self, Fol,
+                Fol,
                 FolStm::{Axiom, Fun, Let},
                 FolTerm::{self, Abstraction, Application, Variable},
                 FolType::{self, Arrow, Atomic, ForAll},
@@ -225,7 +225,7 @@ mod unit_tests {
 
     #[test]
     fn test_var_type_check() {
-        let mut test_env = fol::default_environment();
+        let mut test_env = Fol::default_environment();
         test_env.add_variable_to_context("it", &Atomic("Unit".to_string()));
 
         assert_eq!(
@@ -250,7 +250,7 @@ mod unit_tests {
 
     #[test]
     fn test_abs_type_check() {
-        let mut test_env = fol::default_environment();
+        let mut test_env = Fol::default_environment();
 
         assert_eq!(
             type_check_abstraction(
