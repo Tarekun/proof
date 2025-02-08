@@ -9,7 +9,7 @@ pub enum Statement {
     DirRoot(String, Vec<NsAst>),
     Axiom(String, Box<Expression>),
     /// (var_name, var_type, definition_body)
-    Let(String, Box<Expression>, Box<Expression>),
+    Let(String, Option<Expression>, Box<Expression>),
     /// (fun_name, args, out_type, body, is_rec)
     Fun(
         String,

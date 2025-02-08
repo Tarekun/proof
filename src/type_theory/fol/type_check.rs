@@ -147,26 +147,24 @@ pub fn type_check_axiom(
 pub fn type_check_let(
     environment: &mut Environment<FolTerm, FolType>,
     var_name: String,
-    var_type: FolType,
+    opt_type: Option<FolType>,
     body: FolTerm,
 ) -> Result<FolType, String> {
+    let body_type = Fol::type_check_term(body.clone(), environment)?;
+    let var_type = if opt_type.is_none() { body_type.clone() } else { opt_type.unwrap() };
     let _ = Fol::type_check_type(var_type.clone(), environment)?;
 
-    environment.with_local_declaration(&var_name, &var_type, |local_env| {
-        let body_type = Fol::type_check_term(body.clone(), local_env)?;
-
-        if Fol::types_unify(local_env, &var_type, &body_type) {
-            local_env.add_variable_definition(&var_name, &body, &var_type);
-            Ok(body_type)
-        } else {
-            Err(format!(
-                "Error in variable {} definition: declared type {:?} and assigned {:?} do not unify",
-                var_name,
-                var_type,
-                var_type
-            ))
-        }
-    })
+    if Fol::types_unify(environment, &var_type, &body_type) {
+        environment.add_variable_definition(&var_name, &body, &var_type);
+        Ok(body_type)
+    } else {
+        Err(format!(
+            "Error in variable {} definition: declared type {:?} and assigned {:?} do not unify",
+            var_name,
+            var_type,
+            var_type
+        ))
+    }
 }
 //
 //
@@ -543,7 +541,7 @@ mod unit_tests {
         let res = type_check_let(
             &mut test_env,
             "n".to_string(),
-            nat.clone(),
+            Some(nat.clone()),
             zero.clone(),
         );
         assert!(res.is_ok(), "Let type checker failed with {:?}", res.err());
@@ -556,7 +554,7 @@ mod unit_tests {
             Fol::type_check_stm(
                 Let(
                     "m".to_string(),
-                    Box::new(nat.clone()),
+                    Some(nat.clone()),
                     Box::new(zero.clone())
                 ),
                 &mut test_env
@@ -564,12 +562,22 @@ mod unit_tests {
             .is_ok(),
             "Top level type checker doesnt support let definitions"
         );
+        assert!(
+            type_check_let(
+                &mut test_env,
+                "asd".to_string(),
+                None,
+                zero.clone()
+            )
+            .is_ok(),
+            "Let type checker refutes definition without type specified"
+        );
 
         assert!(
             type_check_let(
                 &mut test_env,
                 "o".to_string(),
-                Atomic("StupidUnboundType".to_string()),
+                Some(Atomic("StupidUnboundType".to_string())),
                 zero.clone(),
             )
             .is_err(),
@@ -579,7 +587,7 @@ mod unit_tests {
             type_check_let(
                 &mut test_env,
                 "o".to_string(),
-                nat.clone(),
+                Some(nat.clone()),
                 Variable("stupid_unbound_var".to_string()),
             )
             .is_err(),

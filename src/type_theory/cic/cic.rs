@@ -35,7 +35,7 @@ pub enum CicStm {
     /// axiom_name, formula
     Axiom(String, Box<CicTerm>),
     /// (var_name, var_type, definition_body)
-    Let(String, Box<CicTerm>, Box<CicTerm>),
+    Let(String, Option<CicTerm>, Box<CicTerm>),
     /// (fun_name, args, out_type, body, is_rec)
     Fun(
         String,
@@ -90,7 +90,7 @@ impl Cic {
                 elaborate_axiom(program, axiom_name, *formula)
             }
             Statement::Let(var_name, var_type, body) => {
-                elaborate_let(program, var_name, *var_type, *body)
+                elaborate_let(program, var_name, var_type, *body)
             }
             Statement::Inductive(
                 type_name,
@@ -160,7 +160,7 @@ impl TypeTheory for Cic {
     ) -> Result<CicTerm, String> {
         match term {
             CicStm::Let(var_name, var_type, body) => {
-                type_check_let(environment, var_name, *var_type, *body)
+                type_check_let(environment, var_name, var_type, *body)
             }
             CicStm::Axiom(axiom_name, formula) => {
                 type_check_axiom(environment, axiom_name, *formula)

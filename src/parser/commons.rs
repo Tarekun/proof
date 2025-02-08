@@ -10,7 +10,7 @@ use nom::{
     character::complete::{
         alpha1, alphanumeric0, char, digit1, multispace0, multispace1,
     },
-    combinator::{map_res, recognize},
+    combinator::{map_res, opt, recognize},
     error::{Error, ErrorKind},
     multi::many0,
     sequence::{delimited, pair, preceded},
@@ -72,6 +72,19 @@ pub fn parse_typed_identifier(
 
     Ok((input, (identifier.to_string(), type_expression)))
 }
+
+pub fn parse_optionally_typed_identifier(
+    input: &str,
+) -> IResult<&str, (String, Option<Expression>)> {
+    let (input, identifier) = preceded(multispace0, parse_identifier)(input)?;
+    let (input, opt_type) = opt(preceded(
+        multispace0,
+        preceded(tag(":"), preceded(multispace0, parse_type_expression)),
+    ))(input)?;
+
+    Ok((input, (identifier.to_string(), opt_type)))
+}
+
 pub fn typed_parameter_list(
     input: &str,
 ) -> IResult<&str, Vec<(String, Expression)>> {
