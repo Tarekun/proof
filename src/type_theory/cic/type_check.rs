@@ -277,9 +277,11 @@ pub fn type_check_fun(
     is_rec: bool,
 ) -> Result<CicTerm, String> {
     let fun_type = make_multiarg_fun_type(&args, out_type.clone());
+    let _ = type_check_type(&fun_type, environment);
     let mut assumptions = args;
     if is_rec {
         assumptions.push((fun_name.clone(), fun_type.clone()));
+        //TODO possibly include necessary checks on recursive functions
     }
 
     let body_type = environment.with_local_declarations(
@@ -294,7 +296,6 @@ pub fn type_check_fun(
             out_type, body_type
         ));
     }
-
 
     environment.add_variable_to_context(&fun_name, &fun_type);
     Ok(CicTerm::Variable("Unit".to_string()))
