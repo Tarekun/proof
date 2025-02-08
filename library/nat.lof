@@ -16,8 +16,8 @@ inductive Nat: TYPE {
 #;
 # definition a la coq
 inductive le : Nat -> Nat -> PROP {
-  | lez: Πn: Nat. le z n
-  | les: Πn:Nat. (Πm:Nat. (le n m) -> le (s n) (s m))
+  | lez: ∀n: Nat. le z n
+  | les: ∀n:Nat. (∀m:Nat. (le n m) -> le (s n) (s m))
 }
 
 #note: in case of n = 0 the pred should be undefined
