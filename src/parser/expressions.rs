@@ -35,7 +35,8 @@ pub fn parse_abs(input: &str) -> IResult<&str, Expression> {
     let (input, var_name) = preceded(multispace0, parse_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":"))(input)?;
     //TODO should allow product type expressions here or only predefined type vars?
-    let (input, type_var) = preceded(multispace0, parse_var)(input)?;
+    let (input, type_var) =
+        preceded(multispace0, parse_type_expression)(input)?;
     let (input, _) = preceded(multispace0, char('.'))(input)?;
     let (input, body) = preceded(multispace0, parse_expression)(input)?;
 
