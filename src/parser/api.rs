@@ -1,5 +1,5 @@
 use super::{expressions::parse_expression, statements::parse_statement};
-use crate::file_manager::{list_sources, read_file};
+use crate::file_manager::{list_sources, read_source_file};
 use nom::{branch::alt, combinator::map, multi::many0, IResult};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -55,7 +55,7 @@ pub fn parse_node(input: &str) -> IResult<&str, NsAst> {
 }
 
 pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
-    let source = match read_file(filepath) {
+    let source = match read_source_file(filepath) {
         Ok(content) => content,
         Err(e) => {
             panic!("Error reading file: {:?}", e);

@@ -1,3 +1,5 @@
+mod cli;
+mod config;
 mod entrypoints;
 mod file_manager;
 mod misc;
@@ -32,6 +34,8 @@ mod type_theory {
     }
 }
 
+use cli::get_flag_value;
+use config::load_config;
 use entrypoints::parse_and_type_check;
 use std::env;
 
@@ -45,8 +49,14 @@ fn main() {
     }
 
     let filepath = &args[1];
+    let config_path = match get_flag_value(&args, "--config") {
+        Some(path) => path,
+        None => "./config.yml".to_string(),
+    };
+    let config: config::Config = load_config(&config_path).unwrap();
+    println!("Specified config: {:?}", config);
 
-    match parse_and_type_check(&filepath) {
+    match parse_and_type_check(config, &filepath) {
         Ok(program) => {
             for node in program.schedule_iterable() {
                 println!("node in the scheduled program: {:?}\n", node);

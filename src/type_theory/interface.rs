@@ -13,16 +13,6 @@ pub trait TypeTheory {
     /// Elaborate a full AST into an environment.
     fn elaborate_ast(ast: NsAst) -> Program<Self::Term, Self::Stm>;
 
-    // /// Elaborate a statement in the given environment.
-    // fn elaborate_statement(
-    //     ast: Statement,
-    //     program: &mut Program<Self::Term, Self::Stm>,
-    // ) -> Result<(), String>;
-
-    /// Elaborate a single expression, updating the environment and returning
-    /// the result as a term of the type theory.
-    // fn elaborate_expression(ast: Expression) -> impl Exp;
-
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message
     fn type_check_term(

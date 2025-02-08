@@ -5,6 +5,10 @@ use std::path::Path;
 const SOURCE_FILE_EXTENSION: &str = ".lof";
 
 pub fn read_file(filepath: &str) -> Result<String, io::Error> {
+    fs::read_to_string(filepath)
+}
+
+pub fn read_source_file(filepath: &str) -> Result<String, io::Error> {
     if !filepath.ends_with(SOURCE_FILE_EXTENSION) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -15,7 +19,7 @@ pub fn read_file(filepath: &str) -> Result<String, io::Error> {
         ));
     }
 
-    fs::read_to_string(filepath)
+    read_file(filepath)
 }
 
 pub fn list_sources(workspace: &str) -> Vec<String> {
