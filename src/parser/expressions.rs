@@ -120,6 +120,7 @@ pub fn parse_match_branch(
     let (input, args) = many0(preceded(multispace1, parse_var))(input)?;
     let (input, _) = preceded(multispace0, tag("=>"))(input)?;
     let (input, body) = preceded(multispace0, parse_expression)(input)?;
+    let (input, _) = preceded(multispace0, char(','))(input)?;
 
     let mut pattern = vec![constructor];
     pattern.extend(args);
@@ -130,7 +131,6 @@ pub fn parse_pattern_match(input: &str) -> IResult<&str, Expression> {
     let (input, term) = preceded(multispace1, parse_expression)(input)?;
     let (input, _) = preceded(multispace1, tag("with"))(input)?;
     let (input, branches) = many1(parse_match_branch)(input)?;
-    let (input, _) = preceded(multispace0, char(';'))(input)?;
 
     Ok((input, Expression::Match(Box::new(term), branches)))
 }
@@ -345,11 +345,11 @@ mod unit_tests {
     #[test]
     fn test_pattern_matching() {
         assert!(
-            parse_match_branch("| O => x").is_ok(),
+            parse_match_branch("| O => x,").is_ok(),
             "Parser cant read pattern matching branches"
         );
         assert_eq!(
-            parse_match_branch("| O => x").unwrap(),
+            parse_match_branch("| O => x,").unwrap(),
             (
                 "",
                 (
@@ -360,12 +360,12 @@ mod unit_tests {
             "Pattern match branch isnt properly constructed"
         );
         assert!(
-            parse_match_branch("| BinTree l r => x ").is_ok(),
+            parse_match_branch("| BinTree l r => x ,").is_ok(),
             "Parser cant read pattern matching branches with variables"
         );
 
         assert_eq!(
-            parse_pattern_match("match x with | O => x;").unwrap(),
+            parse_pattern_match("match x with | O => x,").unwrap(),
             (
                 "",
                 Expression::Match(
@@ -379,15 +379,16 @@ mod unit_tests {
             "Pattern match expression isnt properly constructed"
         );
         assert!(
-            parse_pattern_match("match \tx   with \n\t|O =>  \nx   ;").is_ok(),
+            parse_pattern_match("match \tx   with \n\t|O =>  \nx   , \n ")
+                .is_ok(),
             "Pattern match parser cant cope with whitespaces"
         );
         assert!(
-            parse_pattern_match("matchx with | O => x;").is_err(),
+            parse_pattern_match("matchx with | O => x,").is_err(),
             "Pattern match parser doesnt split keywords"
         );
         assert!(
-            parse_pattern_match("match xwith | O => x;").is_err(),
+            parse_pattern_match("match xwith | O => x,").is_err(),
             "Pattern match parser doesnt split keywords"
         );
     }
