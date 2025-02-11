@@ -15,7 +15,7 @@ use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
-#[derive(Debug, PartialEq, Clone)] //support toString printing and equality check
+#[derive(Debug, PartialEq, Clone)]
 pub enum CicTerm {
     /// (sort name)
     Sort(String),
@@ -121,6 +121,15 @@ impl TypeTheory for Cic {
     type Term = CicTerm;
     type Type = CicTerm;
     type Stm = CicStm;
+
+    #[allow(non_snake_case)]
+    fn default_environment() -> Environment<CicTerm, CicTerm> {
+        let TYPE = CicTerm::Sort("TYPE".to_string());
+        let axioms: Vec<(&str, &CicTerm)> =
+            vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
+
+        Environment::with_defaults(axioms, Vec::default())
+    }
 
     fn elaborate_ast(ast: NsAst) -> Program<CicTerm, CicStm> {
         let mut program = Program::new();
@@ -242,13 +251,4 @@ fn common_type_checking(
             type_check_match(environment, *matched_term, branches)
         } // _ => Err(format!("Term case {:?} is not typable yet", term)),
     }
-}
-
-#[allow(non_snake_case)]
-pub fn make_default_environment() -> Environment<CicTerm, CicTerm> {
-    let TYPE = CicTerm::Sort("TYPE".to_string());
-    let axioms: Vec<(&str, &CicTerm)> =
-        vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
-
-    Environment::with_defaults(axioms, Vec::default())
 }

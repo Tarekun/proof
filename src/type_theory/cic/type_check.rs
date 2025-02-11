@@ -1,8 +1,4 @@
 use super::cic::{Cic, CicTerm};
-#[allow(unused_imports)]
-use crate::type_theory::cic::cic::make_default_environment;
-#[allow(unused_imports)]
-use crate::type_theory::cic::cic::CicStm;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -372,14 +368,14 @@ pub fn type_check_inductive(
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::{make_default_environment, Cic, CicStm, CicTerm}, 
+        cic::{Cic, CicStm, CicTerm}, 
         type_check::{type_check_fun, type_check_inductive}
     };
     use crate::type_theory::interface::TypeTheory;
 
     #[test]
     fn test_type_check_sort_n_vars() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         // assumption, the type statement is included in the context
         test_env
@@ -441,7 +437,7 @@ mod unit_tests {
 
     #[test]
     fn test_type_check_abstraction() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         // assumption, the type statement is included in the context
         test_env
@@ -509,7 +505,7 @@ mod unit_tests {
 
     #[test]
     fn test_type_check_product() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         // polymorphic type constructor
         test_env.add_variable_to_context(
             "list",
@@ -570,7 +566,7 @@ mod unit_tests {
     #[test]
     // TODO include tests for polymorphic types
     fn test_type_check_application() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         // assumption, the type statement is included in the context
         test_env
@@ -630,7 +626,7 @@ mod unit_tests {
     #[test]
     //TODO add check of exaustiveness of patterns
     fn test_type_check_match() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         test_env.add_variable_to_context("Bool", &CicTerm::Sort("TYPE".to_string()));
         test_env
@@ -751,7 +747,7 @@ mod unit_tests {
     //TODO add check for positivity
     #[test]
     fn test_type_check_inductive() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         let constructors = vec![
             ("o".to_string(), CicTerm::Variable("nat".to_string())),
             (
@@ -959,7 +955,7 @@ mod unit_tests {
 
     #[test]
     fn test_type_check_fun() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
         test_env.add_variable_to_context("z", &CicTerm::Variable("Nat".to_string()));
         test_env.add_variable_to_context("s", 

@@ -57,13 +57,14 @@ pub fn alpha_equivalent(
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::{make_default_environment, CicTerm},
+        cic::{Cic, CicTerm},
         unification::alpha_equivalent,
     };
+    use crate::type_theory::interface::TypeTheory;
 
     #[test]
     fn test_alpha_eqivalence() {
-        let mut test_env = make_default_environment();
+        let mut test_env = Cic::default_environment();
         test_env
             .add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
         test_env.add_variable_to_context(

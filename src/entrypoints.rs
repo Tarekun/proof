@@ -1,42 +1,46 @@
+use crate::config::Config;
 use crate::parser::api::parse_workspace;
+use crate::parser::api::NsAst;
 use crate::runtime::program::{Program, ProgramNode};
-use crate::type_theory::cic::cic::{make_default_environment, CicStm, CicTerm};
+use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
-use crate::{parser::api::NsAst, type_theory::cic::cic::Cic};
 
-pub fn parse_only(workspace: &str) -> Result<NsAst, String> {
+pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
     print!("Parsing of workspace: '{}'... ", workspace);
-    let ast = parse_workspace(&workspace)?;
+    let ast = parse_workspace(config, &workspace)?;
     println!("Done.");
 
     Ok(ast)
 }
 
 //TODO generalize to different type theories
-pub fn parse_and_elaborate(
+pub fn parse_and_elaborate<T: TypeTheory>(
+    config: &Config,
     workspace: &str,
-) -> Result<Program<CicTerm, CicStm>, String> {
-    let ast = parse_only(workspace)?;
+) -> Result<Program<T::Term, T::Stm>, String> {
+    let ast = parse_only(config, workspace)?;
     print!("Elaboration of the AST into a program... ");
-    let program = Cic::elaborate_ast(ast);
+    let program = T::elaborate_ast(ast);
     println!("Done.");
-
     Ok(program)
 }
 
 //TODO generalize to different type theories
-pub fn parse_and_type_check(
+pub fn parse_and_type_check<T: TypeTheory>(
+    config: &Config,
     workspace: &str,
-) -> Result<Program<CicTerm, CicStm>, String> {
-    let program = parse_and_elaborate(workspace)?;
+) -> Result<Program<T::Term, T::Stm>, String> {
+    let program: Program<T::Term, T::Stm> =
+        parse_and_elaborate::<T>(config, workspace)?;
     print!("Type checking of the program... ");
-    let environment = &mut make_default_environment();
-    let mut errors: Vec<_> = vec![];
+    let mut environment: Environment<T::Term, T::Type> =
+        T::default_environment();
+    let mut errors = vec![];
 
     for node in program.schedule_iterable() {
         match node {
             ProgramNode::OfTerm(term) => {
-                match Cic::type_check_term(term.clone(), environment) {
+                match T::type_check_term(term.clone(), &mut environment) {
                     Err(message) => {
                         errors.push(message);
                     }
@@ -44,7 +48,7 @@ pub fn parse_and_type_check(
                 }
             }
             ProgramNode::OfStm(stm) => {
-                match Cic::type_check_stm(stm.clone(), environment) {
+                match T::type_check_stm(stm.clone(), &mut environment) {
                     Err(message) => {
                         errors.push(message);
                     }
@@ -66,35 +70,74 @@ pub fn parse_and_type_check(
 }
 
 //########################### UNIT TESTS
-#[test]
-fn test_parsing() {
-    assert!(
-        parse_only("./library").is_ok(),
-        "Parsing entrypoint cant process std library"
-    );
-}
+#[cfg(test)]
+mod unit_tests {
+    use crate::{
+        config::{Config, TypeSystem},
+        entrypoints::{parse_and_elaborate, parse_and_type_check, parse_only},
+        type_theory::{cic::cic::Cic, fol::fol::Fol},
+    };
 
-#[test]
-fn test_elaboration() {
-    assert!(
-        parse_and_elaborate("./library").is_ok(),
-        "Elaboration entrypoint cant process std library"
-    );
-}
-
-#[test]
-fn test_type_check() {
-    let res = parse_and_type_check("./library");
-    match res {
-        Err(message) => {
-            println!("{}", message)
-        }
-        _ => {}
+    fn all_system_configs() -> Vec<Config> {
+        vec![
+            Config {
+                system: TypeSystem::Cic(),
+            },
+            // Config {
+            //     system: TypeSystem::Fol(),
+            // },
+        ]
     }
-    let res = parse_and_type_check("./library");
-    assert!(
-        parse_and_type_check("./library").is_ok(),
-        "Type checking entrypoint cant process std library:\n{:?}",
-        res.err()
-    );
+
+    #[test]
+    fn test_parsing() {
+        for config in all_system_configs() {
+            assert!(
+                parse_only(&config, "./library").is_ok(),
+                "Parsing entrypoint cant process std library"
+            );
+        }
+    }
+
+    #[test]
+    fn test_elaboration() {
+        for config in all_system_configs() {
+            match config.system {
+                TypeSystem::Cic() => {
+                    assert!(
+                        parse_and_elaborate::<Cic>(&config, "./library")
+                            .is_ok(),
+                        "Elaboration entrypoint cant process std library"
+                    );
+                }
+                TypeSystem::Fol() => {
+                    assert!(
+                        parse_and_elaborate::<Fol>(&config, "./library")
+                            .is_ok(),
+                        "Elaboration entrypoint cant process std library"
+                    );
+                }
+            }
+        }
+    }
+
+    //TODO test everything
+    #[test]
+    fn test_type_check() {
+        for config in all_system_configs() {
+            let res = parse_and_type_check::<Cic>(&config, "./library");
+            match res {
+                Err(message) => {
+                    println!("{}", message)
+                }
+                _ => {}
+            }
+            let res = parse_and_type_check::<Cic>(&config, "./library");
+            assert!(
+                parse_and_type_check::<Cic>(&config, "./library").is_ok(),
+                "Type checking entrypoint cant process std library:\n{:?}",
+                res.err()
+            );
+        }
+    }
 }
