@@ -252,32 +252,43 @@ pub fn elaborate_axiom(
 pub fn elaborate_let(
     program: &mut Program<FolTerm, FolStm>,
     var_name: String,
-    var_type: Expression,
+    opt_type: Option<Expression>,
     body: Expression,
 ) -> Result<(), String> {
-    let var_type = Fol::elaborate_expression(var_type)?;
-    match var_type {
-        Union::R(var_type) => {
-            let body = Fol::elaborate_expression(body)?;
-            match body {
-                Union::L(body_exp) => {
+    let body = Fol::elaborate_expression(body)?;
+    match body {
+        Union::L(body_term) => {
+            let var_type = match opt_type {
+                Some(type_exp) => Some(Fol::elaborate_expression(type_exp)?),
+                None => None,
+            };
+            match var_type {
+                Some(Union::R(var_type)) => {
                     program.push_statement(&Let(
                         var_name,
-                        Box::new(var_type),
-                        Box::new(body_exp),
+                        Some(var_type),
+                        Box::new(body_term),
+                    ));
+                    Ok(())
+                }
+                None => {
+                    program.push_statement(&Let(
+                        var_name,
+                        None,
+                        Box::new(body_term),
                     ));
                     Ok(())
                 }
 
-                Union::R(term) => term_expected_error(
+                Some(Union::L(wrong_term)) => type_expected_error(
                     &format!("let definition of {}", var_name),
-                    &term,
+                    &wrong_term,
                 ),
             }
         }
-        Union::L(term) => type_expected_error(
+        Union::R(wrong_type) => term_expected_error(
             &format!("let definition of {}", var_name),
-            &term,
+            &wrong_type,
         ),
     }
 }
@@ -328,6 +339,7 @@ pub fn elaborate_fun(
 mod unit_tests {
     use crate::{
         misc::Union,
+        parser::api::Expression::VarUse,
         parser::api::{Expression, Statement},
         runtime::program::{Program, ProgramNode},
         type_theory::fol::{
@@ -495,12 +507,12 @@ mod unit_tests {
         let res = elaborate_let(
             &mut program,
             "n".to_string(),
-            Expression::VarUse("Nat".to_string()),
-            Expression::VarUse("zero".to_string()),
+            Some(VarUse("Nat".to_string())),
+            VarUse("zero".to_string()),
         );
         let expected_let = ProgramNode::OfStm(Let(
             "n".to_string(),
-            Box::new(Atomic("Nat".to_string())),
+            Some(Atomic("Nat".to_string())),
             Box::new(Variable("zero".to_string())),
         ));
 
@@ -519,7 +531,7 @@ mod unit_tests {
         let res = Fol::elaborate_statement(
             Statement::Let(
                 "n".to_string(),
-                Box::new(Expression::VarUse("Nat".to_string())),
+                Some(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("zero".to_string())),
             ),
             &mut program,

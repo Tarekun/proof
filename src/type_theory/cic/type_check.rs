@@ -244,11 +244,12 @@ pub fn type_check_match(
 pub fn type_check_let(
     environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
-    var_type: CicTerm,
+    opt_type: Option<CicTerm>,
     body: CicTerm,
 ) -> Result<CicTerm, String> {
-    let _ = type_check_type(&var_type, environment)?;
     let body_type = Cic::type_check_term(body.clone(), environment)?;
+    let var_type = if opt_type.is_none() { body_type.clone() } else { opt_type.unwrap() };
+    let _ = type_check_type(&var_type, environment)?;
 
     if Cic::terms_unify(environment, &body_type, &var_type) {
         environment.add_variable_definition(&var_name, &body, &var_type);

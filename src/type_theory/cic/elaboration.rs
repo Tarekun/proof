@@ -181,12 +181,16 @@ pub fn elaborate_dir_root(
 pub fn elaborate_let(
     program: &mut Program<CicTerm, CicStm>,
     var_name: String,
-    var_type: Expression,
+    var_type: Option<Expression>,
     body: Expression,
 ) -> Result<(), String> {
+    let opt_type = match var_type {
+        Some(type_exp) => Some(Cic::elaborate_expression(type_exp)),
+        None => None,
+    };
     program.push_statement(&CicStm::Let(
         var_name,
-        Box::new(Cic::elaborate_expression(var_type)),
+        opt_type,
         Box::new(Cic::elaborate_expression(body)),
     ));
     Ok(())

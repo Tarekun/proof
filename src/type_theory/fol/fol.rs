@@ -37,7 +37,7 @@ pub enum FolStm {
     /// axiom_name, formula
     Axiom(String, Box<FolType>),
     /// (var_name, var_type, definition_body)
-    Let(String, Box<FolType>, Box<FolTerm>),
+    Let(String, Option<FolType>, Box<FolTerm>),
     /// (fun_name, args, out_type, body, is_rec)
     Fun(
         String,
@@ -100,7 +100,7 @@ impl Fol {
                 elaborate_axiom(program, axiom_name, *formula)
             }
             Statement::Let(var_name, var_type, body) => {
-                elaborate_let(program, var_name, *var_type, *body)
+                elaborate_let(program, var_name, var_type, *body)
             }
             Statement::Fun(fun_name, args, out_type, body, is_rec) => {
                 elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
@@ -182,7 +182,7 @@ impl TypeTheory for Fol {
                 type_check_axiom(environment, axiom_name, *predicate)
             }
             Let(var_name, var_type, body) => {
-                type_check_let(environment, var_name, *var_type, *body)
+                type_check_let(environment, var_name, var_type, *body)
             }
             Fun(fun_name, args, out_type, body, is_rec) => type_check_fun(
                 environment,

@@ -1,4 +1,4 @@
-use super::commons::typed_parameter_list;
+use super::commons::{parse_optionally_typed_identifier, typed_parameter_list};
 use super::{
     api::{Expression, Statement},
     commons::{parse_identifier, parse_type_expression},
@@ -20,22 +20,15 @@ use nom::{
 //
 pub fn parse_let(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
-    let (input, var_name) = preceded(multispace1, parse_identifier)(input)?;
-    let (input, _) = preceded(multispace0, tag(":"))(input)?;
-    //TODO should allow product type expressions here or only predefined type vars?
-    let (input, type_var) =
-        preceded(multispace0, parse_type_expression)(input)?;
+    let (input, (var_name, opt_type)) =
+        preceded(multispace1, parse_optionally_typed_identifier)(input)?;
     let (input, _) = preceded(multispace0, tag(":="))(input)?;
     let (input, term) = preceded(multispace0, parse_expression)(input)?;
     let (input, _) = preceded(multispace0, char(';'))(input)?;
 
     Ok((
         input,
-        Statement::Let(
-            var_name.to_string(),
-            Box::new(type_var),
-            Box::new(term),
-        ),
+        Statement::Let(var_name.to_string(), opt_type, Box::new(term)),
     ))
 }
 //
@@ -84,7 +77,7 @@ pub fn parse_theorem(input: &str) -> IResult<&str, Statement> {
         input,
         Statement::Let(
             theorem_name.to_string(),
-            Box::new(formula),
+            Some(formula),
             Box::new(proof),
         ),
     ))
@@ -165,7 +158,9 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
 #[cfg(test)]
 mod unit_tests {
     use crate::parser::{
-        api::{Expression, Statement},
+        api::Expression::{Application, Arrow, VarUse},
+        api::Statement,
+        api::Statement::{Axiom, Comment, Fun, Inductive, Let},
         expressions::parse_var,
         statements::{
             parse_axiom, parse_comment, parse_function, parse_inductive_def,
@@ -182,7 +177,7 @@ mod unit_tests {
         );
         assert_eq!(
             parse_comment("#abc").unwrap(),
-            ("", Statement::Comment()),
+            ("", Comment()),
             "Comment node isnt properly constructed"
         );
     }
@@ -207,8 +202,8 @@ mod unit_tests {
                 "",
                 Statement::Let(
                     "n".to_string(),
-                    Box::new(Expression::VarUse("nat".to_string())),
-                    Box::new(Expression::VarUse("x".to_string()))
+                    Some(VarUse("nat".to_string())),
+                    Box::new(VarUse("x".to_string()))
                 )
             ),
             "Let definition struct isnt properly constructed"
@@ -217,24 +212,25 @@ mod unit_tests {
             parse_statement("let n: nat := x;").is_ok(),
             "Top level parser can't read let definitions"
         );
+        assert!(
+            parse_let("let n := zero;").is_ok(),
+            "Let parser doesnt read let definition without type annotation"
+        );
     }
 
     #[test]
-    fn test_parse_function() {
+    fn test_function() {
         assert_eq!(
             parse_function("fun f (n: Nat): Nat { s n }"),
             Ok((
                 "",
                 Statement::Fun(
                     "f".to_string(),
-                    vec![(
-                        "n".to_string(),
-                        Expression::VarUse("Nat".to_string())
-                    )],
-                    Box::new(Expression::VarUse("Nat".to_string())),
-                    Box::new(Expression::Application(
-                        Box::new(Expression::VarUse("s".to_string())),
-                        Box::new(Expression::VarUse("n".to_string()))
+                    vec![("n".to_string(), VarUse("Nat".to_string()))],
+                    Box::new(VarUse("Nat".to_string())),
+                    Box::new(Application(
+                        Box::new(VarUse("s".to_string())),
+                        Box::new(VarUse("n".to_string()))
                     )),
                     false
                 )
@@ -247,14 +243,11 @@ mod unit_tests {
                 "",
                 Statement::Fun(
                     "f".to_string(),
-                    vec![(
-                        "n".to_string(),
-                        Expression::VarUse("Nat".to_string())
-                    )],
-                    Box::new(Expression::VarUse("Nat".to_string())),
-                    Box::new(Expression::Application(
-                        Box::new(Expression::VarUse("f".to_string())),
-                        Box::new(Expression::VarUse("n".to_string()))
+                    vec![("n".to_string(), VarUse("Nat".to_string()))],
+                    Box::new(VarUse("Nat".to_string())),
+                    Box::new(Application(
+                        Box::new(VarUse("f".to_string())),
+                        Box::new(VarUse("n".to_string()))
                     )),
                     true
                 )
@@ -266,46 +259,46 @@ mod unit_tests {
             parse_function("fun f : TYPE { TYPE }"),
             Ok((
                 "",
-                Statement::Fun(
+                Fun(
                     "f".to_string(),
                     vec![],
-                    Box::new(Expression::VarUse("TYPE".to_string())),
-                    Box::new(Expression::VarUse("TYPE".to_string())),
+                    Box::new(VarUse("TYPE".to_string())),
+                    Box::new(VarUse("TYPE".to_string())),
                     false
                 )
             )),
             "Function parser cant cope with functions with no arguments"
         );
         assert_eq!(
-        parse_function("fun f (l: List Nat): List Nat { l }"),
-        Ok((
-            "",
-            Statement::Fun(
-                "f".to_string(),
-                vec![(
-                    "l".to_string(),
-                    Expression::Application(
-                        Box::new(Expression::VarUse("List".to_string())),
-                        Box::new(Expression::VarUse("Nat".to_string()))
-                    )
-                )],
-                Box::new(Expression::Application(
-                    Box::new(Expression::VarUse("List".to_string())),
-                    Box::new(Expression::VarUse("Nat".to_string()))
-                )),
-                Box::new(Expression::VarUse("l".to_string())),
-                false
-            )
-        )),
-        "Function parser cant cope with arguments that have application types"
-    );
+            parse_function("fun f (l: List Nat): List Nat { l }"),
+            Ok((
+                "",
+                Fun(
+                    "f".to_string(),
+                    vec![(
+                        "l".to_string(),
+                        Application(
+                            Box::new(VarUse("List".to_string())),
+                            Box::new(VarUse("Nat".to_string()))
+                        )
+                    )],
+                    Box::new(Application(
+                        Box::new(VarUse("List".to_string())),
+                        Box::new(VarUse("Nat".to_string()))
+                    )),
+                    Box::new(VarUse("l".to_string())),
+                    false
+                )
+            )),
+            "Function parser cant cope with arguments that have application types"
+        );
         assert!(
-        parse_function(
-            "fun  \t \r f \r  \t  ( \t\r x \r\t :  \tNat  )  :  Nat  {  x  }"
-        )
-        .is_ok(),
-        "Function parser cant cope with whitespaces"
-    );
+            parse_function(
+                "fun  \t \r f \r  \t  ( \t\r x \r\t :  \tNat  )  :  Nat  {  x  }"
+            )
+            .is_ok(),
+            "Function parser cant cope with whitespaces"
+        );
         assert!(
             parse_statement("fun f (l: List Nat): List Nat { l }").is_ok(),
             "Top level stm parser doesnt recognize functions"
@@ -351,10 +344,7 @@ mod unit_tests {
             parse_axiom("axiom nat : TYPE;").unwrap(),
             (
                 "",
-                Statement::Axiom(
-                    "nat".to_string(),
-                    Box::new(Expression::VarUse("TYPE".to_string()))
-                )
+                Axiom("nat".to_string(), Box::new(VarUse("TYPE".to_string())))
             ),
             "Axiom node isnt properly constructed"
         );
@@ -370,10 +360,10 @@ mod unit_tests {
             parse_theorem("theorem p : PROP := p qed.").unwrap(),
             (
                 "",
-                Statement::Let(
+                Let(
                     "p".to_string(),
-                    Box::new(Expression::VarUse("PROP".to_string())),
-                    Box::new(Expression::VarUse("p".to_string())),
+                    Some(VarUse("PROP".to_string())),
+                    Box::new(VarUse("p".to_string())),
                 )
             ),
             "Parser cant theorem proofs"
@@ -403,17 +393,17 @@ mod unit_tests {
 
     #[test]
     fn test_inductive() {
-        let test_definition = Statement::Inductive(
+        let test_definition = Inductive(
             "nat".to_string(),
             vec![],
-            Box::new(Expression::VarUse("TYPE".to_string())),
+            Box::new(VarUse("TYPE".to_string())),
             vec![
-                ("o".to_string(), Expression::VarUse("nat".to_string())),
+                ("o".to_string(), VarUse("nat".to_string())),
                 (
                     "s".to_string(),
-                    Expression::Arrow(
-                        Box::new(Expression::VarUse("nat".to_string())),
-                        Box::new(Expression::VarUse("nat".to_string())),
+                    Arrow(
+                        Box::new(VarUse("nat".to_string())),
+                        Box::new(VarUse("nat".to_string())),
                     ),
                 ),
             ],
@@ -438,63 +428,63 @@ mod unit_tests {
             "Inductive parser cant cope with dense notation"
         );
         assert!(
-        parse_inductive_def("inductivenat:TYPE{|o: nat|s : nat-> nat}").is_err(),
-        "Inductive parser doesnt expect a whitespace after the inductive keyword"
-    );
+            parse_inductive_def("inductivenat:TYPE{|o: nat|s : nat-> nat}").is_err(),
+            "Inductive parser doesnt expect a whitespace after the inductive keyword"
+        );
         assert_eq!(
-        parse_inductive_def(
-            "inductive T : TYPE { | c: (list nat) -> T | g: nat -> nat -> T}"
-        )
-        .unwrap(),
-        (
-            "",
-            Statement::Inductive(
-                "T".to_string(),
-                vec![],
-                Box::new(Expression::VarUse("TYPE".to_string())),
-                vec![
-                    (
-                        "c".to_string(),
-                        Expression::Arrow(
-                            Box::new(Expression::Application(
-                                Box::new(Expression::VarUse(
-                                    "list".to_string()
-                                )),
-                                Box::new(Expression::VarUse("nat".to_string())),
-                            )),
-                            Box::new(Expression::VarUse("T".to_string()))
-                        )
-                    ),
-                    (
-                        "g".to_string(),
-                        Expression::Arrow(
-                            Box::new(Expression::VarUse("nat".to_string())),
-                            Box::new(Expression::Arrow(
-                                Box::new(Expression::VarUse("nat".to_string())),
-                                Box::new(Expression::VarUse("T".to_string())),
-                            ))
-                        ),
-                    ),
-                ],
+            parse_inductive_def(
+                "inductive T : TYPE { | c: (list nat) -> T | g: nat -> nat -> T}"
             )
-        ),
-        "Inductive constructor parser cant properly parse constructor types"
-    );
+            .unwrap(),
+            (
+                "",
+                Inductive(
+                    "T".to_string(),
+                    vec![],
+                    Box::new(VarUse("TYPE".to_string())),
+                    vec![
+                        (
+                            "c".to_string(),
+                            Arrow(
+                                Box::new(Application(
+                                    Box::new(VarUse(
+                                        "list".to_string()
+                                    )),
+                                    Box::new(VarUse("nat".to_string())),
+                                )),
+                                Box::new(VarUse("T".to_string()))
+                            )
+                        ),
+                        (
+                            "g".to_string(),
+                            Arrow(
+                                Box::new(VarUse("nat".to_string())),
+                                Box::new(Arrow(
+                                    Box::new(VarUse("nat".to_string())),
+                                    Box::new(VarUse("T".to_string())),
+                                ))
+                            ),
+                        ),
+                    ],
+                )
+            ),
+            "Inductive constructor parser cant properly parse constructor types"
+        );
         assert!(
-        parse_statement(
-            "inductive T: TYPE { \n\t| c:(list nat) ->T \n\t| g: nat -> nat->T}"
-        )
-        .is_ok(),
-        "Top level parser cant parse inductive definitions"
-    );
+            parse_statement(
+                "inductive T: TYPE { \n\t| c:(list nat) ->T \n\t| g: nat -> nat->T}"
+            )
+            .is_ok(),
+            "Top level parser cant parse inductive definitions"
+        );
 
         assert!(
-        parse_inductive_def(
-            "inductive list (T: TYPE) : TYPE { |nil: (list T) |cons: T -> (list T) }"
-        )
-        .is_ok(),
-        "Inductive parser doesnt support polymorphic types"
-    );
+            parse_inductive_def(
+                "inductive list (T: TYPE) : TYPE { |nil: (list T) |cons: T -> (list T) }"
+            )
+            .is_ok(),
+            "Inductive parser doesnt support polymorphic types"
+        );
         assert!(
             parse_inductive_def(
                 "inductive le : nat -> nat -> PROP { |lez: PROP | leS : PROP}"
@@ -503,11 +493,11 @@ mod unit_tests {
             "Inductive parser doesnt support complex arieties"
         );
         assert!(
-        parse_inductive_def(
-            "inductive eq (T:TYPE) (x:T) : T -> PROP { |refl: (((eq T) x) x)}"
-        )
-        .is_ok(),
-        "Inductive parser doesnt support Leibniz equality definition"
-    );
+            parse_inductive_def(
+                "inductive eq (T:TYPE) (x:T) : T -> PROP { |refl: (((eq T) x) x)}"
+            )
+            .is_ok(),
+            "Inductive parser doesnt support Leibniz equality definition"
+        );
     }
 }
