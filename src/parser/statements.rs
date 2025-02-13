@@ -2,7 +2,6 @@ use super::{
     api::{parse_source_file, NsAst},
     commons::{parse_optionally_typed_identifier, typed_parameter_list},
 };
-#[allow(unused_imports)]
 use super::{
     api::{Expression, Statement},
     commons::{parse_identifier, parse_type_expression},
