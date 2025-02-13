@@ -13,7 +13,6 @@ pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
     Ok(ast)
 }
 
-//TODO generalize to different type theories
 pub fn parse_and_elaborate<T: TypeTheory>(
     config: &Config,
     workspace: &str,
@@ -25,7 +24,6 @@ pub fn parse_and_elaborate<T: TypeTheory>(
     Ok(program)
 }
 
-//TODO generalize to different type theories
 pub fn parse_and_type_check<T: TypeTheory>(
     config: &Config,
     workspace: &str,

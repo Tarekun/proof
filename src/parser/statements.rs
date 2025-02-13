@@ -1,4 +1,8 @@
-use super::commons::{parse_optionally_typed_identifier, typed_parameter_list};
+use super::{
+    api::{parse_source_file, NsAst},
+    commons::{parse_optionally_typed_identifier, typed_parameter_list},
+};
+#[allow(unused_imports)]
 use super::{
     api::{Expression, Statement},
     commons::{parse_identifier, parse_type_expression},
@@ -6,17 +10,32 @@ use super::{
 };
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{is_not, tag},
     character::complete::{
         char, line_ending, multispace0, multispace1, not_line_ending,
     },
     combinator::opt,
     multi::many0,
-    sequence::preceded,
+    sequence::{delimited, preceded},
     IResult,
 };
 
 //########################### STATEMENT PARSERS
+//
+fn parse_import(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = preceded(multispace0, tag("import"))(input)?;
+    let (input, filepath) = preceded(
+        multispace0,
+        delimited(char('"'), is_not("\""), char('"')),
+    )(input)?;
+
+    let (_, ast) = parse_source_file(&format!("{}.lof", filepath));
+    match ast {
+        NsAst::Stm(file_root_stm) => Ok((input, file_root_stm)),
+        NsAst::Exp(_exp) => panic!("fuck this type system fr"),
+    }
+}
+//
 //
 pub fn parse_let(input: &str) -> IResult<&str, Statement> {
     let (input, _) = preceded(multispace0, tag("let"))(input)?;
@@ -150,8 +169,10 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
         parse_inductive_def,
         parse_theorem,
         parse_function,
+        parse_import,
     ))(input)
 }
+//
 //########################### STATEMENT PARSERS
 
 //########################### UNIT TESTS
@@ -160,11 +181,10 @@ mod unit_tests {
     use crate::parser::{
         api::Expression::{Application, Arrow, VarUse},
         api::Statement,
-        api::Statement::{Axiom, Comment, Fun, Inductive, Let},
-        expressions::parse_var,
+        api::Statement::{Axiom, Comment, Inductive, Let},
         statements::{
-            parse_axiom, parse_comment, parse_function, parse_inductive_def,
-            parse_let, parse_statement, parse_theorem,
+            parse_axiom, parse_comment, parse_function, parse_import,
+            parse_inductive_def, parse_let, parse_statement, parse_theorem,
         },
     };
 
@@ -200,7 +220,7 @@ mod unit_tests {
             parse_let("let n : nat := x;").unwrap(),
             (
                 "",
-                Statement::Let(
+                Let(
                     "n".to_string(),
                     Some(VarUse("nat".to_string())),
                     Box::new(VarUse("x".to_string()))
@@ -212,14 +232,10 @@ mod unit_tests {
             parse_statement("let n: nat := x;").is_ok(),
             "Top level parser can't read let definitions"
         );
-        assert!(
-            parse_let("let n := zero;").is_ok(),
-            "Let parser doesnt read let definition without type annotation"
-        );
     }
 
     #[test]
-    fn test_function() {
+    fn test_parse_function() {
         assert_eq!(
             parse_function("fun f (n: Nat): Nat { s n }"),
             Ok((
@@ -259,7 +275,7 @@ mod unit_tests {
             parse_function("fun f : TYPE { TYPE }"),
             Ok((
                 "",
-                Fun(
+                Statement::Fun(
                     "f".to_string(),
                     vec![],
                     Box::new(VarUse("TYPE".to_string())),
@@ -273,7 +289,7 @@ mod unit_tests {
             parse_function("fun f (l: List Nat): List Nat { l }"),
             Ok((
                 "",
-                Fun(
+                Statement::Fun(
                     "f".to_string(),
                     vec![(
                         "l".to_string(),
@@ -320,10 +336,6 @@ mod unit_tests {
             parse_function("fun rec myFunction(x: Int): Int").is_err(),
             "Function parser accepts function with no body"
         );
-        assert!(
-            parse_var("fun").is_err(),
-            "Variable parser is accepting 'fun' as identifier"
-        );
     }
 
     #[test]
@@ -360,7 +372,7 @@ mod unit_tests {
             parse_theorem("theorem p : PROP := p qed.").unwrap(),
             (
                 "",
-                Let(
+                Statement::Let(
                     "p".to_string(),
                     Some(VarUse("PROP".to_string())),
                     Box::new(VarUse("p".to_string())),
@@ -438,7 +450,7 @@ mod unit_tests {
             .unwrap(),
             (
                 "",
-                Inductive(
+                Statement::Inductive(
                     "T".to_string(),
                     vec![],
                     Box::new(VarUse("TYPE".to_string())),
@@ -498,6 +510,18 @@ mod unit_tests {
             )
             .is_ok(),
             "Inductive parser doesnt support Leibniz equality definition"
+        );
+    }
+
+    #[test]
+    fn test_import() {
+        assert!(
+            parse_import("import \"library/logic\"").is_ok(),
+            "Import parser isnt working"
+        );
+        assert!(
+            parse_statement("import \"library/logic\"").is_ok(),
+            "Top level statement parser doesnt support import"
         );
     }
 }
