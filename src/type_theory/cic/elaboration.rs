@@ -142,8 +142,6 @@ pub fn elaborate_match(
 //
 //########################### STATEMENTS ELABORATION
 //
-//
-//
 pub fn elaborate_file_root(
     program: &mut Program<CicTerm, CicStm>,
     file_path: String,

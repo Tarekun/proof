@@ -17,7 +17,7 @@ use nom::{
     IResult,
 };
 
-const RESERVED_KEYWORDS: [&str; 11] = [
+const RESERVED_KEYWORDS: [&str; 12] = [
     "let",
     "axiom",
     "inductive",
@@ -29,6 +29,7 @@ const RESERVED_KEYWORDS: [&str; 11] = [
     "qed",
     "fun",
     "rec",
+    "import",
 ];
 
 //########################### BASIC TOKEN PARSERS
