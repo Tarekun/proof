@@ -255,6 +255,15 @@ pub fn elaborate_axiom(
     ));
     Ok(())
 }
+//
+//
+pub fn elaborate_empty(
+    program: &mut Program<CicTerm, CicStm>,
+    nodes: Vec<NsAst>,
+) -> Result<(), String> {
+    elaborate_ast_vector(program, "".to_string(), nodes)
+}
+//
 //########################### STATEMENTS ELABORATION
 
 //########################### UNIT TESTS

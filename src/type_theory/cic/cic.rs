@@ -1,7 +1,7 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_dir_root, elaborate_file_root, elaborate_fun,
-    elaborate_inductive, elaborate_let, elaborate_match,
+    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
+    elaborate_fun, elaborate_inductive, elaborate_let, elaborate_match,
     elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
@@ -10,6 +10,12 @@ use super::type_check::{
     type_check_product, type_check_sort, type_check_variable,
 };
 use super::unification::alpha_equivalent;
+use crate::parser::api::Expression::{
+    Abstraction, Application, Arrow, Match, TypeProduct, VarUse,
+};
+use crate::parser::api::Statement::{
+    Axiom, Comment, DirRoot, EmptyRoot, FileRoot, Fun, Inductive, Let,
+};
 use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
@@ -57,22 +63,18 @@ pub struct Cic;
 impl Cic {
     pub fn elaborate_expression(ast: Expression) -> CicTerm {
         match ast {
-            Expression::VarUse(var_name) => elaborate_var_use(var_name),
-            Expression::Abstraction(var_name, var_type, body) => {
+            VarUse(var_name) => elaborate_var_use(var_name),
+            Abstraction(var_name, var_type, body) => {
                 elaborate_abstraction(var_name, *var_type, *body)
             }
-            Expression::TypeProduct(var_name, var_type, body) => {
+            TypeProduct(var_name, var_type, body) => {
                 elaborate_type_product(var_name, *var_type, *body)
             }
-            Expression::Application(left, right) => {
-                elaborate_application(*left, *right)
-            }
-            Expression::Match(matched_term, branches) => {
+            Application(left, right) => elaborate_application(*left, *right),
+            Match(matched_term, branches) => {
                 elaborate_match(*matched_term, branches)
             }
-            Expression::Arrow(domain, codomain) => {
-                elaborate_arrow(*domain, *codomain)
-            }
+            Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
             _ => panic!("not implemented"),
         }
     }
@@ -82,37 +84,36 @@ impl Cic {
         program: &mut Program<CicTerm, CicStm>,
     ) -> Result<(), String> {
         match ast {
-            Statement::Comment() => Ok(()),
-            Statement::FileRoot(file_path, asts) => {
+            Comment() => Ok(()),
+            FileRoot(file_path, asts) => {
                 elaborate_file_root(program, file_path, asts)
             }
-            Statement::Axiom(axiom_name, formula) => {
+            Axiom(axiom_name, formula) => {
                 elaborate_axiom(program, axiom_name, *formula)
             }
-            Statement::Let(var_name, var_type, body) => {
+            Let(var_name, var_type, body) => {
                 elaborate_let(program, var_name, var_type, *body)
             }
-            Statement::Inductive(
-                type_name,
-                parameters,
-                ariety,
-                constructors,
-            ) => elaborate_inductive(
-                program,
-                type_name,
-                parameters,
-                *ariety,
-                constructors,
-            ),
-            Statement::DirRoot(dirpath, asts) => {
+            Inductive(type_name, parameters, ariety, constructors) => {
+                elaborate_inductive(
+                    program,
+                    type_name,
+                    parameters,
+                    *ariety,
+                    constructors,
+                )
+            }
+            DirRoot(dirpath, asts) => {
                 elaborate_dir_root(program, dirpath, asts)
             }
-            Statement::Fun(fun_name, args, out_type, body, is_rec) => {
+            Fun(fun_name, args, out_type, body, is_rec) => {
                 elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
-            } // _ => Err(format!(
-              //     "Language construct {:?} not supported in CIC",
-              //     ast
-              // )),
+            }
+            EmptyRoot(nodes) => elaborate_empty(program, nodes),
+            // _ => Err(format!(
+            //     "Language construct {:?} not supported in CIC",
+            //     ast
+            // )),
         }
     }
 }
