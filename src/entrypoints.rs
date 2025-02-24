@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::parser::api::parse_workspace;
+use crate::parser::api::LofParser;
 use crate::parser::api::NsAst;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
@@ -7,7 +7,8 @@ use crate::type_theory::interface::TypeTheory;
 
 pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
     print!("Parsing of workspace: '{}'... ", workspace);
-    let ast = parse_workspace(config, &workspace)?;
+    let parser = LofParser::new(config.clone());
+    let ast = parser.parse_workspace(config, &workspace)?;
     println!("Done.");
 
     Ok(ast)

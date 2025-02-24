@@ -1,4 +1,3 @@
-use super::{expressions::parse_expression, statements::parse_statement};
 use crate::{
     config::Config,
     file_manager::{list_sources, read_source_file},
@@ -10,6 +9,7 @@ pub enum Statement {
     Comment(),
     FileRoot(String, Vec<NsAst>),
     DirRoot(String, Vec<NsAst>),
+    EmptyRoot(Vec<NsAst>),
     Axiom(String, Box<Expression>),
     /// (var_name, var_type, definition_body)
     Let(String, Option<Expression>, Box<Expression>),
@@ -39,7 +39,6 @@ pub enum Expression {
     /// (domain, codomain)
     Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
-    Num(i64),
     // (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
 }
@@ -49,60 +48,72 @@ pub enum NsAst {
     Exp(Expression),
 }
 
-/// Top level parser for single nodes that wraps expressions and statements
-pub fn parse_node(input: &str) -> IResult<&str, NsAst> {
-    alt((
-        map(parse_expression, NsAst::Exp),
-        map(parse_statement, NsAst::Stm),
-    ))(input)
+#[derive(Debug)]
+pub struct LofParser {
+    pub config: Config,
 }
-
-pub fn parse_source_file(filepath: &str) -> (String, NsAst) {
-    let source = match read_source_file(filepath) {
-        Ok(content) => content,
-        Err(e) => {
-            panic!("Error reading file: {:?}", e);
-        }
-    };
-    let result = many0(parse_node)(&source);
-    let (remaining_input, terms) = match result {
-        Ok((remaining, terms)) => (remaining, terms),
-        Err(e) => {
-            panic!("Parsing error: {:?}", e);
-        }
-    };
-
-    (
-        remaining_input.to_string(),
-        NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
-    )
-}
-
-pub fn parse_workspace(
-    _config: &Config,
-    workspace: &str,
-) -> Result<NsAst, String> {
-    let lof_files: Vec<String> = list_sources(workspace);
-    let mut asts = vec![];
-    let mut errors = vec![];
-
-    if lof_files.is_empty() {
-        panic!("Directory {} is not a LoF workspace", workspace);
-    }
-    for filepath in lof_files {
-        let (remainder, ast) = parse_source_file(&filepath);
-        if !remainder.chars().all(|c| c.is_whitespace()) {
-            errors.push(format!(
-                "Error parsing file '{}'. Remaining code:\n'{}'",
-                filepath, remainder
-            ));
-        } else {
-            asts.push(ast);
-        }
+impl LofParser {
+    pub fn new(config: Config) -> LofParser {
+        LofParser { config }
     }
 
-    if !errors.is_empty() {
-        return Err(errors.join("\n"));
+    /// Top level parser for single nodes that wraps expressions and statements
+    pub fn parse_node<'a>(&'a self, input: &'a str) -> IResult<&'a str, NsAst> {
+        alt((
+            map(|input| self.parse_expression(input), NsAst::Exp),
+            map(|input| self.parse_statement(input), NsAst::Stm),
+            map(|input| self.parse_theory_block(input), NsAst::Stm),
+        ))(input)
     }
-    Ok(NsAst::Stm(Statement::DirRoot(workspace.to_string(), asts)))
+
+    pub fn parse_source_file(&self, filepath: &str) -> (String, NsAst) {
+        let source = match read_source_file(filepath) {
+            Ok(content) => content,
+            Err(e) => {
+                panic!("Error reading file: {:?}", e);
+            }
+        };
+        let result = many0(|input| self.parse_node(input))(&source);
+        let (remaining_input, terms) = match result {
+            Ok((remaining, terms)) => (remaining, terms),
+            Err(e) => {
+                panic!("Parsing error: {:?}", e);
+            }
+        };
+
+        (
+            remaining_input.to_string(),
+            NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
+        )
+    }
+
+    pub fn parse_workspace(
+        &self,
+        _config: &Config,
+        workspace: &str,
+    ) -> Result<NsAst, String> {
+        let lof_files: Vec<String> = list_sources(workspace);
+        let mut asts = vec![];
+        let mut errors = vec![];
+
+        if lof_files.is_empty() {
+            panic!("Directory {} is not a LoF workspace", workspace);
+        }
+        for filepath in lof_files {
+            let (remainder, ast) = self.parse_source_file(&filepath);
+            if !remainder.chars().all(|c| c.is_whitespace()) {
+                errors.push(format!(
+                    "Error parsing file '{}'. Remaining code:\n'{}'",
+                    filepath, remainder
+                ));
+            } else {
+                asts.push(ast);
+            }
+        }
+
+        if !errors.is_empty() {
+            return Err(errors.join("\n"));
+        }
+        Ok(NsAst::Stm(Statement::DirRoot(workspace.to_string(), asts)))
+    }
 }

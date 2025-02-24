@@ -1,16 +1,11 @@
-use super::{
-    api::Expression,
-    expressions::{
-        parse_app, parse_arrow_type, parse_parens, parse_type_abs, parse_var,
-    },
-};
+use super::api::{Expression, LofParser};
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{
-        alpha1, alphanumeric0, char, digit1, multispace0, multispace1,
+        alpha1, alphanumeric0, char, multispace0, multispace1,
     },
-    combinator::{map_res, opt, recognize},
+    combinator::{opt, recognize},
     error::{Error, ErrorKind},
     multi::many0,
     sequence::{delimited, pair, preceded},
@@ -32,128 +27,156 @@ const RESERVED_KEYWORDS: [&str; 12] = [
     "import",
 ];
 
-//########################### BASIC TOKEN PARSERS
-pub fn parse_identifier(input: &str) -> IResult<&str, &str> {
-    let (input, identifier) =
-        preceded(multispace0, recognize(pair(alpha1, alphanumeric0)))(input)?;
+impl LofParser {
+    pub fn parse_identifier<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, &'a str> {
+        let (input, identifier) = preceded(
+            multispace0,
+            recognize(pair(alpha1, alphanumeric0)),
+        )(input)?;
 
-    if RESERVED_KEYWORDS.contains(&identifier) {
-        Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
-    } else {
-        Ok((input, identifier))
+        if RESERVED_KEYWORDS.contains(&identifier) {
+            Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
+        } else {
+            Ok((input, identifier))
+        }
     }
-}
-pub fn parse_numeral(input: &str) -> IResult<&str, Expression> {
-    map_res(preceded(multispace0, digit1), |s: &str| {
-        s.parse::<i64>().map(|num: i64| Expression::Num(num))
-    })(input)
-}
-//########################### BASIC TOKEN PARSERS
 
-pub fn parse_type_expression(input: &str) -> IResult<&str, Expression> {
-    alt((
-        parse_arrow_type,
-        parse_parens,
-        // application should show up before parse_var
-        // otherwise the function will be parsed as normal variable
-        // and the rest of the string is not properly parsed
-        parse_app,
-        parse_var,
-        parse_type_abs,
-    ))(input)
-}
+    pub fn parse_type_expression<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Expression> {
+        alt((
+            |input| self.parse_arrow_type(input),
+            |input| self.parse_parens(input),
+            // application should show up before parse_var
+            // otherwise the function will be parsed as normal variable
+            // and the rest of the string is not properly parsed
+            |input| self.parse_app(input),
+            |input| self.parse_var(input),
+            |input| self.parse_type_abs(input),
+        ))(input)
+    }
 
-pub fn parse_typed_identifier(
-    input: &str,
-) -> IResult<&str, (String, Expression)> {
-    let (input, identifier) = preceded(multispace0, parse_identifier)(input)?;
-    let (input, _) = preceded(multispace0, tag(":"))(input)?;
-    let (input, type_expression) =
-        preceded(multispace0, parse_type_expression)(input)?;
+    pub fn parse_typed_identifier<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, (String, Expression)> {
+        let (input, identifier) =
+            preceded(multispace0, |input| self.parse_identifier(input))(input)?;
+        let (input, _) = preceded(multispace0, tag(":"))(input)?;
+        let (input, type_expression) =
+            preceded(multispace0, |input| self.parse_type_expression(input))(
+                input,
+            )?;
 
-    Ok((input, (identifier.to_string(), type_expression)))
-}
+        Ok((input, (identifier.to_string(), type_expression)))
+    }
 
-pub fn parse_optionally_typed_identifier(
-    input: &str,
-) -> IResult<&str, (String, Option<Expression>)> {
-    let (input, identifier) = preceded(multispace0, parse_identifier)(input)?;
-    let (input, opt_type) = opt(preceded(
-        multispace0,
-        preceded(tag(":"), preceded(multispace0, parse_type_expression)),
-    ))(input)?;
+    pub fn parse_optionally_typed_identifier<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, (String, Option<Expression>)> {
+        let (input, identifier) =
+            preceded(multispace0, |input| self.parse_identifier(input))(input)?;
+        let (input, opt_type) = opt(preceded(
+            multispace0,
+            preceded(
+                tag(":"),
+                preceded(multispace0, |input| {
+                    self.parse_type_expression(input)
+                }),
+            ),
+        ))(input)?;
 
-    Ok((input, (identifier.to_string(), opt_type)))
-}
+        Ok((input, (identifier.to_string(), opt_type)))
+    }
 
-pub fn typed_parameter_list(
-    input: &str,
-) -> IResult<&str, Vec<(String, Expression)>> {
-    many0(preceded(
-        multispace1,
-        delimited(
-            preceded(multispace0, char('(')),
-            parse_typed_identifier,
-            preceded(multispace0, char(')')),
-        ),
-    ))(input)
+    pub fn typed_parameter_list<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Vec<(String, Expression)>> {
+        many0(preceded(
+            multispace1,
+            delimited(
+                preceded(multispace0, char('(')),
+                |input| self.parse_typed_identifier(input),
+                preceded(multispace0, char(')')),
+            ),
+        ))(input)
+    }
 }
 
 //########################### UNIT TESTS
-#[test]
-fn test_identifier() {
-    assert!(
-        parse_identifier("test").is_ok(),
-        "Parser cant read identifiers"
-    );
-    assert_eq!(
-        parse_identifier("  test").unwrap(),
-        ("", "test"),
-        "Identifier parser cant cope with whitespaces"
-    );
-    assert!(
-        parse_identifier("test123").is_ok(),
-        "Identifier parser cant read numbers/underscores"
-    );
-}
+#[cfg(test)]
+mod unit_tests {
+    use crate::{
+        config::Config,
+        parser::api::{Expression, LofParser},
+    };
 
-#[test]
-fn test_type_expression() {
-    assert_eq!(
-        parse_type_expression("TYPE").unwrap(),
-        ("", (Expression::VarUse("TYPE".to_string()))),
-        "parse_type_expression cant read simple sorts"
-    );
-    assert!(
-        parse_type_expression("A -> B").is_ok(),
-        "parse_type_expression cant read arrow types"
-    );
-    assert!(
-        parse_type_expression("(ΠT:TYPE.T)").is_ok(),
-        "parse_type_expression cant read types enclosed in parethesis"
-    );
-}
+    #[test]
+    fn test_identifier() {
+        let parser = LofParser::new(Config::default());
+        assert!(
+            parser.parse_identifier("test").is_ok(),
+            "Parser cant read identifiers"
+        );
+        assert_eq!(
+            parser.parse_identifier("  test").unwrap(),
+            ("", "test"),
+            "Identifier parser cant cope with whitespaces"
+        );
+        assert!(
+            parser.parse_identifier("test123").is_ok(),
+            "Identifier parser cant read numbers/underscores"
+        );
+    }
 
-#[test]
-fn test_typed_identifier() {
-    assert_eq!(
-        parse_typed_identifier("x : TYPE").unwrap(),
-        (
-            "",
-            ("x".to_string(), Expression::VarUse("TYPE".to_string()))
-        ),
-        "parse_typed_identifier doesnt return as expected"
-    );
-    assert_eq!(
-        parse_typed_identifier("\r\tx \t  : \t  TYPE").unwrap(),
-        (
-            "",
-            ("x".to_string(), Expression::VarUse("TYPE".to_string()))
-        ),
-        "parse_typed_identifier cant cope with whitespaces"
-    );
-    assert!(
-        parse_typed_identifier("x:TYPE").is_ok(),
-        "parse_typed_identifier cant cope with dense notation"
-    );
+    #[test]
+    fn test_type_expression() {
+        let parser = LofParser::new(Config::default());
+        assert_eq!(
+            parser.parse_type_expression("TYPE").unwrap(),
+            ("", (Expression::VarUse("TYPE".to_string()))),
+            "parse_type_expression cant read simple sorts"
+        );
+        assert!(
+            parser.parse_type_expression("A -> B").is_ok(),
+            "parse_type_expression cant read arrow types"
+        );
+        assert!(
+            parser.parse_type_expression("(ΠT:TYPE.T)").is_ok(),
+            "parse_type_expression cant read types enclosed in parethesis"
+        );
+    }
+
+    #[test]
+    fn test_typed_identifier() {
+        let parser = LofParser::new(Config::default());
+        assert_eq!(
+            parser.parse_typed_identifier("x : TYPE").unwrap(),
+            (
+                "",
+                ("x".to_string(), Expression::VarUse("TYPE".to_string()))
+            ),
+            "parse_typed_identifier doesnt return as expected"
+        );
+        assert_eq!(
+            parser
+                .parse_typed_identifier("\r\tx \t  : \t  TYPE")
+                .unwrap(),
+            (
+                "",
+                ("x".to_string(), Expression::VarUse("TYPE".to_string()))
+            ),
+            "parse_typed_identifier cant cope with whitespaces"
+        );
+        assert!(
+            parser.parse_typed_identifier("x:TYPE").is_ok(),
+            "parse_typed_identifier cant cope with dense notation"
+        );
+    }
 }

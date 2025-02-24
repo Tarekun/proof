@@ -330,6 +330,14 @@ pub fn elaborate_fun(
     }
 }
 //
+//
+pub fn elaborate_empty(
+    program: &mut Program<FolTerm, FolStm>,
+    nodes: Vec<NsAst>,
+) -> Result<(), String> {
+    elaborate_ast_vector(program, "".to_string(), nodes)
+}
+//
 //########################### STATEMENTS ELABORATION
 
 //########################### UNIT TESTS

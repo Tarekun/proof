@@ -1,12 +1,20 @@
 use crate::file_manager::read_file;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TypeSystem {
     Cic(),
     Fol(),
 }
 
-#[derive(Debug)]
+pub fn id_to_system(system_id: &str) -> Result<TypeSystem, String> {
+    match system_id {
+        "cic" => Ok(TypeSystem::Cic()),
+        "fol" => Ok(TypeSystem::Fol()),
+        other => Err(format!("Unsupported type system id provided: {}", other)),
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Config {
     pub system: TypeSystem,
 }
@@ -14,6 +22,13 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             system: TypeSystem::Cic(),
+        }
+    }
+}
+impl Config {
+    pub fn new(type_system: TypeSystem) -> Self {
+        Config {
+            system: type_system,
         }
     }
 }

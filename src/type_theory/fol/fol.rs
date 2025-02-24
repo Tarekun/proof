@@ -1,7 +1,7 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_dir_root, elaborate_file_root, elaborate_forall,
-    elaborate_fun, elaborate_let, elaborate_var_use,
+    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
+    elaborate_forall, elaborate_fun, elaborate_let, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_arrow,
@@ -105,7 +105,11 @@ impl Fol {
             Statement::Fun(fun_name, args, out_type, body, is_rec) => {
                 elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
             }
-            _ => panic!("statement {:?} is not supported in FOL", ast),
+            Statement::EmptyRoot(nodes) => elaborate_empty(program, nodes),
+            _ => Err(format!(
+                "Language construct {:?} not supported in FOL",
+                ast
+            )),
         }
     }
 }
