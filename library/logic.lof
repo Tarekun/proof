@@ -1,6 +1,8 @@
 # This file is part of the LoF standard library
 # It contains logic basics implemented in the Calculus of Constructions (CIC)
 
+!theory_block cic
+
 #TODO in matita T is defined at Type[2]
 inductive Eq (T:TYPE) (x:T) : T -> PROP {
   | refl: Eq T x x
@@ -45,3 +47,5 @@ inductive Exists (T: TYPE) (P: T -> PROP) : PROP {
 #let decidable: PROP -> PROP :=
 #  \lambda P: PROP. (Or P) (Not P)
 #;
+
+!end_block

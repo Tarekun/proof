@@ -4,6 +4,8 @@
 # include "logic"
 # include "bool"
 
+!theory_block cic 
+
 inductive Nat: TYPE {
   | z: Nat 
   | s: Nat -> Nat
@@ -19,6 +21,8 @@ inductive le : Nat -> Nat -> PROP {
   | lez: ∀n: Nat. le z n
   | les: ∀n:Nat. (∀m:Nat. (le n m) -> le (s n) (s m))
 }
+
+!end_block
 
 #note: in case of n = 0 the pred should be undefined
 fun pred (n: Nat) : Nat {
