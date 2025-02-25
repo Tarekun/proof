@@ -197,9 +197,8 @@ impl LofParser {
     ) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("!theory_block"))(input)?;
         let (input, system_id) =
-            preceded(multispace0, |input| self.parse_identifier(input))(input)?;
+            preceded(multispace1, |input| self.parse_identifier(input))(input)?;
         let (input, nodes) = many0(|input| self.parse_node(input))(input)?;
-        // let (input, node) = self.parse_node(input)?;
         let (input, _) = preceded(multispace0, tag("!end_block"))(input)?;
 
         match id_to_system(system_id) {
