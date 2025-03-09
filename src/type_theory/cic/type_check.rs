@@ -468,6 +468,7 @@ fn update_context_inductive(
         &inductive_eliminator(name, params, ariety, constructors)
     );
 }
+
 pub fn type_check_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
     type_name: String,
@@ -571,15 +572,8 @@ fn get_variables_as_terms(fun_type: &CicTerm) -> Vec<CicTerm> {
             result.append(&mut rec);
             result
         }
-        Sort(_) => {
-            vec![] //discard the base type
-        }
-        //TODO valutare se necessario davvero
-        Variable(_) => {
-            vec![] //discard the base type
-        }
         _ => {
-            panic!("TODO: handle better")
+            vec![] //discard the base type
         }
     }
 }
@@ -652,7 +646,8 @@ fn application_args(application: CicTerm) -> Vec<CicTerm> {
 mod unit_tests {
     use crate::type_theory::cic::{
         cic::{Cic, CicStm, CicTerm},
-        type_check::{type_check_fun, type_check_inductive},
+        cic::CicTerm::{Sort, Variable, Application, Product},
+        type_check::{inductive_eliminator, type_check_fun, type_check_inductive},
     };
     use crate::type_theory::interface::TypeTheory;
 
@@ -1376,6 +1371,93 @@ mod unit_tests {
                 false
             ).is_err(),
             "Type checking accept function with a inconsistent declared and result type",
+        );
+    }
+
+    #[test]
+    fn test_inductive_eliminator() {
+        assert_eq!(
+            inductive_eliminator(
+                "Unit".to_string(), 
+                vec![], 
+                Sort("TYPE".to_string()), 
+                vec![("it".to_string(), Variable("Unit".to_string()))]
+            ),
+
+            Product(
+                "er_Unit".to_string(), 
+                Box::new(Product(
+                    "instance".to_string(), 
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Sort("TYPE".to_string())),
+                )), 
+                Box::new(
+                    Product(
+                        "c_0".to_string(), 
+                        Box::new(Application(
+                            Box::new(Variable("er_Unit".to_string())),
+                            Box::new(Variable("it".to_string())),
+                        )), 
+                        Box::new(Product(
+                            "t".to_string(), 
+                            Box::new(Variable("Unit".to_string())),
+                            Box::new(Application(
+                                Box::new(Variable("er_Unit".to_string())),
+                                Box::new(Variable("t".to_string())),
+                            )),
+                        ))
+                    )
+                )
+            ),
+        
+            "Unit inductive eliminator not properly constructed"
+        );
+
+        assert_eq!(
+            inductive_eliminator(
+                "Bool".to_string(),
+                vec![],
+                Sort("TYPE".to_string()), 
+                vec![
+                    ("true".to_string(), Variable("Bool".to_string())),
+                    ("false".to_string(), Variable("Bool".to_string()))
+                ]
+            ),
+
+            Product(
+                "er_Bool".to_string(), 
+                Box::new(Product(
+                    "instance".to_string(), 
+                    Box::new(Variable("Bool".to_string())),
+                    Box::new(Sort("TYPE".to_string())),
+                )), 
+                Box::new(
+                    Product(
+                        "c_0".to_string(), 
+                        Box::new(Application(
+                            Box::new(Variable("er_Bool".to_string())),
+                            Box::new(Variable("true".to_string())),
+                        )), 
+                        Box::new(Product(
+                            "c_1".to_string(), 
+                            Box::new(Application(
+                                Box::new(Variable("er_Bool".to_string())),
+                                Box::new(Variable("false".to_string())),
+                            )),
+                            Box::new(Product(
+                                "t".to_string(),
+                                Box::new(Variable("Bool".to_string())),
+                                Box::new(Application(
+                                    Box::new(Variable("er_Bool".to_string())),
+                                    Box::new(Variable("t".to_string())),
+                                ))
+                            ))
+                        ))
+                    )
+                )
+            ),
+
+            "Boolean inductive eliminator not properly constructed"
         );
     }
 }
