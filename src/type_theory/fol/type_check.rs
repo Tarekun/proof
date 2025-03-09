@@ -14,12 +14,8 @@ fn make_multiarg_fun_type(
     let ((_arg_name, arg_type), rest) = arg_types.split_first().unwrap();
     let sub_type = make_multiarg_fun_type(rest, base);
 
-    Arrow(
-        Box::new(arg_type.to_owned()),
-        Box::new(sub_type),
-    )
+    Arrow(Box::new(arg_type.to_owned()), Box::new(sub_type))
 }
-
 
 //########################### TERMS TYPE CHECKING
 //
@@ -151,7 +147,11 @@ pub fn type_check_let(
     body: FolTerm,
 ) -> Result<FolType, String> {
     let body_type = Fol::type_check_term(body.clone(), environment)?;
-    let var_type = if opt_type.is_none() { body_type.clone() } else { opt_type.unwrap() };
+    let var_type = if opt_type.is_none() {
+        body_type.clone()
+    } else {
+        opt_type.unwrap()
+    };
     let _ = Fol::type_check_type(var_type.clone(), environment)?;
 
     if Fol::types_unify(environment, &var_type, &body_type) {
@@ -213,7 +213,9 @@ mod unit_tests {
                 FolType::{self, Arrow, Atomic, ForAll},
             },
             type_check::{
-                type_check_abstraction, type_check_application, type_check_arrow, type_check_atomic, type_check_forall, type_check_fun, type_check_let, type_check_var
+                type_check_abstraction, type_check_application,
+                type_check_arrow, type_check_atomic, type_check_forall,
+                type_check_fun, type_check_let, type_check_var,
             },
         },
         interface::TypeTheory,
@@ -552,11 +554,7 @@ mod unit_tests {
         );
         assert!(
             Fol::type_check_stm(
-                Let(
-                    "m".to_string(),
-                    Some(nat.clone()),
-                    Box::new(zero.clone())
-                ),
+                Let("m".to_string(), Some(nat.clone()), Box::new(zero.clone())),
                 &mut test_env
             )
             .is_ok(),
@@ -600,15 +598,19 @@ mod unit_tests {
         let nat = Atomic("Nat".to_string());
         // let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(vec![], vec![], vec![("Nat", &nat)]);
+            Environment::with_defaults_lower_order(
+                vec![],
+                vec![],
+                vec![("Nat", &nat)],
+            );
 
         let res = type_check_fun(
             &mut test_env,
             "f".to_string(),
             vec![("n".to_string(), nat.clone())],
-            nat.clone(), 
+            nat.clone(),
             Variable("n".to_string()),
-            false
+            false,
         );
         assert!(res.is_ok(), "Fun type checker failed with {:?}", res.err());
         assert_eq!(
@@ -619,14 +621,15 @@ mod unit_tests {
         assert!(
             Fol::type_check_stm(
                 Fun(
-                    "g".to_string(), 
-                    vec![("n".to_string(), nat.clone())], 
-                    Box::new(nat.clone()), 
-                    Box::new(Variable("n".to_string())), 
+                    "g".to_string(),
+                    vec![("n".to_string(), nat.clone())],
+                    Box::new(nat.clone()),
+                    Box::new(Variable("n".to_string())),
                     false
-                ), 
+                ),
                 &mut test_env
-            ).is_ok(),
+            )
+            .is_ok(),
             "Top level type checker doesnt support function definitions"
         );
 
@@ -644,12 +647,13 @@ mod unit_tests {
         assert!(
             type_check_fun(
                 &mut test_env,
-                "h".to_string(), 
-                vec![("n".to_string(), nat.clone())], 
-                nat.clone(), 
-                Variable("stupid_unbound_var".to_string()), 
+                "h".to_string(),
+                vec![("n".to_string(), nat.clone())],
+                nat.clone(),
+                Variable("stupid_unbound_var".to_string()),
                 false,
-            ).is_err(),
+            )
+            .is_err(),
             "Fun type checker accpets function definition with ill typed body"
         );
         assert!(

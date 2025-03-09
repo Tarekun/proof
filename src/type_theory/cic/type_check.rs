@@ -1,40 +1,9 @@
+use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
+use crate::misc::simple_map_indexed;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
-fn make_multiarg_fun_type(
-    arg_types: &[(String, CicTerm)],
-    base: CicTerm,
-) -> CicTerm {
-    if arg_types.is_empty() {
-        return base;
-    }
-
-    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-    let sub_type = make_multiarg_fun_type(rest, base);
-
-    CicTerm::Product(
-        arg_name.to_string(),
-        Box::new(arg_type.to_owned()),
-        Box::new(sub_type),
-    )
-}
-
-fn check_is_sort(term: &CicTerm) -> Result<(), String> {
-    match term {
-        CicTerm::Sort(_) => Ok(()),
-        _ => Err(format!("Expected sort term, found: {:?}", term)),
-    }
-}
-
-fn type_check_type(
-    term: &CicTerm,
-    environment: &mut Environment<CicTerm, CicTerm>,
-) -> Result<CicTerm, String> {
-    let term_type = Cic::type_check_term(term.clone(), environment)?;
-    let _ = check_is_sort(&term_type);
-    Ok(term_type)
-}
 
 //########################### EXPRESSIONS TYPE CHECKING
 //
@@ -147,18 +116,23 @@ fn type_constr_vars(
         1.. => match &variables[0] {
             CicTerm::Variable(var_name) => match constr_type {
                 CicTerm::Product(_, domain, codomain) => {
-                    let mut typed_vars = type_constr_vars(&(*codomain), variables[1..].to_vec());
+                    let mut typed_vars =
+                        type_constr_vars(&(*codomain), variables[1..].to_vec());
                     typed_vars.insert(0, (var_name.clone(), *(domain.clone())));
                     typed_vars
                 }
                 // i dont want to return results here
-                _ => {panic!("Mismatch in number of variables for constructor");}
+                _ => {
+                    panic!("Mismatch in number of variables for constructor");
+                }
+            },
+            _ => {
+                panic!(
+                    "Found illegal term in place of variable {:?}",
+                    variables[0],
+                );
             }
-            _ => {panic!(
-                "Found illegal term in place of variable {:?}",
-                variables[0],
-            );}
-        }
+        },
     }
 }
 fn type_check_pattern(
@@ -216,13 +190,19 @@ pub fn type_check_match(
         }
 
         //body type checking
-        let pattern_assumptions = type_constr_vars(&constr_type, pattern[1..].to_vec());
-        let body_type = environment.with_local_declarations(&pattern_assumptions, |local_env| {
-            Cic::type_check_term(body, local_env)
-        })?;
+        let pattern_assumptions =
+            type_constr_vars(&constr_type, pattern[1..].to_vec());
+        let body_type = environment
+            .with_local_declarations(&pattern_assumptions, |local_env| {
+                Cic::type_check_term(body, local_env)
+            })?;
         if return_type.is_none() {
             return_type = Some(body_type);
-        } else if !Cic::terms_unify(environment, &return_type.clone().unwrap(), &body_type) {
+        } else if !Cic::terms_unify(
+            environment,
+            &return_type.clone().unwrap(),
+            &body_type,
+        ) {
             return Err(
                 format!(
                     "Match branches have different types: found {:?} with previous {:?}",
@@ -231,7 +211,7 @@ pub fn type_check_match(
                 )
             );
         }
-}
+    }
 
     Ok(return_type.unwrap())
 }
@@ -248,7 +228,11 @@ pub fn type_check_let(
     body: CicTerm,
 ) -> Result<CicTerm, String> {
     let body_type = Cic::type_check_term(body.clone(), environment)?;
-    let var_type = if opt_type.is_none() { body_type.clone() } else { opt_type.unwrap() };
+    let var_type = if opt_type.is_none() {
+        body_type.clone()
+    } else {
+        opt_type.unwrap()
+    };
     let _ = type_check_type(&var_type, environment)?;
 
     if Cic::terms_unify(environment, &body_type, &var_type) {
@@ -273,7 +257,7 @@ pub fn type_check_fun(
     body: CicTerm,
     is_rec: bool,
 ) -> Result<CicTerm, String> {
-    let fun_type = make_multiarg_fun_type(&args, out_type.clone());
+    let fun_type = make_multiarg_fun_type(&args, &out_type);
     let _ = type_check_type(&fun_type, environment);
     let mut assumptions = args;
     if is_rec {
@@ -281,15 +265,13 @@ pub fn type_check_fun(
         //TODO possibly include necessary checks on recursive functions
     }
 
-    let body_type = environment.with_local_declarations(
-        &assumptions,
-        |local_env| {
+    let body_type = environment
+        .with_local_declarations(&assumptions, |local_env| {
             Cic::type_check_term(body, local_env)
-        },
-    )?;
+        })?;
     if !Cic::terms_unify(environment, &out_type, &body_type) {
         return Err(format!(
-            "Function type {:?} and body result {:?} are inconsistent", 
+            "Function type {:?} and body result {:?} are inconsistent",
             out_type, body_type
         ));
     }
@@ -310,19 +292,181 @@ pub fn type_check_axiom(
     Ok(CicTerm::Variable("Unit".to_string()))
 }
 //
-//
+/// Given the values of an inductive type definition, returns the corresponding eliminator 
+/// Reference that guided this implementation is Inductive Families by Peter Dybjer
+fn inductive_eliminator(
+    type_name: String,
+    params: Vec<(String, CicTerm)>,
+    ariety: CicTerm,
+    constructors: Vec<(String, CicTerm)>,
+) -> CicTerm {
+    /// Creation of the first parameters ( A :: σ )
+    fn make_left_param_vars(params: Vec<(String, CicTerm)>) -> Vec<CicTerm> {
+        params
+            .iter()
+            .map(|(var_name, _)| Variable(var_name.to_owned()))
+            .collect()
+    }
+    /// Creation of the first parameters ( a :: α[A] )
+    fn make_right_param_vars(ariety: &CicTerm) -> Vec<CicTerm> {
+        // TODO might need to rename right_params, i think they're all anonymous
+        let right_params: Vec<CicTerm> = get_variables_as_terms(ariety);
+        right_params
+    }
+    /// Creation of the full inductive type (P A a) instanciated
+    fn make_instance_type(
+        type_name: &str,
+        left_param_vars: Vec<CicTerm>,
+        right_param_vars: Vec<CicTerm>
+    ) -> CicTerm {
+        let instance_type = apply_arguments(Variable(type_name.to_string()), left_param_vars);
+        let instance_type = apply_arguments(instance_type, right_param_vars);
+        instance_type
+
+    }
+    /// Creation of the dependent result type of the eliminator
+    /// ( C : (a :: α[A]) (c : P A a) set )
+    fn make_result_type(type_name: &str, left_param_vars: Vec<CicTerm>, ariety: &CicTerm) -> CicTerm {
+        let right_params = make_right_param_vars(ariety);
+        let instance_type = make_instance_type(
+            type_name, 
+            left_param_vars, 
+            right_params
+        );
+
+        clone_product_with_different_result(
+            // TODO might need to rename right_params, i think they're all anonymous
+            &ariety,
+            Product(
+                "instance".to_string(),
+                Box::new(instance_type),
+                //TODO review this sort
+                Box::new(Sort("TYPE".to_string())),
+            ),
+        )
+    }
+    /// Creation of the dependent branches ( e :: ε\[A\] ) with each ε_j\[A\] is
+    /// (b :: β\[A\]) (u :: γ\[A,b\]) (v :: δ\[A,b\]) C p\[A,b\] (cons_j A b u)
+    /// where b are non recursive, u are recursive and v are inductive hypotesis and the output is 
+    /// a construction of the result for this inductive case
+    // TODO: support inductive hypothesis
+    // TODO: support distinction between recursive/non recursive args
+    fn make_inductive_cases(
+        constructors: Vec<(String, CicTerm)>,
+        left_param_vars: Vec<CicTerm>,
+        result_var: CicTerm
+    ) -> Vec<CicTerm> {
+        let left_params_len = left_param_vars.len();
+        let mut cases: Vec<CicTerm> = vec![];
+        // i parametri di destra da applicare a result stanno dentro l'innermost di constr_type
+        // se ci sono parametri di destra, l'innermost di constr_type e' un'applicazione del
+        // tipo induttivo con argomenti hard-coded nella definizione del costruttore
+        for (constr_name, constr_type) in constructors {
+            let innermost = get_prod_innermost(&constr_type);
+            let mut right_params = application_args(innermost.clone());
+            // drop left params used in instanciation of inductive type
+            //TODO this still includes the arguments at the end its not only the right_params yet
+            right_params.drain(0..left_params_len);  // da crab a drainer frfr
+    
+            let constr_instance = apply_arguments(Variable(constr_name), left_param_vars.clone());
+            let constr_instance = apply_arguments(constr_instance, right_params.clone());
+            // TODO might need to rename args, i think they're all anonymous
+            let args = get_variables_as_terms(&constr_type);
+            let constr_instance = apply_arguments(constr_instance, args);
+    
+            let result_instance = apply_arguments(result_var.clone(), right_params.clone());
+            let result_instance = apply_arguments(result_instance, vec![constr_instance]);
+    
+            // parametrization of the full minor premise
+            // start from the innermost (result_instance) and wrap it 
+            // TODO if arguments are recursive add inductive hypothesis term (result true applied on the rec arg)
+            let constr_args: Vec<(String, CicTerm)> = simple_map_indexed(
+                get_arg_types(&constr_type), 
+                |(index, arg_type)| {
+                    (format!("a_{}", index), arg_type)
+                }
+            ); 
+            let mut branch_type = make_multiarg_fun_type(
+                &constr_args,
+                &result_instance
+            );
+            let right_pars: Vec<(String, CicTerm)> = simple_map_indexed(
+                right_params,
+                |(index, param_type)| {
+                    (format!("p_{}", index), param_type)
+                }
+            );
+            branch_type = make_multiarg_fun_type(
+                &right_pars,
+                &branch_type
+            );
+    
+            cases.push(branch_type);
+        }
+    
+        cases
+    }
+
+    let left_param_vars = make_left_param_vars(params.clone());
+    let result_var = Variable(format!("er_{}", type_name)); // er = eliminator result, C in the paper
+    let result_type = make_result_type(&type_name, left_param_vars.clone(), &ariety);
+    let inductive_cases = make_inductive_cases(constructors, left_param_vars.clone(), result_var.clone());
+    let right_param_vars = make_right_param_vars(&ariety);
+    let inductive_instace_var = Variable("t".to_string());
+    let inductive_instace = make_instance_type(&type_name, left_param_vars, right_param_vars.clone());
+    let mut result_instance = apply_arguments(result_var, right_param_vars.clone());
+    result_instance = Application(Box::new(result_instance), Box::new(inductive_instace_var));
+
+    let mut full_parametrization = make_multiarg_fun_type(
+        &vec![("t".to_string(), inductive_instace)], 
+        &result_instance
+    );
+    full_parametrization = make_multiarg_fun_type(
+        &simple_map_indexed(
+            right_param_vars,
+            |(index, param_type)| {
+                (format!("rp_{}", index), param_type)
+            }
+        ), 
+        &full_parametrization
+    );
+    full_parametrization = make_multiarg_fun_type(
+        &simple_map_indexed(
+            inductive_cases,
+            |(index, case_type)| {
+                (format!("c_{}", index), case_type)
+            }
+        ), 
+        &full_parametrization
+    );
+    full_parametrization = make_multiarg_fun_type(
+        &vec![(format!("er_{}", type_name), result_type)], 
+        &full_parametrization
+    );
+    full_parametrization = make_multiarg_fun_type(
+        &params, 
+        &full_parametrization
+    );
+    full_parametrization
+}
+
 fn update_context_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
-    name: String, 
-    ind_type: CicTerm, 
-    constructors: Vec<(String, CicTerm)>
+    name: String,
+    params: Vec<(String, CicTerm)>,
+    ariety: CicTerm,
+    constructors: Vec<(String, CicTerm)>,
 ) {
-    //TODO also include eliminator
     //TODO make a record of the full constructor list for match type checking
+    let ind_type = make_multiarg_fun_type(&params, &ariety);
     environment.add_variable_to_context(&name, &ind_type);
-    for (constr_name, constr_type) in constructors {
-        environment.add_variable_to_context(&constr_name, &constr_type);
+    for (constr_name, constr_type) in &constructors {
+        environment.add_variable_to_context(constr_name, constr_type);
     }
+    environment.add_variable_to_context(
+        &format!("e_{}", name), 
+        &inductive_eliminator(name, params, ariety, constructors)
+    );
 }
 pub fn type_check_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
@@ -332,7 +476,7 @@ pub fn type_check_inductive(
     constructors: Vec<(String, CicTerm)>,
 ) -> Result<CicTerm, String> {
     //TODO check positivity
-    let inductive_type = make_multiarg_fun_type(&params, ariety);
+    let inductive_type = make_multiarg_fun_type(&params, &ariety);
     let inductive_type_sort =
         Cic::type_check_term(inductive_type.clone(), environment)?;
     let _ = check_is_sort(&inductive_type_sort)?;
@@ -340,7 +484,7 @@ pub fn type_check_inductive(
     let inductive_assumptions: Vec<(String, CicTerm)> =
         vec![(type_name.clone(), inductive_type.clone())]
             .into_iter()
-            .chain(params.into_iter())
+            .chain(params.clone().into_iter())
             .collect();
 
     let mut constr_bindings = vec![];
@@ -358,29 +502,170 @@ pub fn type_check_inductive(
         },
     )?;
 
-    update_context_inductive(environment, type_name, inductive_type, constr_bindings);
+    update_context_inductive(
+        environment,
+        type_name,
+        params, 
+        ariety,
+        constr_bindings,
+    );
     Ok(CicTerm::Variable("Unit".to_string()))
 }
 //
 //########################### STATEMENTS TYPE CHECKING
 //
+//########################### HELPER FUNCTIONS
+//
+/// Creates the CIC type of a function with named arguments `arg_types`
+/// that returns a value of type `base`
+fn make_multiarg_fun_type(
+    arg_types: &[(String, CicTerm)],
+    base: &CicTerm,
+) -> CicTerm {
+    if arg_types.is_empty() {
+        return base.clone();
+    }
+
+    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
+    let sub_type = make_multiarg_fun_type(rest, base);
+
+    CicTerm::Product(
+        arg_name.to_string(),
+        Box::new(arg_type.to_owned()),
+        Box::new(sub_type),
+    )
+}
+//
+/// Checks that the given term is a sort. Return Ok if it is, Err otherwise
+#[deprecated(note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead")]
+fn check_is_sort(term: &CicTerm) -> Result<(), String> {
+    match term {
+        CicTerm::Sort(_) => Ok(()),
+        _ => Err(format!("Expected sort term, found: {:?}", term)),
+    }
+}
+#[deprecated(note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead")]
+fn type_check_type(
+    term: &CicTerm,
+    environment: &mut Environment<CicTerm, CicTerm>,
+) -> Result<CicTerm, String> {
+    let term_type = Cic::type_check_term(term.clone(), environment)?;
+    let _ = check_is_sort(&term_type);
+    Ok(term_type)
+}
+//
+/// Given the CIC type of a function `fun` returns the number of arguments of the function
+fn args_len(fun: &CicTerm) -> i32 {
+    match fun {
+        Product(_, _, codomain) => 1 + args_len(codomain),
+        _ => 0
+    }
+}
+//
+/// Returns variable terms for a multi argument function
+fn get_variables_as_terms(fun_type: &CicTerm) -> Vec<CicTerm> {
+    match fun_type {
+        Product(var_name, _domain, codomain) => {
+            let mut rec: Vec  < CicTerm> = get_variables_as_terms(codomain);
+            let mut result = vec![Variable(var_name.to_owned())];
+            result.append(&mut rec);
+            result
+        }
+        Sort(_) => {
+            vec![] //discard the base type
+        }
+        //TODO valutare se necessario davvero
+        Variable(_) => {
+            vec![] //discard the base type
+        }
+        _ => {
+            panic!("TODO: handle better")
+        }
+    }
+}
+//
+/// Takes the name of a function and returns an application term of all the arguments given
+fn apply_arguments(fun: CicTerm, args: Vec<CicTerm>) -> CicTerm {
+    let mut application = fun;
+    for arg in args {
+        application = Application(Box::new(application), Box::new(arg));
+    }
+
+    application
+}
+//
+/// Clones the given product, swapping the innermost body term with the given one
+fn clone_product_with_different_result(
+    product: &CicTerm,
+    new_result: CicTerm,
+) -> CicTerm {
+    match product {
+        Product(var_name, domain, codomain) => {
+            let new_codomain =
+                clone_product_with_different_result(codomain, new_result);
+            Product(var_name.to_owned(), domain.clone(), Box::new(new_codomain))
+        }
+        Sort(_) => new_result,
+        Variable(_) => new_result,
+        _ => panic!("TODO: handle better"),
+    }
+}
+//
+/// Returns the innermost body term of a serie of concatenated Products
+/// (ie the return type of a function)
+fn get_prod_innermost(term: &CicTerm) -> &CicTerm {
+    match term {
+        Product(_, _, codomain) => get_prod_innermost(&*codomain),
+        _ => term
+    }
+}
+//
+/// Returns the list of types of the arguments of a multi arg function
+fn get_arg_types(fun_type: &CicTerm) -> Vec<CicTerm> {
+    match fun_type {
+        Product(_, domain, codomain) => {
+            let mut result: Vec<CicTerm> = vec![(**domain).clone()];
+            result.extend(get_arg_types(&codomain));
+            return  result;
+        },
+        _ => vec![]
+    }
+}
+//
+/// Given a multiarg application term, returns the vector of all the arguments being applyed
+fn application_args(application: CicTerm) -> Vec<CicTerm> {
+    match application {
+        Application(left, right) => {
+            let mut rec = application_args(*left);
+            rec.push(*right);//TODO shouldnt it be append/enqueue?
+            return rec;
+        }
+        // discard leftmost term, we dont care about the function
+        _ => vec![]
+    }
+}
+//
+//########################### HELPER FUNCTIONS
 //
 //########################### UNIT TESTS
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::{Cic, CicStm, CicTerm}, 
-        type_check::{type_check_fun, type_check_inductive}
+        cic::{Cic, CicStm, CicTerm},
+        type_check::{type_check_fun, type_check_inductive},
     };
     use crate::type_theory::interface::TypeTheory;
 
     #[test]
     fn test_type_check_sort_n_vars() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        // assumption, the type statement is included in the context
         test_env
-            .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
+            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        // assumption, the type statement is included in the context
+        test_env.add_variable_to_context(
+            "n",
+            &CicTerm::Variable("nat".to_string()),
+        );
         // definition, we have the variabled and a typed body
         test_env.add_variable_definition(
             "m",
@@ -390,14 +675,20 @@ mod unit_tests {
 
         // sorts
         assert_eq!(
-            Cic::type_check_term(CicTerm::Sort("TYPE".to_string()), &mut test_env)
-                .unwrap(),
+            Cic::type_check_term(
+                CicTerm::Sort("TYPE".to_string()),
+                &mut test_env
+            )
+            .unwrap(),
             CicTerm::Sort("TYPE".to_string()),
             "Sort 'TYPE' type checking failed"
         );
         assert!(
-            Cic::type_check_term(CicTerm::Sort("PROP".to_string()), &mut test_env)
-                .is_ok(),
+            Cic::type_check_term(
+                CicTerm::Sort("PROP".to_string()),
+                &mut test_env
+            )
+            .is_ok(),
             "Sort 'PROP' type checking failed"
         );
         assert!(
@@ -409,21 +700,30 @@ mod unit_tests {
             "Sort type checker accepts illegal sort"
         );
         assert!(
-            Cic::type_check_term(CicTerm::Variable("TYPE".to_string()), &mut test_env)
-                .is_ok(),
+            Cic::type_check_term(
+                CicTerm::Variable("TYPE".to_string()),
+                &mut test_env
+            )
+            .is_ok(),
             "Type checker refuses sorts when used as variables"
         );
 
         // variables
         assert_eq!(
-            Cic::type_check_term(CicTerm::Variable("n".to_string()), &mut test_env)
-                .unwrap(),
+            Cic::type_check_term(
+                CicTerm::Variable("n".to_string()),
+                &mut test_env
+            )
+            .unwrap(),
             CicTerm::Variable("nat".to_string()),
             "Type checker refuses existing variable"
         );
         assert!(
-            Cic::type_check_term(CicTerm::Variable("m".to_string()), &mut test_env)
-                .is_ok(),
+            Cic::type_check_term(
+                CicTerm::Variable("m".to_string()),
+                &mut test_env
+            )
+            .is_ok(),
             "Type checker refuses defined variable"
         );
         assert!(
@@ -439,10 +739,13 @@ mod unit_tests {
     #[test]
     fn test_type_check_abstraction() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        // assumption, the type statement is included in the context
         test_env
-            .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
+            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        // assumption, the type statement is included in the context
+        test_env.add_variable_to_context(
+            "o",
+            &CicTerm::Variable("nat".to_string()),
+        );
         // function over nat
         test_env.add_variable_to_context(
             "s",
@@ -494,7 +797,9 @@ mod unit_tests {
             Cic::type_check_term(
                 CicTerm::Abstraction(
                     "x".to_string(),
-                    Box::new(CicTerm::Variable("StupidInvalidType".to_string())),
+                    Box::new(CicTerm::Variable(
+                        "StupidInvalidType".to_string()
+                    )),
                     Box::new(CicTerm::Variable("x".to_string())),
                 ),
                 &mut test_env
@@ -568,10 +873,13 @@ mod unit_tests {
     // TODO include tests for polymorphic types
     fn test_type_check_application() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        // assumption, the type statement is included in the context
         test_env
-            .add_variable_to_context("n", &CicTerm::Variable("nat".to_string()));
+            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        // assumption, the type statement is included in the context
+        test_env.add_variable_to_context(
+            "n",
+            &CicTerm::Variable("nat".to_string()),
+        );
         // definition, we have the variabled and a typed body
         test_env.add_variable_definition(
             "m",
@@ -628,10 +936,16 @@ mod unit_tests {
     //TODO add check of exaustiveness of patterns
     fn test_type_check_match() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_variable_to_context("Bool", &CicTerm::Sort("TYPE".to_string()));
         test_env
-            .add_variable_to_context("o", &CicTerm::Variable("nat".to_string()));
+            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_variable_to_context(
+            "Bool",
+            &CicTerm::Sort("TYPE".to_string()),
+        );
+        test_env.add_variable_to_context(
+            "o",
+            &CicTerm::Variable("nat".to_string()),
+        );
         test_env.add_variable_to_context(
             "s",
             &CicTerm::Product(
@@ -640,10 +954,14 @@ mod unit_tests {
                 Box::new(CicTerm::Variable("nat".to_string())),
             ),
         );
-        test_env
-            .add_variable_to_context("c", &CicTerm::Variable("nat".to_string()));
-        test_env
-            .add_variable_to_context("true", &CicTerm::Variable("Bool".to_string()));
+        test_env.add_variable_to_context(
+            "c",
+            &CicTerm::Variable("nat".to_string()),
+        );
+        test_env.add_variable_to_context(
+            "true",
+            &CicTerm::Variable("Bool".to_string()),
+        );
 
         assert_eq!(
             Cic::type_check_term(
@@ -783,7 +1101,10 @@ mod unit_tests {
                 vec![],
                 TYPE.clone(),
                 vec![
-                    ("correct".to_string(), CicTerm::Variable("inc".to_string())),
+                    (
+                        "correct".to_string(),
+                        CicTerm::Variable("inc".to_string())
+                    ),
                     (
                         "wrong".to_string(),
                         CicTerm::Variable("wrongType".to_string())
@@ -957,25 +1278,31 @@ mod unit_tests {
     #[test]
     fn test_type_check_fun() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_variable_to_context("z", &CicTerm::Variable("Nat".to_string()));
-        test_env.add_variable_to_context("s", 
+        test_env
+            .add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_variable_to_context(
+            "z",
+            &CicTerm::Variable("Nat".to_string()),
+        );
+        test_env.add_variable_to_context(
+            "s",
             &CicTerm::Product(
                 "_".to_string(),
-                Box::new(CicTerm::Variable("Nat".to_string())), 
-                Box::new(CicTerm::Variable("Nat".to_string()))
-            )
+                Box::new(CicTerm::Variable("Nat".to_string())),
+                Box::new(CicTerm::Variable("Nat".to_string())),
+            ),
         );
 
         assert!(
             type_check_fun(
                 &mut test_env,
                 "f".to_string(),
-                vec![("t".to_string(), CicTerm::Sort("TYPE".to_string()))], 
+                vec![("t".to_string(), CicTerm::Sort("TYPE".to_string()))],
                 CicTerm::Sort("TYPE".to_string()),
-                CicTerm::Variable("t".to_string()), 
+                CicTerm::Variable("t".to_string()),
                 false
-            ).is_ok(),
+            )
+            .is_ok(),
             "Type checking refuses identity function"
         );
 
@@ -985,50 +1312,53 @@ mod unit_tests {
         ];
         let zerobranch = (
             //patter
-            vec![CicTerm::Variable("z".to_string())], 
+            vec![CicTerm::Variable("z".to_string())],
             //body
-            CicTerm::Variable("m".to_string())
+            CicTerm::Variable("m".to_string()),
         );
         let succbranch = (
             //patter
-            vec![CicTerm::Variable("s".to_string()), CicTerm::Variable("nn".to_string())], 
+            vec![
+                CicTerm::Variable("s".to_string()),
+                CicTerm::Variable("nn".to_string()),
+            ],
             //body
             CicTerm::Application(
-                Box::new(CicTerm::Variable("s".to_string())), 
+                Box::new(CicTerm::Variable("s".to_string())),
                 Box::new(CicTerm::Application(
-                        Box::new(CicTerm::Application(
-                            Box::new(CicTerm::Variable("add".to_string())), 
-                            Box::new(CicTerm::Variable("nn".to_string())), 
-                        )),
-                        Box::new(CicTerm::Variable("m".to_string())), 
-                    )
-                )
-            )
+                    Box::new(CicTerm::Application(
+                        Box::new(CicTerm::Variable("add".to_string())),
+                        Box::new(CicTerm::Variable("nn".to_string())),
+                    )),
+                    Box::new(CicTerm::Variable("m".to_string())),
+                )),
+            ),
         );
         assert!(
             type_check_fun(
                 &mut test_env,
                 "add".to_string(),
-                args.clone(), 
+                args.clone(),
                 CicTerm::Sort("Nat".to_string()),
                 CicTerm::Match(
-                    Box::new(CicTerm::Variable("n".to_string())), 
-                    vec![zerobranch.clone(),succbranch.clone()]
-                ), 
-                false 
-            ).is_err(),
+                    Box::new(CicTerm::Variable("n".to_string())),
+                    vec![zerobranch.clone(), succbranch.clone()]
+                ),
+                false
+            )
+            .is_err(),
             "Type checking accepts recursive function not marked as recursive"
         );
         let res = type_check_fun(
             &mut test_env,
             "add".to_string(),
-            args, 
+            args,
             CicTerm::Variable("Nat".to_string()),
             CicTerm::Match(
-                Box::new(CicTerm::Variable("n".to_string())), 
-                vec![zerobranch,succbranch,]
-            ), 
-            true 
+                Box::new(CicTerm::Variable("n".to_string())),
+                vec![zerobranch, succbranch],
+            ),
+            true,
         );
         assert!(
             res.is_ok(),
@@ -1048,5 +1378,4 @@ mod unit_tests {
             "Type checking accept function with a inconsistent declared and result type",
         );
     }
-
 }
