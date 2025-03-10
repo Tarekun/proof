@@ -307,7 +307,7 @@ fn inductive_eliminator(
             .map(|(var_name, _)| Variable(var_name.to_owned()))
             .collect()
     }
-    /// Creation of the first parameters ( a :: α[A] )
+    /// Creation of the first parameters ( a :: α\[A\] )
     fn make_right_param_vars(ariety: &CicTerm) -> Vec<CicTerm> {
         // TODO might need to rename right_params, i think they're all anonymous
         let right_params: Vec<CicTerm> = get_variables_as_terms(ariety);
@@ -325,8 +325,9 @@ fn inductive_eliminator(
 
     }
     /// Creation of the dependent result type of the eliminator
-    /// ( C : (a :: α[A]) (c : P A a) set )
+    /// ( C : (a :: α\[A\]) (c : P A a) set )
     fn make_result_type(type_name: &str, left_param_vars: Vec<CicTerm>, ariety: &CicTerm) -> CicTerm {
+        // TODO might need to rename right_params, i think they're all anonymous
         let right_params = make_right_param_vars(ariety);
         let instance_type = make_instance_type(
             type_name, 
@@ -335,7 +336,6 @@ fn inductive_eliminator(
         );
 
         clone_product_with_different_result(
-            // TODO might need to rename right_params, i think they're all anonymous
             &ariety,
             Product(
                 "instance".to_string(),
@@ -358,14 +358,11 @@ fn inductive_eliminator(
     ) -> Vec<CicTerm> {
         let left_params_len = left_param_vars.len();
         let mut cases: Vec<CicTerm> = vec![];
-        // i parametri di destra da applicare a result stanno dentro l'innermost di constr_type
-        // se ci sono parametri di destra, l'innermost di constr_type e' un'applicazione del
-        // tipo induttivo con argomenti hard-coded nella definizione del costruttore
+
         for (constr_name, constr_type) in constructors {
             let innermost = get_prod_innermost(&constr_type);
             let mut right_params = application_args(innermost.clone());
-            // drop left params used in instanciation of inductive type
-            //TODO this still includes the arguments at the end its not only the right_params yet
+            // drop left params used in instantiation of inductive type
             right_params.drain(0..left_params_len);  // da crab a drainer frfr
     
             let constr_instance = apply_arguments(Variable(constr_name), left_param_vars.clone());
@@ -390,14 +387,14 @@ fn inductive_eliminator(
                 &constr_args,
                 &result_instance
             );
-            let right_pars: Vec<(String, CicTerm)> = simple_map_indexed(
+            let named_right_params: Vec<(String, CicTerm)> = simple_map_indexed(
                 right_params,
                 |(index, param_type)| {
                     (format!("p_{}", index), param_type)
                 }
             );
             branch_type = make_multiarg_fun_type(
-                &right_pars,
+                &named_right_params,
                 &branch_type
             );
     
