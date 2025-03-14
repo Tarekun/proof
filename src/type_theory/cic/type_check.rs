@@ -1,5 +1,6 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
+use super::cic_utils::check_positivity;
 use crate::misc::{simple_map, simple_map_indexed};
 use crate::type_theory::cic::cic_utils::{
     application_args, apply_arguments, clone_product_with_different_result,
@@ -589,6 +590,12 @@ pub fn type_check_inductive(
                 let constr_type_sort =
                     Cic::type_check_term(constr_type.clone(), local_env)?;
                 let _ = check_is_sort(&constr_type_sort)?;
+                for arg_type in get_arg_types(&constr_type) {
+                    if !check_positivity(&arg_type, &type_name) {
+                        return Err(format!("Inductive constructor {} has recursive argument with negative polarity", constr_name));
+                    }
+                }
+                
                 constr_bindings.push((constr_name, constr_type));
             }
 
@@ -1889,6 +1896,33 @@ mod unit_tests {
             ),
             
             "Length-indexed vector inductive eliminator not properly constructed"
+        );
+    }
+
+    #[test]
+    fn test_positivity_check() {
+        let mut test_env = Cic::default_environment();
+        test_env.add_variable_to_context("Empty", &Sort("TYPE".to_string()));
+
+        assert!(
+            Cic::type_check_stm(
+                InductiveDef(
+                    "CurrysParadox".to_string(), 
+                    vec![], 
+                    Box::new(Sort("PROP".to_string())),
+                    vec![("paradox".to_string(), Product(
+                        "negative".to_string(), 
+                        Box::new(Product(
+                            "_".to_string(), 
+                            Box::new(Variable("CurrysParadox".to_string())), 
+                            Box::new(Variable("Empty".to_string())) 
+                        )), 
+                        Box::new(Variable("CurrysParadox".to_string())), 
+                    ))]
+                ), 
+                &mut test_env
+            ).is_err(),
+            "Oh no, Curry's paradox is accepted"
         );
     }
 }

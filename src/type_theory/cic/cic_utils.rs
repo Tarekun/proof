@@ -1,7 +1,7 @@
 use crate::type_theory::environment::Environment;
 
 use super::cic::CicTerm;
-use super::cic::CicTerm::{Application, Product, Sort, Variable};
+use super::cic::CicTerm::{Abstraction, Application, Product, Sort, Variable};
 use std::fmt;
 
 pub fn delta_reduce(
@@ -156,6 +156,36 @@ pub fn is_instance_of(term: &CicTerm, name: &str) -> bool {
         // anything else isnt a referencable type
         _ => false,
     }
+}
+
+pub fn references(term: &CicTerm, name: &str) -> bool {
+    match term {
+        Variable(var_name) => var_name == name,
+        Sort(sort_name) => sort_name == name,
+        Application(left, rigth) => {
+            references(&left, name) || references(&rigth, name)
+        }
+        Abstraction(_, domain, codomain) => {
+            references(&domain, name) || references(&codomain, name)
+        }
+        Product(_, domain, codomain) => {
+            references(&domain, name) || references(&codomain, name)
+        }
+        // TODO fuck match fr
+        _ => false,
+    }
+}
+
+/// Returns `true` if `name` occurs only positively in `rec_type`, `false` otherwise
+pub fn check_positivity(function_type: &CicTerm, name: &str) -> bool {
+    let arg_types = get_arg_types(function_type);
+    for arg_type in arg_types {
+        if references(&arg_type, name) {
+            return false;
+        }
+    }
+
+    true
 }
 
 //########################### UNIT TESTS
