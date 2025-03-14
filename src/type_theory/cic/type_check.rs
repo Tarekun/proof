@@ -1,5 +1,3 @@
-use std::any::type_name;
-
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use crate::misc::{simple_map, simple_map_indexed};

@@ -20,7 +20,6 @@ use crate::parser::api::{Expression, NsAst, Statement};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
-use std::fmt;
 
 #[derive(PartialEq, Clone)]
 pub enum CicTerm {
@@ -36,46 +35,6 @@ pub enum CicTerm {
     Application(Box<CicTerm>, Box<CicTerm>),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
-}
-fn term_formatter(term: &CicTerm, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match term {
-        // (sort name)
-        CicTerm::Sort(name) => write!(f, "σ({})", name),
-        // (var name)
-        CicTerm::Variable(name) => write!(f, "{}", name),
-        CicTerm::Abstraction(var_name, var_type, body) => {
-            write!(f, "λ{}:{}. {}", var_name, var_type, body)
-        }
-        CicTerm::Product(var_name, domain, codomain) => {
-            write!(f, "Π{}:{}. {}", var_name, domain, codomain)
-        }
-        CicTerm::Application(func, arg) => write!(f, "({} {})", func, arg),
-        // (matched_term, [ branch: ([pattern], body) ])
-        CicTerm::Match(matched_term, branches) => {
-            write!(f, "match {} {{ ", matched_term)?;
-            for (patterns, body) in branches {
-                write!(f, "[")?;
-                for (i, pattern) in patterns.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", pattern)?;
-                }
-                write!(f, "] => {}; ", body)?;
-            }
-            write!(f, "}}")
-        }
-    }
-}
-impl fmt::Display for CicTerm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        term_formatter(self, f)
-    }
-}
-impl fmt::Debug for CicTerm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        term_formatter(self, f)
-    }
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum CicStm {

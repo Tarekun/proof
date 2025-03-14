@@ -1,6 +1,47 @@
 use super::cic::CicTerm;
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
+use std::fmt;
 
+fn term_formatter(term: &CicTerm, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match term {
+        // (sort name)
+        CicTerm::Sort(name) => write!(f, "{}", name),
+        // (var name)
+        CicTerm::Variable(name) => write!(f, "{}", name),
+        CicTerm::Abstraction(var_name, var_type, body) => {
+            write!(f, "λ{}:{}. {}", var_name, var_type, body)
+        }
+        CicTerm::Product(var_name, domain, codomain) => {
+            write!(f, "Π{}:{}. {}", var_name, domain, codomain)
+        }
+        CicTerm::Application(func, arg) => write!(f, "({} {})", func, arg),
+        // (matched_term, [ branch: ([pattern], body) ])
+        CicTerm::Match(matched_term, branches) => {
+            write!(f, "match {} {{ ", matched_term)?;
+            for (patterns, body) in branches {
+                write!(f, "[")?;
+                for (i, pattern) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", pattern)?;
+                }
+                write!(f, "] => {}; ", body)?;
+            }
+            write!(f, "}}")
+        }
+    }
+}
+impl fmt::Display for CicTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        term_formatter(self, f)
+    }
+}
+impl fmt::Debug for CicTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        term_formatter(self, f)
+    }
+}
 /// Given the CIC type of a function `fun` returns the number of arguments of the function
 // pub fn args_len(fun: &CicTerm) -> i32 {
 //     match fun {
