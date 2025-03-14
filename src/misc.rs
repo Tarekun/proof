@@ -6,6 +6,7 @@ pub enum Union<L, R> {
     R(R),
 }
 
+// im like fr?
 pub fn simple_map<T, R>(vector: Vec<T>, iterator: impl Fn(T) -> R) -> Vec<R> {
     vector.into_iter().map(iterator).collect()
 }
