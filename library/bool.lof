@@ -1,0 +1,41 @@
+# This file is part of the LoF standard library
+# It contains Boolean Algebra basics implemented
+
+import "library/unit"
+
+!theory_block cic
+inductive Bool : TYPE {
+  | true : Bool
+  | false : Bool
+}
+!end_block
+
+fun not (b: Bool) : Bool {
+  match b with
+  | true => false,
+  | false => true,
+}
+
+fun and (l: Bool) (r: Bool) : Bool {
+  match l with
+  | true => r,
+  | false => false,
+}
+
+fun or (l: Bool) (r: Bool) : Bool {
+  match l with
+  | true => true,
+  | false => r,
+}
+
+fun impl (l: Bool) (r: Bool) : Bool {
+  match l with
+  | true => r,
+  | false => true,
+}
+
+fun if (T: TYPE) (exp: Bool) (ifTrue: Unit -> T) (ifFalse: Unit -> T) : T {
+  match exp with
+  | true => ifTrue it,
+  | false => ifFalse it,
+}

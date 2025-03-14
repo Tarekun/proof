@@ -1,10 +1,13 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use crate::misc::{simple_map, simple_map_indexed};
-use crate::type_theory::cic::cic_utils::{application_args, apply_arguments, clone_product_with_different_result, get_arg_types, get_prod_innermost, get_variables_as_terms, is_instance_of};
+use crate::type_theory::cic::cic_utils::{
+    application_args, apply_arguments, clone_product_with_different_result,
+    delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
+    is_instance_of,
+};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
-
 
 //########################### EXPRESSIONS TYPE CHECKING
 //
@@ -85,26 +88,53 @@ pub fn type_check_application(
     left: CicTerm,
     right: CicTerm,
 ) -> Result<CicTerm, String> {
-    let function_type = Cic::type_check_term(left, environment)?;
-    let arg_type = Cic::type_check_term(right, environment)?;
+    fn type_check_nested_app(
+        local_env: &mut Environment<CicTerm, CicTerm>,
+        term: CicTerm,
+    ) -> Result<CicTerm, String> {
+        match term {
+            Application(left, right) => {
+                let function_type =
+                    type_check_nested_app(local_env, *left.clone())?;
+                let arg_type = Cic::type_check_term(*right.clone(), local_env)?;
 
-    match function_type.clone() {
-        CicTerm::Product(_, domain, codomain) => {
-            if Cic::terms_unify(environment, &(*domain), &arg_type) {
-                Ok(*codomain)
-            } else {
-                Err(format!(
-                    "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
-                    *domain,
-                    arg_type
-                ))
+                match function_type.clone() {
+                    CicTerm::Product(var_name, domain, codomain) => {
+                        if Cic::terms_unify(local_env, &(*domain), &arg_type) {
+                            local_env.add_variable_definition(&var_name, &right, &arg_type);
+                            //se è una variabile già applicata, fai la sostituzione
+                            match delta_reduce(local_env, *codomain.clone()) {
+                                Ok(body) => Ok(body),
+                                _ => Ok(*codomain)
+                            }
+                        } else {
+                            Err(format!(
+                                "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
+                                *domain,
+                                arg_type
+                            ))
+                        }
+                    }
+                    _ => Err(format!(
+                        "Attempted application on non functional term '{:?}' of type: {:?}",
+                        left,
+                        function_type
+                    )),
+                }
+            }
+            _ => {
+                let term_type = Cic::type_check_term(term, local_env)?;
+                Ok(term_type)
             }
         }
-        _ => Err(format!(
-            "Attempted application on non functional term of type: {:?}",
-            function_type
-        )),
     }
+
+    environment.with_rollback(|local_env| {
+        type_check_nested_app(
+            local_env,
+            Application(Box::new(left), Box::new(right)),
+        )
+    })
 }
 //
 //
@@ -272,8 +302,8 @@ pub fn type_check_fun(
         })?;
     if !Cic::terms_unify(environment, &out_type, &body_type) {
         return Err(format!(
-            "Function type {:?} and body result {:?} are inconsistent",
-            out_type, body_type
+            "In {} definition, function type {:?} and body result {:?} are inconsistent",
+            fun_name, out_type, body_type
         ));
     }
 
@@ -293,7 +323,7 @@ pub fn type_check_axiom(
     Ok(CicTerm::Variable("Unit".to_string()))
 }
 //
-/// Given the values of an inductive type definition, returns the corresponding eliminator 
+/// Given the values of an inductive type definition, returns the corresponding eliminator
 /// Reference that guided this implementation is Inductive Families by Peter Dybjer
 fn inductive_eliminator(
     type_name: String,
@@ -318,23 +348,24 @@ fn inductive_eliminator(
     fn make_instance_type(
         type_name: &str,
         left_param_vars: Vec<CicTerm>,
-        right_param_vars: Vec<CicTerm>
+        right_param_vars: Vec<CicTerm>,
     ) -> CicTerm {
-        let instance_type = apply_arguments(&Variable(type_name.to_string()), left_param_vars);
+        let instance_type =
+            apply_arguments(&Variable(type_name.to_string()), left_param_vars);
         let instance_type = apply_arguments(&instance_type, right_param_vars);
         instance_type
-
     }
     /// Creation of the dependent result type of the eliminator
     /// ( C : (a :: α\[A\]) (c : P A a) set )
-    fn make_result_type(type_name: &str, left_param_vars: Vec<CicTerm>, ariety: &CicTerm) -> CicTerm {
+    fn make_result_type(
+        type_name: &str,
+        left_param_vars: Vec<CicTerm>,
+        ariety: &CicTerm,
+    ) -> CicTerm {
         // TODO might need to rename right_params, i think they're all anonymous
         let right_params = make_right_param_vars(ariety);
-        let instance_type = make_instance_type(
-            type_name, 
-            left_param_vars, 
-            right_params
-        );
+        let instance_type =
+            make_instance_type(type_name, left_param_vars, right_params);
 
         clone_product_with_different_result(
             &ariety,
@@ -348,15 +379,18 @@ fn inductive_eliminator(
     }
     /// Creation of the dependent branches ( e :: ε\[A\] ) with each ε_j\[A\] is
     /// (b :: β\[A\]) (u :: γ\[A,b\]) (v :: δ\[A,b\]) C p\[A,b\] (cons_j A b u)
-    /// where b are non recursive, u are recursive and v are inductive hypotesis and the output is 
+    /// where b are non recursive, u are recursive and v are inductive hypotesis and the output is
     /// a construction of the result for this inductive case
     fn make_inductive_cases(
         constructors: Vec<(String, CicTerm)>,
         left_param_vars: Vec<CicTerm>,
         result_var: CicTerm,
-        type_name: String
+        type_name: String,
     ) -> Vec<CicTerm> {
-        fn split_recursive_arguments(arg_types: Vec<CicTerm>, type_name: &str) -> (Vec<(String, CicTerm)>, Vec<(String, CicTerm)>) {
+        fn split_recursive_arguments(
+            arg_types: Vec<CicTerm>,
+            type_name: &str,
+        ) -> (Vec<(String, CicTerm)>, Vec<(String, CicTerm)>) {
             let mut are_recursive = false;
             let mut recursive = vec![];
             let mut non_recursive = vec![];
@@ -377,18 +411,23 @@ fn inductive_eliminator(
 
             (non_recursive, recursive)
         }
-        fn make_inductive_hypotheses(rec_args: Vec<(String, CicTerm)>, result_var: CicTerm, left_params_len: usize) -> Vec<CicTerm> {
+        fn make_inductive_hypotheses(
+            rec_args: Vec<(String, CicTerm)>,
+            result_var: CicTerm,
+            left_params_len: usize,
+        ) -> Vec<CicTerm> {
             let mut hypotheses = vec![];
             for (arg_name, arg_type) in rec_args {
                 //assumption: arg_type is an instance (var/app) of the inductive type
                 let mut right_params = application_args(arg_type);
                 // drop left params used in instantiation of inductive type
-                right_params.drain(0..left_params_len);  // da crab a drainer frfr
-                let result_with_rights = apply_arguments(&result_var, right_params);
+                right_params.drain(0..left_params_len); // da crab a drainer frfr
+                let result_with_rights =
+                    apply_arguments(&result_var, right_params);
 
                 hypotheses.push(Application(
-                    Box::new(result_with_rights.clone()), 
-                    Box::new(Variable(arg_name))
+                    Box::new(result_with_rights.clone()),
+                    Box::new(Variable(arg_name)),
                 ));
             }
 
@@ -401,113 +440,106 @@ fn inductive_eliminator(
             let innermost = get_prod_innermost(&constr_type);
             let mut right_params = application_args(innermost.clone());
             // drop left params used in instantiation of inductive type
-            right_params.drain(0..left_params_len);  // da crab a drainer frfr
+            right_params.drain(0..left_params_len); // da crab a drainer frfr
             let result_with_rights = apply_arguments(&result_var, right_params);
-    
+
             // TODO might need to rename args, i think they're all anonymous
             // let args = get_variables_as_terms(&constr_type);
             let arg_types = get_arg_types(&constr_type);
             // in the paper non_recursive are called b and recursive u
-            let (non_recursive, recursive) = split_recursive_arguments(arg_types, &type_name);
-            let inductive_hypotheses = make_inductive_hypotheses(recursive.clone(), result_var.clone(), left_params_len);
+            let (non_recursive, recursive) =
+                split_recursive_arguments(arg_types, &type_name);
+            let inductive_hypotheses = make_inductive_hypotheses(
+                recursive.clone(),
+                result_var.clone(),
+                left_params_len,
+            );
 
-            let constr_instance = apply_arguments(&Variable(constr_name), left_param_vars.clone());
+            let constr_instance = apply_arguments(
+                &Variable(constr_name),
+                left_param_vars.clone(),
+            );
             // let constr_instance = apply_arguments(constr_instance, right_params.clone());
             let constr_instance = apply_arguments(
                 &constr_instance,
-                simple_map(
-                    non_recursive.clone(),
-                    |(arg_name, _)| Variable(arg_name)
-                )
+                simple_map(non_recursive.clone(), |(arg_name, _)| {
+                    Variable(arg_name)
+                }),
             );
             let constr_instance = apply_arguments(
-                &constr_instance, 
-                simple_map(
-                    recursive.clone(),
-                    |(arg_name, _)| Variable(arg_name)
-                )
+                &constr_instance,
+                simple_map(recursive.clone(), |(arg_name, _)| {
+                    Variable(arg_name)
+                }),
             );
-    
-            let result_instance = apply_arguments(&result_with_rights, vec![constr_instance]);
-    
+
+            let result_instance =
+                apply_arguments(&result_with_rights, vec![constr_instance]);
+
             // parametrization of the full minor premise
-            // start from the innermost (result_instance) and progressively wrap it 
+            // start from the innermost (result_instance) and progressively wrap it
             let named_hypotheses: Vec<(String, CicTerm)> = simple_map_indexed(
-                inductive_hypotheses, 
-                |(index, hypothesis)| {
-                    (format!("ih_{}", index), hypothesis)
-                }
-            ); 
-            let mut branch_type = make_multiarg_fun_type(
-                &named_hypotheses,
-                &result_instance
+                inductive_hypotheses,
+                |(index, hypothesis)| (format!("ih_{}", index), hypothesis),
             );
-            branch_type = make_multiarg_fun_type(
-                &recursive,
-                &branch_type
-            );
-            branch_type = make_multiarg_fun_type(
-                &non_recursive,
-                &branch_type
-            );
-    
+            let mut branch_type =
+                make_multiarg_fun_type(&named_hypotheses, &result_instance);
+            branch_type = make_multiarg_fun_type(&recursive, &branch_type);
+            branch_type = make_multiarg_fun_type(&non_recursive, &branch_type);
+
             cases.push(branch_type);
         }
-    
+
         cases
     }
 
     let left_param_vars = make_left_param_vars(params.clone());
     let result_var = Variable(format!("er_{}", type_name)); // er = eliminator result, C in the paper
-    let result_type = make_result_type(&type_name, left_param_vars.clone(), &ariety);
+    let result_type =
+        make_result_type(&type_name, left_param_vars.clone(), &ariety);
     let inductive_cases = make_inductive_cases(
-        constructors, 
-        left_param_vars.clone(), 
+        constructors,
+        left_param_vars.clone(),
         result_var.clone(),
-        type_name.clone()
+        type_name.clone(),
     );
-    let right_params = simple_map_indexed(
-        get_arg_types(&ariety),
-        |(index, param_type)| {
+    let right_params =
+        simple_map_indexed(get_arg_types(&ariety), |(index, param_type)| {
             (format!("rp_{}", index), param_type)
-        }
-    );
-    let right_param_vars = simple_map(
-        right_params.clone(),
-        |(param_name, _)| {
+        });
+    let right_param_vars =
+        simple_map(right_params.clone(), |(param_name, _)| {
             Variable(param_name)
-        }
-    );
+        });
     let inductive_instace_var = Variable("t".to_string());
-    let inductive_instace = make_instance_type(&type_name, left_param_vars, right_param_vars.clone());
-    let mut result_instance = apply_arguments(&result_var, right_param_vars.clone());
-    result_instance = Application(Box::new(result_instance), Box::new(inductive_instace_var));
+    let inductive_instace = make_instance_type(
+        &type_name,
+        left_param_vars,
+        right_param_vars.clone(),
+    );
+    let mut result_instance =
+        apply_arguments(&result_var, right_param_vars.clone());
+    result_instance =
+        Application(Box::new(result_instance), Box::new(inductive_instace_var));
 
     let mut full_parametrization = make_multiarg_fun_type(
-        &vec![("t".to_string(), inductive_instace)], 
-        &result_instance
+        &vec![("t".to_string(), inductive_instace)],
+        &result_instance,
+    );
+    full_parametrization =
+        make_multiarg_fun_type(&right_params, &full_parametrization);
+    full_parametrization = make_multiarg_fun_type(
+        &simple_map_indexed(inductive_cases, |(index, case_type)| {
+            (format!("c_{}", index), case_type)
+        }),
+        &full_parametrization,
     );
     full_parametrization = make_multiarg_fun_type(
-        &right_params, 
-        &full_parametrization
+        &vec![(format!("er_{}", type_name), result_type)],
+        &full_parametrization,
     );
-    full_parametrization = make_multiarg_fun_type(
-        &simple_map_indexed(
-            inductive_cases,
-            |(index, case_type)| {
-                (format!("c_{}", index), case_type)
-            }
-        ), 
-        &full_parametrization
-    );
-    full_parametrization = make_multiarg_fun_type(
-        &vec![(format!("er_{}", type_name), result_type)], 
-        &full_parametrization
-    );
-    full_parametrization = make_multiarg_fun_type(
-        &params, 
-        &full_parametrization
-    );
+    full_parametrization =
+        make_multiarg_fun_type(&params, &full_parametrization);
     full_parametrization
 }
 
@@ -525,8 +557,8 @@ fn update_context_inductive(
         environment.add_variable_to_context(constr_name, constr_type);
     }
     environment.add_variable_to_context(
-        &format!("e_{}", name), 
-        &inductive_eliminator(name, params, ariety, constructors)
+        &format!("e_{}", name),
+        &inductive_eliminator(name, params, ariety, constructors),
     );
 }
 
@@ -567,7 +599,7 @@ pub fn type_check_inductive(
     update_context_inductive(
         environment,
         type_name,
-        params, 
+        params,
         ariety,
         constr_bindings,
     );
@@ -599,14 +631,18 @@ fn make_multiarg_fun_type(
 }
 //
 /// Checks that the given term is a sort. Return Ok if it is, Err otherwise
-#[deprecated(note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead")]
+#[deprecated(
+    note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead"
+)]
 fn check_is_sort(term: &CicTerm) -> Result<(), String> {
     match term {
         CicTerm::Sort(_) => Ok(()),
         _ => Err(format!("Expected sort term, found: {:?}", term)),
     }
 }
-#[deprecated(note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead")]
+#[deprecated(
+    note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead"
+)]
 fn type_check_type(
     term: &CicTerm,
     environment: &mut Environment<CicTerm, CicTerm>,
@@ -622,9 +658,12 @@ fn type_check_type(
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::{Cic, CicStm, CicTerm},
-        cic::CicTerm::{Sort, Variable, Application, Product},
-        type_check::{inductive_eliminator, type_check_fun, type_check_inductive},
+        cic::CicStm::{Fun, InductiveDef},
+        cic::CicTerm::{Abstraction, Application, Product, Sort, Variable},
+        cic::{Cic, CicTerm},
+        type_check::{
+            inductive_eliminator, type_check_fun, type_check_inductive,
+        },
     };
     use crate::type_theory::interface::TypeTheory;
 
@@ -905,6 +944,87 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_argument_dependent_function() {
+        let mut test_env = Cic::default_environment();
+        test_env.add_variable_to_context("Bool", &Sort("TYPE".to_string()));
+        test_env
+            .add_variable_to_context("true", &&Variable("Bool".to_string()));
+        test_env.add_variable_to_context("Unit", &Sort("TYPE".to_string()));
+        test_env.add_variable_to_context("it", &Variable("Unit".to_string()));
+        let type_var_name = "T";
+        test_env.add_variable_to_context(
+            "if",
+            &Product(
+                type_var_name.to_string(),
+                Box::new(Sort("TYPE".to_string())),
+                Box::new(Product(
+                    "exp".to_string(),
+                    Box::new(Variable("Bool".to_string())),
+                    Box::new(Product(
+                        "ifTrue".to_string(),
+                        Box::new(Product(
+                            "_".to_string(),
+                            Box::new(Variable("Unit".to_string())),
+                            Box::new(Variable("T".to_string())),
+                        )),
+                        Box::new(Variable("T".to_string())),
+                    )),
+                )),
+            ),
+        );
+
+        assert!(
+            Cic::type_check_term(
+                Application(
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(Variable("if".to_string())),
+                            Box::new(Variable("Unit".to_string())),
+                        )),
+                        Box::new(Variable("true".to_string()))
+                    )),
+                    Box::new(Abstraction(
+                        "_".to_string(), 
+                        Box::new(Variable("Unit".to_string())),
+                        Box::new(Variable("it".to_string())),
+                    ))
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "Type checker refutes nested application when following argument types depend on previous"
+        );
+        assert_eq!(test_env.get_from_deltas(type_var_name), None, "Argument dependent application type checking stains Δ with local variable names");
+        assert!(
+            Cic::type_check_stm(
+                Fun(
+                    "unifyResult".to_string(),
+                    vec![("b".to_string(), Variable("Bool".to_string()))],
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(Application(
+                                Box::new(Variable("if".to_string())),
+                                Box::new(Variable("Unit".to_string())),
+                            )),
+                            Box::new(Variable("b".to_string()))
+                        )),
+                        Box::new(Abstraction(
+                            "_".to_string(), 
+                            Box::new(Variable("Unit".to_string())),
+                            Box::new(Variable("it".to_string())),
+                        ))
+                    )),
+                    false
+                ),
+                &mut test_env
+            )
+            .is_ok(), 
+            "Type checker cant unify function output type with the result of a polymorphic expression"
+        );
+    }
+
+    #[test]
     //TODO add check of exaustiveness of patterns
     fn test_type_check_match() {
         let mut test_env = Cic::default_environment();
@@ -1040,18 +1160,18 @@ mod unit_tests {
     fn test_type_check_inductive() {
         let mut test_env = Cic::default_environment();
         let constructors = vec![
-            ("o".to_string(), CicTerm::Variable("nat".to_string())),
+            ("o".to_string(), Variable("nat".to_string())),
             (
                 "s".to_string(),
-                CicTerm::Product(
+                Product(
                     "_".to_string(),
-                    Box::new(CicTerm::Variable("nat".to_string())),
-                    Box::new(CicTerm::Variable("nat".to_string())),
+                    Box::new(Variable("nat".to_string())),
+                    Box::new(Variable("nat".to_string())),
                 ),
             ),
         ];
         #[allow(non_snake_case)]
-        let TYPE = CicTerm::Sort("TYPE".to_string());
+        let TYPE = Sort("TYPE".to_string());
         let ariety = TYPE.clone();
 
         // generic checks
@@ -1073,14 +1193,8 @@ mod unit_tests {
                 vec![],
                 TYPE.clone(),
                 vec![
-                    (
-                        "correct".to_string(),
-                        CicTerm::Variable("inc".to_string())
-                    ),
-                    (
-                        "wrong".to_string(),
-                        CicTerm::Variable("wrongType".to_string())
-                    )
+                    ("correct".to_string(), Variable("inc".to_string())),
+                    ("wrong".to_string(), Variable("wrongType".to_string()))
                 ]
             )
             .is_err(),
@@ -1091,7 +1205,7 @@ mod unit_tests {
                 &mut test_env,
                 "fail".to_string(),
                 vec![],
-                CicTerm::Sort("UNBOUND_SORT".to_string()),
+                Sort("UNBOUND_SORT".to_string()),
                 vec![]
             )
             .is_err(),
@@ -1100,14 +1214,14 @@ mod unit_tests {
         assert!(
             test_env.with_local_declarations(&vec![
                 ("nat".to_string(), TYPE.clone()),
-                ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+                ("zero".to_string(), Variable("nat".to_string()))
             ], |local_env| {
                 type_check_inductive(
                     local_env,
                     "fail".to_string(),
                     vec![],
-                    CicTerm::Variable("zero".to_string()),  //bound, non-sort variable
-                    vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                    Variable("zero".to_string()),  //bound, non-sort variable
+                    vec![("cons".to_string(), Variable("zero".to_string()))]
                 )
                 .is_err()
             }),
@@ -1116,14 +1230,14 @@ mod unit_tests {
         assert!(
             test_env.with_local_declarations(&vec![
                 ("nat".to_string(), TYPE.clone()),
-                ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+                ("zero".to_string(), Variable("nat".to_string()))
             ], |local_env| {
                 type_check_inductive(
                     local_env,
                     "fail".to_string(),
                     vec![],
                     TYPE.clone(),
-                    vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                    vec![("cons".to_string(), Variable("zero".to_string()))]
                 )
                 .is_err()
             }),
@@ -1139,12 +1253,12 @@ mod unit_tests {
                 ariety,
                 constructors.clone()
             ),
-            Ok(CicTerm::Variable("Unit".to_string())),
+            Ok(Variable("Unit".to_string())),
             "Inductive type checking isnt passing nat definition"
         );
         assert!(
             Cic::type_check_stm(
-                CicStm::InductiveDef(
+                InductiveDef(
                     "nat".to_string(),
                     vec![],
                     Box::new(TYPE.clone()),
@@ -1163,7 +1277,7 @@ mod unit_tests {
                 "Eq".to_string(),
                 vec![
                     ("T".to_string(), TYPE.clone()),
-                    ("x".to_string(), CicTerm::Variable("T".to_string()))
+                    ("x".to_string(), Variable("T".to_string()))
                 ],
                 CicTerm::Product(
                     "_".to_string(),
@@ -1356,38 +1470,34 @@ mod unit_tests {
         // Unit
         assert_eq!(
             inductive_eliminator(
-                "Unit".to_string(), 
-                vec![], 
-                Sort("TYPE".to_string()), 
+                "Unit".to_string(),
+                vec![],
+                Sort("TYPE".to_string()),
                 vec![("it".to_string(), Variable("Unit".to_string()))]
             ),
-
             Product(
-                "er_Unit".to_string(), 
+                "er_Unit".to_string(),
                 Box::new(Product(
-                    "instance".to_string(), 
+                    "instance".to_string(),
                     Box::new(Variable("Unit".to_string())),
                     Box::new(Sort("TYPE".to_string())),
-                )), 
-                Box::new(
-                    Product(
-                        "c_0".to_string(), 
+                )),
+                Box::new(Product(
+                    "c_0".to_string(),
+                    Box::new(Application(
+                        Box::new(Variable("er_Unit".to_string())),
+                        Box::new(Variable("it".to_string())),
+                    )),
+                    Box::new(Product(
+                        "t".to_string(),
+                        Box::new(Variable("Unit".to_string())),
                         Box::new(Application(
                             Box::new(Variable("er_Unit".to_string())),
-                            Box::new(Variable("it".to_string())),
-                        )), 
-                        Box::new(Product(
-                            "t".to_string(), 
-                            Box::new(Variable("Unit".to_string())),
-                            Box::new(Application(
-                                Box::new(Variable("er_Unit".to_string())),
-                                Box::new(Variable("t".to_string())),
-                            )),
-                        ))
-                    )
-                )
+                            Box::new(Variable("t".to_string())),
+                        )),
+                    ))
+                ))
             ),
-        
             "Unit inductive eliminator not properly constructed"
         );
         // Bool
@@ -1395,46 +1505,42 @@ mod unit_tests {
             inductive_eliminator(
                 "Bool".to_string(),
                 vec![],
-                Sort("TYPE".to_string()), 
+                Sort("TYPE".to_string()),
                 vec![
                     ("true".to_string(), Variable("Bool".to_string())),
                     ("false".to_string(), Variable("Bool".to_string()))
                 ]
             ),
-
             Product(
-                "er_Bool".to_string(), 
+                "er_Bool".to_string(),
                 Box::new(Product(
-                    "instance".to_string(), 
+                    "instance".to_string(),
                     Box::new(Variable("Bool".to_string())),
                     Box::new(Sort("TYPE".to_string())),
-                )), 
-                Box::new(
-                    Product(
-                        "c_0".to_string(), 
+                )),
+                Box::new(Product(
+                    "c_0".to_string(),
+                    Box::new(Application(
+                        Box::new(Variable("er_Bool".to_string())),
+                        Box::new(Variable("true".to_string())),
+                    )),
+                    Box::new(Product(
+                        "c_1".to_string(),
                         Box::new(Application(
                             Box::new(Variable("er_Bool".to_string())),
-                            Box::new(Variable("true".to_string())),
-                        )), 
+                            Box::new(Variable("false".to_string())),
+                        )),
                         Box::new(Product(
-                            "c_1".to_string(), 
+                            "t".to_string(),
+                            Box::new(Variable("Bool".to_string())),
                             Box::new(Application(
                                 Box::new(Variable("er_Bool".to_string())),
-                                Box::new(Variable("false".to_string())),
-                            )),
-                            Box::new(Product(
-                                "t".to_string(),
-                                Box::new(Variable("Bool".to_string())),
-                                Box::new(Application(
-                                    Box::new(Variable("er_Bool".to_string())),
-                                    Box::new(Variable("t".to_string())),
-                                ))
+                                Box::new(Variable("t".to_string())),
                             ))
                         ))
-                    )
-                )
+                    ))
+                ))
             ),
-
             "Boolean inductive eliminator not properly constructed"
         );
         // these next tests are copied straight from the examples in
@@ -1444,64 +1550,63 @@ mod unit_tests {
             inductive_eliminator(
                 "Nat".to_string(),
                 vec![],
-                Sort("TYPE".to_string()), 
+                Sort("TYPE".to_string()),
                 vec![
                     ("z".to_string(), Variable("Nat".to_string())),
-                    ("s".to_string(), Product(
-                        "r_0".to_string(),
-                        Box::new(Variable("Nat".to_string())), 
-                        Box::new(Variable("Nat".to_string()))
-                    ))
+                    (
+                        "s".to_string(),
+                        Product(
+                            "r_0".to_string(),
+                            Box::new(Variable("Nat".to_string())),
+                            Box::new(Variable("Nat".to_string()))
+                        )
+                    )
                 ]
             ),
-
             Product(
-                "er_Nat".to_string(), 
+                "er_Nat".to_string(),
                 Box::new(Product(
-                    "instance".to_string(), 
+                    "instance".to_string(),
                     Box::new(Variable("Nat".to_string())),
                     Box::new(Sort("TYPE".to_string())),
-                )), 
-                Box::new(
-                    Product(
-                        "c_0".to_string(), 
-                        Box::new(Application(
-                            Box::new(Variable("er_Nat".to_string())),
-                            Box::new(Variable("z".to_string())),
-                        )), 
+                )),
+                Box::new(Product(
+                    "c_0".to_string(),
+                    Box::new(Application(
+                        Box::new(Variable("er_Nat".to_string())),
+                        Box::new(Variable("z".to_string())),
+                    )),
+                    Box::new(Product(
+                        "c_1".to_string(),
                         Box::new(Product(
-                            "c_1".to_string(),
+                            "r_0".to_string(),
+                            Box::new(Variable("Nat".to_string())),
                             Box::new(Product(
-                                "r_0".to_string(),
-                                Box::new(Variable("Nat".to_string())),
-                                Box::new(Product(
-                                    "ih_0".to_string(),
-                                    Box::new(Application(
-                                        Box::new(Variable("er_Nat".to_string())),
-                                        Box::new(Variable("r_0".to_string()))
-                                    )),
-                                    Box::new(Application(
-                                        Box::new(Variable("er_Nat".to_string())),
-                                        Box::new(Application(
-                                            Box::new(Variable("s".to_string())),
-                                            Box::new(Variable("r_0".to_string()))
-                                        ))
-                                    ))
-                                ))
-                            )),
-                            Box::new(Product(
-                                "t".to_string(),
-                                Box::new(Variable("Nat".to_string())),
+                                "ih_0".to_string(),
                                 Box::new(Application(
                                     Box::new(Variable("er_Nat".to_string())),
-                                    Box::new(Variable("t".to_string()))
+                                    Box::new(Variable("r_0".to_string()))
+                                )),
+                                Box::new(Application(
+                                    Box::new(Variable("er_Nat".to_string())),
+                                    Box::new(Application(
+                                        Box::new(Variable("s".to_string())),
+                                        Box::new(Variable("r_0".to_string()))
+                                    ))
                                 ))
                             ))
+                        )),
+                        Box::new(Product(
+                            "t".to_string(),
+                            Box::new(Variable("Nat".to_string())),
+                            Box::new(Application(
+                                Box::new(Variable("er_Nat".to_string())),
+                                Box::new(Variable("t".to_string()))
+                            ))
                         ))
-                    )
-                ),
+                    ))
+                )),
             ),
-            
             "Naturals inductive eliminator not properly constructed"
         );
         // List
@@ -1509,101 +1614,119 @@ mod unit_tests {
             inductive_eliminator(
                 "List".to_string(),
                 vec![("T".to_string(), Sort("TYPE".to_string()))],
-                Sort("TYPE".to_string()), 
+                Sort("TYPE".to_string()),
                 vec![
-                    ("nil".to_string(), Application(
-                            Box::new(Variable("List".to_string())), 
+                    (
+                        "nil".to_string(),
+                        Application(
+                            Box::new(Variable("List".to_string())),
                             Box::new(Variable("T".to_string()))
-                    )),
-                    ("cons".to_string(), Product(
-                        "elem".to_string(), 
-                        Box::new(Variable("T".to_string())), 
-                        Box::new(Product(
-                            "l".to_string(),
-                            Box::new(Application(
-                                Box::new(Variable("List".to_string())), 
-                                Box::new(Variable("T".to_string()))
-                            )), 
-                            Box::new(Application(
-                                Box::new(Variable("List".to_string())), 
-                                Box::new(Variable("T".to_string()))
-                            )) 
-                        )) 
-                    ))
+                        )
+                    ),
+                    (
+                        "cons".to_string(),
+                        Product(
+                            "elem".to_string(),
+                            Box::new(Variable("T".to_string())),
+                            Box::new(Product(
+                                "l".to_string(),
+                                Box::new(Application(
+                                    Box::new(Variable("List".to_string())),
+                                    Box::new(Variable("T".to_string()))
+                                )),
+                                Box::new(Application(
+                                    Box::new(Variable("List".to_string())),
+                                    Box::new(Variable("T".to_string()))
+                                ))
+                            ))
+                        )
+                    )
                 ]
             ),
-
             Product(
-                "T".to_string(), 
+                "T".to_string(),
                 Box::new(Sort("TYPE".to_string())),
                 Box::new(Product(
                     "er_List".to_string(),
                     Box::new(Product(
-                        "instance".to_string(), 
+                        "instance".to_string(),
                         Box::new(Application(
-                            Box::new(Variable("List".to_string())), 
+                            Box::new(Variable("List".to_string())),
                             Box::new(Variable("T".to_string()))
-                        )), 
-                        Box::new(Sort("TYPE".to_string())) 
+                        )),
+                        Box::new(Sort("TYPE".to_string()))
                     )),
                     Box::new(Product(
-                        "c_0".to_string(), 
+                        "c_0".to_string(),
                         Box::new(Application(
                             Box::new(Variable("er_List".to_string())),
                             Box::new(Application(
-                                Box::new(Variable("nil".to_string())), 
+                                Box::new(Variable("nil".to_string())),
                                 Box::new(Variable("T".to_string()))
                             )),
                         )),
                         Box::new(Product(
                             "c_1".to_string(),
                             Box::new(Product(
-                                "nr_0".to_string(), 
-                                Box::new(Variable("T".to_string())), 
+                                "nr_0".to_string(),
+                                Box::new(Variable("T".to_string())),
                                 Box::new(Product(
-                                    "r_1".to_string(), 
+                                    "r_1".to_string(),
                                     Box::new(Application(
-                                        Box::new(Variable("List".to_string())), 
+                                        Box::new(Variable("List".to_string())),
                                         Box::new(Variable("T".to_string()))
-                                    )), 
+                                    )),
                                     Box::new(Product(
-                                        "ih_0".to_string(), 
+                                        "ih_0".to_string(),
                                         Box::new(Application(
-                                            Box::new(Variable("er_List".to_string())), 
-                                            Box::new(Variable("r_1".to_string()))
-                                        )), 
+                                            Box::new(Variable(
+                                                "er_List".to_string()
+                                            )),
+                                            Box::new(Variable(
+                                                "r_1".to_string()
+                                            ))
+                                        )),
                                         Box::new(Application(
-                                            Box::new(Variable("er_List".to_string())), 
+                                            Box::new(Variable(
+                                                "er_List".to_string()
+                                            )),
                                             Box::new(Application(
                                                 Box::new(Application(
                                                     Box::new(Application(
-                                                        Box::new(Variable("cons".to_string())), 
-                                                        Box::new(Variable("T".to_string()))
+                                                        Box::new(Variable(
+                                                            "cons".to_string()
+                                                        )),
+                                                        Box::new(Variable(
+                                                            "T".to_string()
+                                                        ))
                                                     )),
-                                                    Box::new(Variable("nr_0".to_string()))
-                                                )), 
-                                                Box::new(Variable("r_1".to_string()))
+                                                    Box::new(Variable(
+                                                        "nr_0".to_string()
+                                                    ))
+                                                )),
+                                                Box::new(Variable(
+                                                    "r_1".to_string()
+                                                ))
                                             ))
-                                        )) 
-                                    )) 
-                                )) 
+                                        ))
+                                    ))
+                                ))
                             )),
                             Box::new(Product(
-                                "t".to_string(), 
+                                "t".to_string(),
                                 Box::new(Application(
-                                    Box::new(Variable("List".to_string())), 
+                                    Box::new(Variable("List".to_string())),
                                     Box::new(Variable("T".to_string()))
-                                )), 
+                                )),
                                 Box::new(Application(
-                                    Box::new(Variable("er_List".to_string())), 
+                                    Box::new(Variable("er_List".to_string())),
                                     Box::new(Variable("t".to_string()))
-                                )) 
+                                ))
                             ))
-                        )), 
+                        )),
                     ))
                 ))
             ),
-            
             "List inductive eliminator not properly constructed"
         );
         // Vec

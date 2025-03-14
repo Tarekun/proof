@@ -1,6 +1,28 @@
+use crate::type_theory::environment::Environment;
+
 use super::cic::CicTerm;
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use std::fmt;
+
+pub fn delta_reduce(
+    environment: &Environment<CicTerm, CicTerm>,
+    term: CicTerm,
+) -> Result<CicTerm, String> {
+    match term {
+        Variable(var_name) => {
+            if let Some((_, (body, _))) = environment.get_from_deltas(&var_name)
+            {
+                Ok(body.to_owned())
+            } else {
+                Err(format!("Variable {} is not present in Δ so it doesnt have a substitution", var_name))
+            }
+        }
+        _ => Err(format!(
+            "Term {:?} is not δ-reducable because it's not a variable",
+            term
+        )),
+    }
+}
 
 fn term_formatter(term: &CicTerm, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match term {
@@ -50,7 +72,7 @@ impl fmt::Debug for CicTerm {
 //     }
 // }
 
-/// Returns variable terms for a multi argument function
+/// Returns variable terms from a multi argument function
 pub fn get_variables_as_terms(fun_type: &CicTerm) -> Vec<CicTerm> {
     match fun_type {
         Product(var_name, _domain, codomain) => {
@@ -65,7 +87,19 @@ pub fn get_variables_as_terms(fun_type: &CicTerm) -> Vec<CicTerm> {
     }
 }
 
-/// Takes the name of a function and returns an application term of all the arguments given
+/// Returns the list of types of the arguments of a multi arg function
+pub fn get_arg_types(fun_type: &CicTerm) -> Vec<CicTerm> {
+    match fun_type {
+        Product(_, domain, codomain) => {
+            let mut result: Vec<CicTerm> = vec![(**domain).clone()];
+            result.extend(get_arg_types(&codomain));
+            return result;
+        }
+        _ => vec![],
+    }
+}
+
+/// Takes a function term and returns an application term of all the arguments given
 pub fn apply_arguments(fun: &CicTerm, args: Vec<CicTerm>) -> CicTerm {
     let mut application = fun.clone();
     for arg in args {
@@ -98,18 +132,6 @@ pub fn get_prod_innermost(term: &CicTerm) -> &CicTerm {
     match term {
         Product(_, _, codomain) => get_prod_innermost(&*codomain),
         _ => term,
-    }
-}
-
-/// Returns the list of types of the arguments of a multi arg function
-pub fn get_arg_types(fun_type: &CicTerm) -> Vec<CicTerm> {
-    match fun_type {
-        Product(_, domain, codomain) => {
-            let mut result: Vec<CicTerm> = vec![(**domain).clone()];
-            result.extend(get_arg_types(&codomain));
-            return result;
-        }
-        _ => vec![],
     }
 }
 

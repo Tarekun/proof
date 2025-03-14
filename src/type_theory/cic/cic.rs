@@ -9,7 +9,7 @@ use super::type_check::{
     type_check_fun, type_check_inductive, type_check_let, type_check_match,
     type_check_product, type_check_sort, type_check_variable,
 };
-use super::unification::alpha_equivalent;
+use super::unification::cic_unification;
 use crate::parser::api::Expression::{
     Abstraction, Application, Arrow, Match, TypeProduct, VarUse,
 };
@@ -202,7 +202,11 @@ impl TypeTheory for Cic {
         term1: &CicTerm,
         term2: &CicTerm,
     ) -> bool {
-        common_unification(environment, term1, term2)
+        match cic_unification(environment, term1, term2) {
+            Ok(res) => res,
+            //TODO: better handling
+            Err(message) => panic!("{}", message),
+        }
     }
 
     fn types_unify(
@@ -210,23 +214,11 @@ impl TypeTheory for Cic {
         type1: &CicTerm,
         type2: &CicTerm,
     ) -> bool {
-        common_unification(environment, type1, type2)
-    }
-}
-
-fn common_unification(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    term1: &CicTerm,
-    term2: &CicTerm,
-) -> bool {
-    // term1 == term2
-    match alpha_equivalent(environment, term1, term2) {
-        Ok(true) => true,
-        Ok(false) => term1 == term2,
-        Err(message) => panic!(
-            "Type Error in alpha equivalence during unification. This should have been caught sooner:\n{}", 
-            message
-        )
+        match cic_unification(environment, type1, type2) {
+            Ok(res) => res,
+            //TODO: better handling
+            Err(message) => panic!("{}", message),
+        }
     }
 }
 

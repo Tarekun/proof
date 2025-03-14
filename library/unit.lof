@@ -1,0 +1,8 @@
+# This file is part of the LoF standard library
+# It contains all definitions of the Unit type in different systems
+
+!theory_block cic
+inductive Unit : TYPE {
+  | it: Unit
+}
+!end_block
