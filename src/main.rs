@@ -18,6 +18,7 @@ mod type_theory {
     pub mod interface;
     pub mod cic {
         pub mod cic;
+        pub mod cic_utils;
         pub mod elaboration;
         // pub mod evaluation;
         pub mod type_check;

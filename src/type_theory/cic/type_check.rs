@@ -3,6 +3,7 @@ use std::any::type_name;
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use crate::misc::{simple_map, simple_map_indexed};
+use crate::type_theory::cic::cic_utils::{application_args, apply_arguments, clone_product_with_different_result, get_arg_types, get_prod_innermost, get_variables_as_terms, is_instance_of};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -351,8 +352,6 @@ fn inductive_eliminator(
     /// (b :: β\[A\]) (u :: γ\[A,b\]) (v :: δ\[A,b\]) C p\[A,b\] (cons_j A b u)
     /// where b are non recursive, u are recursive and v are inductive hypotesis and the output is 
     /// a construction of the result for this inductive case
-    // TODO: support inductive hypothesis
-    // TODO: support distinction between recursive/non recursive args
     fn make_inductive_cases(
         constructors: Vec<(String, CicTerm)>,
         left_param_vars: Vec<CicTerm>,
@@ -365,6 +364,7 @@ fn inductive_eliminator(
             let mut non_recursive = vec![];
 
             for (index, arg_type) in arg_types.into_iter().enumerate() {
+                //TODO: switch to reference check instead of instance
                 if is_instance_of(&arg_type, type_name) {
                     are_recursive = true;
                     recursive.push(((format!("r_{}", index)), arg_type));
@@ -616,100 +616,6 @@ fn type_check_type(
     let term_type = Cic::type_check_term(term.clone(), environment)?;
     let _ = check_is_sort(&term_type);
     Ok(term_type)
-}
-//
-/// Given the CIC type of a function `fun` returns the number of arguments of the function
-fn args_len(fun: &CicTerm) -> i32 {
-    match fun {
-        Product(_, _, codomain) => 1 + args_len(codomain),
-        _ => 0
-    }
-}
-//
-/// Returns variable terms for a multi argument function
-fn get_variables_as_terms(fun_type: &CicTerm) -> Vec<CicTerm> {
-    match fun_type {
-        Product(var_name, _domain, codomain) => {
-            let mut rec: Vec  < CicTerm> = get_variables_as_terms(codomain);
-            let mut result = vec![Variable(var_name.to_owned())];
-            result.append(&mut rec);
-            result
-        }
-        _ => {
-            vec![] //discard the base type
-        }
-    }
-}
-//
-/// Takes the name of a function and returns an application term of all the arguments given
-fn apply_arguments(fun: &CicTerm, args: Vec<CicTerm>) -> CicTerm {
-    let mut application = fun.clone();
-    for arg in args {
-        application = Application(Box::new(application), Box::new(arg));
-    }
-
-    application
-}
-//
-/// Clones the given product, swapping the innermost body term with the given one
-fn clone_product_with_different_result(
-    product: &CicTerm,
-    new_result: CicTerm,
-) -> CicTerm {
-    match product {
-        Product(var_name, domain, codomain) => {
-            let new_codomain =
-                clone_product_with_different_result(codomain, new_result);
-            Product(var_name.to_owned(), domain.clone(), Box::new(new_codomain))
-        }
-        Sort(_) => new_result,
-        Variable(_) => new_result,
-        _ => panic!("TODO: handle better"),
-    }
-}
-//
-/// Returns the innermost body term of a serie of concatenated Products
-/// (ie the return type of a function)
-fn get_prod_innermost(term: &CicTerm) -> &CicTerm {
-    match term {
-        Product(_, _, codomain) => get_prod_innermost(&*codomain),
-        _ => term
-    }
-}
-//
-/// Returns the list of types of the arguments of a multi arg function
-fn get_arg_types(fun_type: &CicTerm) -> Vec<CicTerm> {
-    match fun_type {
-        Product(_, domain, codomain) => {
-            let mut result: Vec<CicTerm> = vec![(**domain).clone()];
-            result.extend(get_arg_types(&codomain));
-            return  result;
-        },
-        _ => vec![]
-    }
-}
-//
-/// Given a multiarg application term, returns the vector of all the arguments being applyed
-fn application_args(application: CicTerm) -> Vec<CicTerm> {
-    match application {
-        Application(left, right) => {
-            let mut rec = application_args(*left);
-            rec.push(*right);//TODO shouldnt it be append/enqueue?
-            return rec;
-        }
-        // discard leftmost term, we dont care about the function
-        _ => vec![]
-    }
-}
-//
-/// Returns `true` if `term` is an instance of type with name `name`, `false` otherwise
-fn is_instance_of(term: &CicTerm, name: &str) -> bool {
-    match term {
-        Variable(var_name) => var_name == name,
-        Application(dep_type, _args) => is_instance_of(&dep_type, name),
-        // anything else isnt a referencable type
-        _ => false
-    }
 }
 //
 //########################### HELPER FUNCTIONS

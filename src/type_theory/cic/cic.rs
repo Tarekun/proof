@@ -116,7 +116,7 @@ impl Cic {
                 elaborate_match(*matched_term, branches)
             }
             Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
-            _ => panic!("not implemented"),
+            // _ => panic!("not implemented"),
         }
     }
 
