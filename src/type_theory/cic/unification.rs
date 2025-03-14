@@ -1,5 +1,27 @@
 use super::cic::CicTerm;
+use super::cic::CicTerm::Variable;
 use crate::type_theory::environment::Environment;
+
+pub fn cic_unification(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    term1: &CicTerm,
+    term2: &CicTerm,
+) -> Result<bool, String> {
+    println!("PROVANDO A UNIFICARE '{:?}', '{:?}'", term1, term2);
+    println!("\tSOTTO LE SOSTITUZIONI {:?}", environment.deltas);
+
+    let are_equal = term1 == term2;
+    let are_alpha_equivalent = alpha_equivalent(environment, term1, term2)?;
+    let are_equal_under_substitutions =
+        equal_under_substitution(environment, term1, term2);
+
+    if are_equal || are_alpha_equivalent || are_equal_under_substitutions {
+        println!("\tPASSATO");
+    } else {
+        println!("\tBOCCIATO");
+    }
+    Ok(are_equal || are_alpha_equivalent || are_equal_under_substitutions)
+}
 
 //TODO support pattern matching equivalence
 pub fn alpha_equivalent(
@@ -15,7 +37,7 @@ pub fn alpha_equivalent(
                 // let type2 = Cic::type_check_term(term2.clone(), environment)?;
                 // Ok(type1 == type2)
                 // alpha_equivalent(environment, &type1, &type2)
-                Ok(term1 == term2) //TODO is this the real right logic here?
+                Ok(equal_under_substitution(environment, term1, term2)) //TODO is this the real right logic here?
             }
             _ => Ok(false),
         },
@@ -50,33 +72,62 @@ pub fn alpha_equivalent(
             _ => Ok(false),
         },
         // default case: sorts must be equal
-        _ => Ok(term1 == term2),
+        _ => Ok(equal_under_substitution(environment, term1, term2)),
     }
+}
+
+pub fn equal_under_substitution(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    term1: &CicTerm,
+    term2: &CicTerm,
+) -> bool {
+    fn check_var_subst(
+        environment: &mut Environment<CicTerm, CicTerm>,
+        variable: &CicTerm,
+        fixed_term: &CicTerm,
+    ) -> bool {
+        match variable {
+            Variable(var_name) => {
+                if let Some((_, (body, _))) =
+                    environment.get_from_deltas(&var_name)
+                {
+                    variable == fixed_term || body == fixed_term
+                } else {
+                    variable == fixed_term
+                }
+            }
+            _ => variable == fixed_term,
+        }
+    }
+
+    check_var_subst(environment, term1, term2)
+        || check_var_subst(environment, term2, term1)
 }
 
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::{Cic, CicTerm},
-        unification::alpha_equivalent,
+        cic::{
+            Cic,
+            CicTerm::{Abstraction, Product, Sort, Variable},
+        },
+        unification::{
+            alpha_equivalent, cic_unification, equal_under_substitution,
+        },
     };
     use crate::type_theory::interface::TypeTheory;
 
     #[test]
     fn test_alpha_eqivalence() {
         let mut test_env = Cic::default_environment();
-        test_env
-            .add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_variable_to_context(
-            "Bool",
-            &CicTerm::Sort("TYPE".to_string()),
-        );
+        test_env.add_variable_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_variable_to_context("Bool", &Sort("TYPE".to_string()));
 
         assert_eq!(
             alpha_equivalent(
                 &mut test_env,
-                &CicTerm::Sort("PROP".to_string()),
-                &CicTerm::Sort("PROP".to_string()),
+                &Sort("PROP".to_string()),
+                &Sort("PROP".to_string()),
             ),
             Ok(true),
             "Alpha equivalence refuses equal sorts"
@@ -84,8 +135,8 @@ mod unit_tests {
         assert_eq!(
             alpha_equivalent(
                 &mut test_env,
-                &CicTerm::Sort("TYPE".to_string()),
-                &CicTerm::Sort("PROP".to_string()),
+                &Sort("TYPE".to_string()),
+                &Sort("PROP".to_string()),
             ),
             Ok(false),
             "Alpha equivalence accepts different sorts"
@@ -93,15 +144,15 @@ mod unit_tests {
         assert_eq!(
             alpha_equivalent(
                 &mut test_env,
-                &CicTerm::Abstraction(
+                &Abstraction(
                     "x".to_string(),
-                    Box::new(CicTerm::Sort("PROP".to_string())),
-                    Box::new(CicTerm::Sort("TYPE".to_string()))
+                    Box::new(Sort("PROP".to_string())),
+                    Box::new(Sort("TYPE".to_string()))
                 ),
-                &CicTerm::Abstraction(
+                &Abstraction(
                     "y".to_string(),
-                    Box::new(CicTerm::Sort("PROP".to_string())),
-                    Box::new(CicTerm::Sort("TYPE".to_string()))
+                    Box::new(Sort("PROP".to_string())),
+                    Box::new(Sort("TYPE".to_string()))
                 )
             ),
             Ok(true),
@@ -110,15 +161,15 @@ mod unit_tests {
         assert_eq!(
             alpha_equivalent(
                 &mut test_env,
-                &CicTerm::Product(
+                &Product(
                     "x".to_string(),
-                    Box::new(CicTerm::Sort("PROP".to_string())),
-                    Box::new(CicTerm::Sort("TYPE".to_string()))
+                    Box::new(Sort("PROP".to_string())),
+                    Box::new(Sort("TYPE".to_string()))
                 ),
-                &CicTerm::Product(
+                &Product(
                     "y".to_string(),
-                    Box::new(CicTerm::Sort("PROP".to_string())),
-                    Box::new(CicTerm::Sort("PROP".to_string()))
+                    Box::new(Sort("PROP".to_string())),
+                    Box::new(Sort("PROP".to_string()))
                 )
             ),
             Ok(false),
@@ -127,11 +178,75 @@ mod unit_tests {
         assert_eq!(
             alpha_equivalent(
                 &mut test_env,
-                &CicTerm::Variable("Nat".to_string()),
-                &CicTerm::Variable("Bool".to_string()),
+                &Variable("Nat".to_string()),
+                &Variable("Bool".to_string()),
             ),
             Ok(false),
             "Alpha equivalence accepts different types as equivalent"
+        );
+    }
+
+    #[test]
+    fn test_substitution() {
+        let mut test_env = Cic::default_environment();
+        test_env.add_variable_definition(
+            "T",
+            &Variable("Bool".to_string()),
+            &Sort("TYPE".to_string()),
+        );
+
+        assert!(
+            equal_under_substitution(
+                &mut test_env,
+                &Variable("T".to_string()),
+                &Variable("Bool".to_string())
+            ),
+            "Equality up2 substitution refutes basic substitution check"
+        );
+    }
+
+    #[test]
+    fn test_aplha_with_substitution() {
+        let mut test_env = Cic::default_environment();
+        test_env.add_variable_definition(
+            "T",
+            &Variable("Nat".to_string()),
+            &Sort("TYPE".to_string()),
+        );
+
+        assert_eq!(
+            cic_unification(
+                &mut test_env,
+                &Product(
+                    "_".to_string(),
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Variable("T".to_string())),
+                ),
+                &Product(
+                    "x".to_string(),
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Variable("Nat".to_string())),
+                ),
+            ),
+            Ok(true),
+            "Equality up2 substitution refutes substitution check over codomains of functions"
+        );
+
+        assert!(
+            Cic::terms_unify(
+                &mut test_env,
+                &Product(
+                    "_".to_string(),
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Variable("T".to_string())),
+                ),
+                &Product(
+                    "x".to_string(),
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Variable("Nat".to_string())),
+                ),
+            ),
+            "Equality up2 substitution refutes substitution check over codomains of functions"
         );
     }
 }

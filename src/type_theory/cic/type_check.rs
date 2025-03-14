@@ -1,7 +1,7 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use crate::misc::{simple_map, simple_map_indexed};
-use crate::type_theory::cic::cic_utils::{application_args, apply_arguments, clone_product_with_different_result, get_arg_types, get_prod_innermost, get_variables_as_terms, is_instance_of};
+use crate::type_theory::cic::cic_utils::{application_args, apply_arguments, clone_product_with_different_result, delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms, is_instance_of};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -85,26 +85,49 @@ pub fn type_check_application(
     left: CicTerm,
     right: CicTerm,
 ) -> Result<CicTerm, String> {
-    let function_type = Cic::type_check_term(left, environment)?;
-    let arg_type = Cic::type_check_term(right, environment)?;
-
-    match function_type.clone() {
-        CicTerm::Product(_, domain, codomain) => {
-            if Cic::terms_unify(environment, &(*domain), &arg_type) {
-                Ok(*codomain)
-            } else {
-                Err(format!(
-                    "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
-                    *domain,
-                    arg_type
-                ))
+    fn type_check_nested_app(
+        local_env: &mut Environment<CicTerm, CicTerm>,
+        term: CicTerm,
+    ) -> Result<CicTerm, String> {
+        match term {
+            Application(left, right) => {
+                let function_type = type_check_nested_app(local_env, *left.clone())?;
+                let arg_type = Cic::type_check_term(*right.clone(), local_env)?;
+    
+                match function_type.clone() {
+                    CicTerm::Product(var_name, domain, codomain) => {
+                        if Cic::terms_unify(local_env, &(*domain), &arg_type) {
+                            local_env.add_variable_definition(&var_name, &right, &arg_type);
+                            //se è una variabile già applicata, fai la sostituzione
+                            match delta_reduce(local_env, *codomain.clone()) {
+                                Ok(body) => Ok(body),
+                                _ => Ok(*codomain)
+                            }
+                        } else {
+                            Err(format!(
+                                "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
+                                *domain,
+                                arg_type
+                            ))
+                        }
+                    }
+                    _ => Err(format!(
+                        "Attempted application on non functional term '{:?}' of type: {:?}",
+                        left,
+                        function_type
+                    )),
+                }
+            },
+            _ => {
+                let term_type = Cic::type_check_term(term, local_env)?;
+                Ok(term_type)
             }
         }
-        _ => Err(format!(
-            "Attempted application on non functional term of type: {:?}",
-            function_type
-        )),
     }
+
+    environment.with_rollback(|local_env| {
+        type_check_nested_app(local_env, Application(Box::new(left), Box::new(right)))
+    })
 }
 //
 //
@@ -272,8 +295,8 @@ pub fn type_check_fun(
         })?;
     if !Cic::terms_unify(environment, &out_type, &body_type) {
         return Err(format!(
-            "Function type {:?} and body result {:?} are inconsistent",
-            out_type, body_type
+            "In {} definition, function type {:?} and body result {:?} are inconsistent",
+            fun_name, out_type, body_type
         ));
     }
 
@@ -622,8 +645,9 @@ fn type_check_type(
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::{Cic, CicStm, CicTerm},
-        cic::CicTerm::{Sort, Variable, Application, Product},
+        cic::{Cic, CicTerm},
+        cic::CicTerm::{Sort, Variable, Application, Product, Abstraction},
+        cic::CicStm::{InductiveDef, Fun},
         type_check::{inductive_eliminator, type_check_fun, type_check_inductive},
     };
     use crate::type_theory::interface::TypeTheory;
@@ -905,6 +929,88 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_argument_dependent_function() {
+        let mut test_env = Cic::default_environment();
+        test_env
+            .add_variable_to_context("Bool", &Sort("TYPE".to_string()));
+        test_env
+            .add_variable_to_context("true", &&Variable("Bool".to_string()));
+        test_env
+            .add_variable_to_context("Unit", &Sort("TYPE".to_string()));
+        test_env
+            .add_variable_to_context("it", &Variable("Unit".to_string()));
+        test_env.add_variable_to_context(
+            "if", 
+            &Product(
+                "T".to_string(), 
+                Box::new(Sort("TYPE".to_string())), 
+                Box::new(Product(
+                    "exp".to_string(), 
+                    Box::new(Variable("Bool".to_string())), 
+                    Box::new(Product(
+                        "ifTrue".to_string(), 
+                        Box::new(Product(
+                            "_".to_string(), 
+                            Box::new(Variable("Unit".to_string())), 
+                            Box::new(Variable("T".to_string())) 
+                        )), 
+                        Box::new(Variable("T".to_string())), 
+                    )) 
+                )) 
+            )
+        );
+
+        assert!(
+            Cic::type_check_term(
+                Application(
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(Variable("if".to_string())),
+                            Box::new(Variable("Unit".to_string())),
+                        )),
+                        Box::new(Variable("true".to_string()))
+                    )),
+                    Box::new(Abstraction(
+                        "_".to_string(), 
+                        Box::new(Variable("Unit".to_string())),
+                        Box::new(Variable("it".to_string())),
+                    ))
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "Type checker refutes nested application when following argument types depend on previous"
+        );
+        assert!(
+            Cic::type_check_stm(
+                Fun(
+                    "unifyResult".to_string(),
+                    vec![("b".to_string(), Variable("Bool".to_string()))],
+                    Box::new(Variable("Unit".to_string())),
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(Application(
+                                Box::new(Variable("if".to_string())),
+                                Box::new(Variable("Unit".to_string())),
+                            )),
+                            Box::new(Variable("b".to_string()))
+                        )),
+                        Box::new(Abstraction(
+                            "_".to_string(), 
+                            Box::new(Variable("Unit".to_string())),
+                            Box::new(Variable("it".to_string())),
+                        ))
+                    )),
+                    false
+                ),
+                &mut test_env
+            )
+            .is_ok(), 
+            "Type checker cant unify function output type with the result of a polymorphic expression"
+        );
+    }
+
+    #[test]
     //TODO add check of exaustiveness of patterns
     fn test_type_check_match() {
         let mut test_env = Cic::default_environment();
@@ -1040,18 +1146,18 @@ mod unit_tests {
     fn test_type_check_inductive() {
         let mut test_env = Cic::default_environment();
         let constructors = vec![
-            ("o".to_string(), CicTerm::Variable("nat".to_string())),
+            ("o".to_string(), Variable("nat".to_string())),
             (
                 "s".to_string(),
-                CicTerm::Product(
+                Product(
                     "_".to_string(),
-                    Box::new(CicTerm::Variable("nat".to_string())),
-                    Box::new(CicTerm::Variable("nat".to_string())),
+                    Box::new(Variable("nat".to_string())),
+                    Box::new(Variable("nat".to_string())),
                 ),
             ),
         ];
         #[allow(non_snake_case)]
-        let TYPE = CicTerm::Sort("TYPE".to_string());
+        let TYPE = Sort("TYPE".to_string());
         let ariety = TYPE.clone();
 
         // generic checks
@@ -1075,11 +1181,11 @@ mod unit_tests {
                 vec![
                     (
                         "correct".to_string(),
-                        CicTerm::Variable("inc".to_string())
+                        Variable("inc".to_string())
                     ),
                     (
                         "wrong".to_string(),
-                        CicTerm::Variable("wrongType".to_string())
+                        Variable("wrongType".to_string())
                     )
                 ]
             )
@@ -1091,7 +1197,7 @@ mod unit_tests {
                 &mut test_env,
                 "fail".to_string(),
                 vec![],
-                CicTerm::Sort("UNBOUND_SORT".to_string()),
+                Sort("UNBOUND_SORT".to_string()),
                 vec![]
             )
             .is_err(),
@@ -1100,14 +1206,14 @@ mod unit_tests {
         assert!(
             test_env.with_local_declarations(&vec![
                 ("nat".to_string(), TYPE.clone()),
-                ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+                ("zero".to_string(), Variable("nat".to_string()))
             ], |local_env| {
                 type_check_inductive(
                     local_env,
                     "fail".to_string(),
                     vec![],
-                    CicTerm::Variable("zero".to_string()),  //bound, non-sort variable
-                    vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                    Variable("zero".to_string()),  //bound, non-sort variable
+                    vec![("cons".to_string(), Variable("zero".to_string()))]
                 )
                 .is_err()
             }),
@@ -1116,14 +1222,14 @@ mod unit_tests {
         assert!(
             test_env.with_local_declarations(&vec![
                 ("nat".to_string(), TYPE.clone()),
-                ("zero".to_string(), CicTerm::Variable("nat".to_string()))
+                ("zero".to_string(), Variable("nat".to_string()))
             ], |local_env| {
                 type_check_inductive(
                     local_env,
                     "fail".to_string(),
                     vec![],
                     TYPE.clone(),
-                    vec![("cons".to_string(), CicTerm::Variable("zero".to_string()))]
+                    vec![("cons".to_string(), Variable("zero".to_string()))]
                 )
                 .is_err()
             }),
@@ -1139,12 +1245,12 @@ mod unit_tests {
                 ariety,
                 constructors.clone()
             ),
-            Ok(CicTerm::Variable("Unit".to_string())),
+            Ok(Variable("Unit".to_string())),
             "Inductive type checking isnt passing nat definition"
         );
         assert!(
             Cic::type_check_stm(
-                CicStm::InductiveDef(
+                InductiveDef(
                     "nat".to_string(),
                     vec![],
                     Box::new(TYPE.clone()),
@@ -1163,7 +1269,7 @@ mod unit_tests {
                 "Eq".to_string(),
                 vec![
                     ("T".to_string(), TYPE.clone()),
-                    ("x".to_string(), CicTerm::Variable("T".to_string()))
+                    ("x".to_string(), Variable("T".to_string()))
                 ],
                 CicTerm::Product(
                     "_".to_string(),

@@ -70,6 +70,10 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             .insert(name.to_string(), (term.clone(), term_type.clone()));
     }
 
+    fn remove_variable_definition(&mut self, name: &str) {
+        self.deltas.remove(name);
+    }
+
     /// Insert a new typed variable into the context
     pub fn add_variable_to_context(&mut self, name: &str, type_term: &Type) {
         //TODO avoid cloning?
@@ -99,6 +103,25 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         result
     }
 
+    /// Add a local variable substitution (ie definition) to the deltas, execute a closure,
+    /// and then remove the variable
+    pub fn with_local_substitution<F, R>(
+        &mut self,
+        name: &str,
+        term: &Term,
+        term_type: &Type,
+        callable: F,
+    ) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        self.add_variable_definition(name, term, term_type);
+        let result = callable(self);
+        self.remove_variable_definition(name);
+
+        result
+    }
+
     /// Add a list of local variables to the context, execute a closure, and then remove the variables
     pub fn with_local_declarations<F, R>(
         &mut self,
@@ -118,6 +141,40 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
 
             result
         }
+    }
+
+    /// Add a list of local variables to the context, execute a closure, and then remove the variables
+    pub fn with_local_substitutions<F, R>(
+        &mut self,
+        substitutions: &[(String, Term, Type)],
+        callable: F,
+    ) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        if substitutions.is_empty() {
+            callable(self)
+        } else {
+            let ((name, term, term_type), rest) =
+                substitutions.split_first().unwrap();
+            self.add_variable_definition(name, term, term_type);
+            let result = self.with_local_substitutions(rest, callable);
+            self.remove_variable_definition(name);
+
+            result
+        }
+    }
+
+    /// Runs a callable under a local environment which is a rollbackable copy
+    /// of `self` that can be mutated without staining the original environment
+    pub fn with_rollback<F, R>(&mut self, callable: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let mut cloned = self.clone();
+        let result = callable(&mut cloned);
+
+        result
     }
 
     pub fn get_from_context<'a>(
