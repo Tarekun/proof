@@ -7,20 +7,11 @@ pub fn cic_unification(
     term1: &CicTerm,
     term2: &CicTerm,
 ) -> Result<bool, String> {
-    println!("PROVANDO A UNIFICARE '{:?}', '{:?}'", term1, term2);
-    println!("\tSOTTO LE SOSTITUZIONI {:?}", environment.deltas);
-
-    let are_equal = term1 == term2;
     let are_alpha_equivalent = alpha_equivalent(environment, term1, term2)?;
     let are_equal_under_substitutions =
         equal_under_substitution(environment, term1, term2);
 
-    if are_equal || are_alpha_equivalent || are_equal_under_substitutions {
-        println!("\tPASSATO");
-    } else {
-        println!("\tBOCCIATO");
-    }
-    Ok(are_equal || are_alpha_equivalent || are_equal_under_substitutions)
+    Ok(are_alpha_equivalent || are_equal_under_substitutions)
 }
 
 //TODO support pattern matching equivalence
