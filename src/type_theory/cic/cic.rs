@@ -21,7 +21,7 @@ use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum CicTerm {
     /// (sort name)
     Sort(String),
@@ -75,7 +75,7 @@ impl Cic {
                 elaborate_match(*matched_term, branches)
             }
             Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
-            _ => panic!("not implemented"),
+            // _ => panic!("not implemented"),
         }
     }
 
