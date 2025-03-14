@@ -1,0 +1,42 @@
+{
+  "name": "LoF Theorem Prover",
+  "scopeName": "source.lof",
+  "patterns": [
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#comments"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.lof",
+          "match": "\\b(if|inductive|let|fun|match|with)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.lof",
+          "begin": "\"",
+          "end": "\""
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.hash.lof",
+          "match": "#.*$"
+        }
+      ]
+    }
+  }
+}
