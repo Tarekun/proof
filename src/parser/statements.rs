@@ -1,12 +1,14 @@
+use super::api::Statement::Theorem;
 use super::api::{Expression, LofParser, NsAst, Statement};
 use crate::config::id_to_system;
+use crate::misc::Union;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{
         char, line_ending, multispace0, multispace1, not_line_ending,
     },
-    combinator::opt,
+    combinator::{map, opt},
     error::{Error, ErrorKind},
     multi::many0,
     sequence::{delimited, preceded},
@@ -102,18 +104,18 @@ impl LofParser {
         let (input, formula) =
             preceded(multispace0, |input| self.parse_expression(input))(input)?;
         let (input, _) = preceded(multispace0, tag(":="))(input)?;
-        let (input, proof) =
-            preceded(multispace0, |input| self.parse_expression(input))(input)?;
-        let (input, _) = preceded(multispace0, tag("qed."))(input)?;
 
-        Ok((
-            input,
-            Statement::Let(
-                theorem_name.to_string(),
-                Some(formula),
-                Box::new(proof),
-            ),
-        ))
+        let (input, proof) = preceded(
+            multispace0,
+            alt((
+                // term proof should be enclosed in parethesis
+                map(|input| self.parse_parens(input), Union::L),
+                // interactive proof
+                map(|input| self.parse_interactive_proof(input), Union::R),
+            )),
+        )(input)?;
+
+        Ok((input, Theorem(theorem_name.to_string(), formula, proof)))
     }
     //
     //

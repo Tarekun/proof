@@ -1,9 +1,23 @@
 use crate::{
     config::Config,
     file_manager::{list_sources, read_source_file},
+    misc::Union,
 };
 use nom::{branch::alt, combinator::map, multi::many0, IResult};
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum Expression {
+    VarUse(String),
+    /// (var_name, var_type, function_body)
+    Abstraction(String, Box<Expression>, Box<Expression>),
+    /// (var_name, var_type, dependent_type)
+    TypeProduct(String, Box<Expression>, Box<Expression>),
+    /// (domain, codomain)
+    Arrow(Box<Expression>, Box<Expression>),
+    Application(Box<Expression>, Box<Expression>),
+    // (matched_term, [ branch: ([pattern], body) ])
+    Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
+}
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Comment(),
@@ -11,6 +25,8 @@ pub enum Statement {
     DirRoot(String, Vec<NsAst>),
     EmptyRoot(Vec<NsAst>),
     Axiom(String, Box<Expression>),
+    /// (theorem_name, formula, proof)
+    Theorem(String, Expression, Union<Expression, Vec<Tactic>>),
     /// (var_name, var_type, definition_body)
     Let(String, Option<Expression>, Box<Expression>),
     /// (fun_name, args, out_type, body, is_rec)
@@ -30,17 +46,10 @@ pub enum Statement {
     ),
 }
 #[derive(Debug, PartialEq, Clone)]
-pub enum Expression {
-    VarUse(String),
-    /// (var_name, var_type, function_body)
-    Abstraction(String, Box<Expression>, Box<Expression>),
-    /// (var_name, var_type, dependent_type)
-    TypeProduct(String, Box<Expression>, Box<Expression>),
-    /// (domain, codomain)
-    Arrow(Box<Expression>, Box<Expression>),
-    Application(Box<Expression>, Box<Expression>),
-    // (matched_term, [ branch: ([pattern], body) ])
-    Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
+pub enum Tactic {
+    Begin(),
+    Qed(),
+    Suppose(String, Option<Expression>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum NsAst {

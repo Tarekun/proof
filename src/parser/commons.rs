@@ -12,7 +12,7 @@ use nom::{
     IResult,
 };
 
-const RESERVED_KEYWORDS: [&str; 12] = [
+const RESERVED_KEYWORDS: &[&str] = &[
     "let",
     "axiom",
     "inductive",
@@ -25,6 +25,9 @@ const RESERVED_KEYWORDS: [&str; 12] = [
     "fun",
     "rec",
     "import",
+    "begin",
+    "qed.",
+    "suppose",
 ];
 
 impl LofParser {
