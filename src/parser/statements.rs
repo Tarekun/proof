@@ -243,11 +243,14 @@ impl LofParser {
 mod unit_tests {
     use crate::{
         config::{Config, TypeSystem},
+        misc::Union,
         parser::api::{
             Expression::{Application, Arrow, VarUse},
             LofParser,
             NsAst::Exp,
-            Statement::{self, Axiom, Comment, EmptyRoot, Inductive, Let},
+            Statement::{
+                self, Axiom, Comment, EmptyRoot, Inductive, Let, Theorem,
+            },
         },
     };
 
@@ -447,42 +450,42 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_theorem() {
+    fn test_theorem_terms() {
         let parser = LofParser::new(Config::default());
         assert_eq!(
-            parser.parse_theorem("theorem p : PROP := p qed.").unwrap(),
+            parser.parse_theorem("theorem p : PROP := (p)").unwrap(),
             (
                 "",
-                Statement::Let(
+                Theorem(
                     "p".to_string(),
-                    Some(VarUse("PROP".to_string())),
-                    Box::new(VarUse("p".to_string())),
+                    VarUse("PROP".to_string()),
+                    Union::L(VarUse("p".to_string())),
                 )
             ),
             "Parser cant theorem proofs"
         );
         assert!(
             parser
-                .parse_theorem("theorem   \tp\t  : \t PROP :=\n\t  p \n\tqed.")
+                .parse_theorem(
+                    "theorem   \tp\t  : \t PROP :=\n\t  (  \n p  \n\r)  \n\t"
+                )
                 .is_ok(),
             "Theorem parser cant cope with whitespaces"
         );
         assert!(
-            parser.parse_theorem("lemma p : PROP := p qed.").is_ok(),
+            parser.parse_theorem("lemma p : PROP := (p)").is_ok(),
             "Theorem parser doesnt support 'lemma' keyword"
         );
         assert!(
-            parser
-                .parse_theorem("proposition p : PROP := p qed.")
-                .is_ok(),
+            parser.parse_theorem("proposition p : PROP := (p)").is_ok(),
             "Theorem parser doesnt support 'proposition' keyword"
         );
         assert!(
-            parser.parse_theorem("theoremp : PROP := pqed.").is_err(),
+            parser.parse_theorem("theoremp : PROP := (p)").is_err(),
             "Theorem parser doesnt split the keywords"
         );
         assert!(
-            parser.parse_theorem("theorem p:PROP:=p qed.").is_ok(),
+            parser.parse_theorem("theorem p:PROP:=(p)").is_ok(),
             "Theorem parser doesnt accept dense text"
         );
     }
