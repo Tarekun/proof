@@ -1,7 +1,8 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::check_positivity;
-use crate::misc::{simple_map, simple_map_indexed};
+use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
+use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
     application_args, apply_arguments, clone_product_with_different_result,
     delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
@@ -310,6 +311,33 @@ pub fn type_check_fun(
 
     environment.add_variable_to_context(&fun_name, &fun_type);
     Ok(CicTerm::Variable("Unit".to_string()))
+}
+//
+//
+pub fn type_check_theorem(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    theorem_name: String,
+    formula: CicTerm,
+    proof: Union<CicTerm, Vec<Tactic>>
+) -> Result<CicTerm, String> {
+    let _ = Cic::type_check_type(formula.clone(), environment)?;
+    match proof {
+        L(proof_term) => {
+            let proof_type = Cic::type_check_term(proof_term, environment)?;
+            if !Cic::terms_unify(environment, &formula, &proof_type) {
+                return Err(format!(
+                    "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
+                    formula, proof_type
+                ));
+            }
+            environment.add_variable_to_context(&theorem_name, &formula);
+            Ok(CicTerm::Variable("Unit".to_string()))
+        }
+        R(interactive_proof) => {
+            //TODO
+            Ok(CicTerm::Variable("Unit".to_string()))
+        }
+    }
 }
 //
 //

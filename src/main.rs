@@ -8,6 +8,7 @@ mod parser {
     mod commons;
     mod expressions;
     mod statements;
+    mod tactics;
 }
 mod runtime {
     pub mod program;

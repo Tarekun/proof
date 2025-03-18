@@ -1,5 +1,8 @@
-use super::fol::FolType::{Arrow, ForAll};
+use super::fol::FolType::{Arrow, ForAll, Atomic};
 use super::fol::{Fol, FolTerm, FolType};
+use crate::misc::Union;
+use crate::misc::Union::{L, R};
+use crate::parser::api::Tactic;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -137,6 +140,33 @@ pub fn type_check_axiom(
     environment.add_variable_to_context(&axiom_name, &predicate);
 
     Ok(predicate)
+}
+//
+//
+pub fn type_check_theorem(
+    environment: &mut Environment<FolTerm, FolType>,
+    theorem_name: String,
+    formula: FolType,
+    proof: Union<FolTerm, Vec<Tactic>>
+) -> Result<FolType, String> {
+    let _ = Fol::type_check_type(formula.clone(), environment)?;
+    match proof {
+        L(proof_term) => {
+            let proof_type = Fol::type_check_term(proof_term, environment)?;
+            if !Fol::types_unify(environment, &formula, &proof_type) {
+                return Err(format!(
+                    "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
+                    formula, proof_type
+                ));
+            }
+            environment.add_variable_to_context(&theorem_name, &formula);
+            Ok(Atomic("Unit".to_string()))
+        }
+        R(interactive_proof) => {
+            //TODO
+            Ok(Atomic("Unit".to_string()))
+        }
+    }
 }
 //
 //

@@ -2,21 +2,23 @@ use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
     elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
     elaborate_fun, elaborate_inductive, elaborate_let, elaborate_match,
-    elaborate_type_product, elaborate_var_use,
+    elaborate_theorem, elaborate_type_product, elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_axiom,
     type_check_fun, type_check_inductive, type_check_let, type_check_match,
-    type_check_product, type_check_sort, type_check_variable,
+    type_check_product, type_check_sort, type_check_theorem,
+    type_check_variable,
 };
 use super::unification::cic_unification;
+use crate::misc::Union;
 use crate::parser::api::Expression::{
     Abstraction, Application, Arrow, Match, TypeProduct, VarUse,
 };
 use crate::parser::api::Statement::{
-    Axiom, Comment, DirRoot, EmptyRoot, FileRoot, Fun, Inductive, Let,
+    Axiom, Comment, DirRoot, EmptyRoot, FileRoot, Fun, Inductive, Let, Theorem,
 };
-use crate::parser::api::{Expression, NsAst, Statement};
+use crate::parser::api::{Expression, NsAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -40,6 +42,8 @@ pub enum CicTerm {
 pub enum CicStm {
     /// axiom_name, formula
     Axiom(String, Box<CicTerm>),
+    /// theorem_name, formula, proof
+    Theorem(String, Box<CicTerm>, Union<CicTerm, Vec<Tactic>>),
     /// (var_name, var_type, definition_body)
     Let(String, Option<CicTerm>, Box<CicTerm>),
     /// (fun_name, args, out_type, body, is_rec)
@@ -110,10 +114,12 @@ impl Cic {
                 elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
             }
             EmptyRoot(nodes) => elaborate_empty(program, nodes),
-            // _ => Err(format!(
-            //     "Language construct {:?} not supported in CIC",
-            //     ast
-            // )),
+            Theorem(theorem_name, formula, proof) => {
+                elaborate_theorem(program, theorem_name, formula, proof)
+            } // _ => Err(format!(
+              //     "Language construct {:?} not supported in CIC",
+              //     ast
+              // )),
         }
     }
 }
@@ -194,6 +200,9 @@ impl TypeTheory for Cic {
                     is_rec,
                 )
             }
+            CicStm::Theorem(theorem_name, formula, proof) => {
+                type_check_theorem(environment, theorem_name, *formula, proof)
+            }
         }
     }
 
@@ -242,6 +251,6 @@ fn common_type_checking(
         }
         CicTerm::Match(matched_term, branches) => {
             type_check_match(environment, *matched_term, branches)
-        } // _ => Err(format!("Term case {:?} is not typable yet", term)),
+        }
     }
 }

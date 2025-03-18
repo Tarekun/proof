@@ -1,10 +1,11 @@
-use super::fol::FolStm::{Axiom, Fun, Let};
+use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use super::fol::FolTerm::{Abstraction, Variable};
 use super::fol::FolType::{Arrow, Atomic, ForAll};
 use super::fol::{Fol, FolStm, FolTerm, FolType};
-use crate::parser::api::Statement;
+use crate::parser::api::{Statement, Tactic};
 use crate::{
     misc::Union,
+    misc::Union::{L, R},
     parser::api::{Expression, NsAst},
     runtime::program::Program,
 };
@@ -47,6 +48,23 @@ fn term_expected_error<Expected>(
         task,
         type_exp
     ))
+}
+
+fn expect_term(arg: Union<FolTerm, FolType>) -> Result<FolTerm, String> {
+    match arg {
+        L(fol_term) => Ok(fol_term),
+        R(fol_type) => {
+            Err(format!("Expected term, found {:?} instead", fol_type))
+        }
+    }
+}
+fn expect_type(arg: Union<FolTerm, FolType>) -> Result<FolType, String> {
+    match arg {
+        L(fol_term) => {
+            Err(format!("Expected type, found {:?} instead", fol_term))
+        }
+        R(fol_type) => Ok(fol_type),
+    }
 }
 
 //########################### EXPRESSIONS ELABORATION
@@ -244,6 +262,33 @@ pub fn elaborate_axiom(
         }
         Union::L(term) => {
             type_expected_error(&format!("axiom {}", axiom_name), &term)
+        }
+    }
+}
+//
+//
+pub fn elaborate_theorem(
+    program: &mut Program<FolTerm, FolStm>,
+    theorem_name: String,
+    formula: Expression,
+    proof: Union<Expression, Vec<Tactic>>,
+) -> Result<(), String> {
+    let fol_formula_union = Fol::elaborate_expression(formula)?;
+    let fol_formula = expect_type(fol_formula_union)?;
+    match proof {
+        L(proof_term) => {
+            let proof_term_union = Fol::elaborate_expression(proof_term)?;
+            let fol_proof_term = expect_term(proof_term_union)?;
+            program.push_statement(&Theorem(
+                theorem_name,
+                Box::new(fol_formula),
+                L(fol_proof_term),
+            ));
+            Ok(())
+        }
+        R(interactive_proof) => {
+            //TODO suckaaa
+            Ok(())
         }
     }
 }

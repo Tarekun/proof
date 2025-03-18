@@ -1,5 +1,8 @@
+use super::cic::CicStm::{Axiom, Theorem};
 use super::cic::{CicStm, CicTerm};
-use crate::parser::api::{Expression, NsAst, Statement};
+use crate::misc::Union;
+use crate::misc::Union::{L, R};
+use crate::parser::api::{Expression, NsAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::cic::cic::Cic;
 
@@ -249,11 +252,36 @@ pub fn elaborate_axiom(
     axiom_name: String,
     formula: Expression,
 ) -> Result<(), String> {
-    program.push_statement(&CicStm::Axiom(
+    program.push_statement(&Axiom(
         axiom_name,
         Box::new(Cic::elaborate_expression(formula)),
     ));
     Ok(())
+}
+//
+//
+pub fn elaborate_theorem(
+    program: &mut Program<CicTerm, CicStm>,
+    theorem_name: String,
+    formula: Expression,
+    proof: Union<Expression, Vec<Tactic>>,
+) -> Result<(), String> {
+    let cic_formula = Cic::elaborate_expression(formula);
+    match proof {
+        L(proof_term) => {
+            let cic_proof_term = Cic::elaborate_expression(proof_term);
+            program.push_statement(&Theorem(
+                theorem_name,
+                Box::new(cic_formula),
+                L(cic_proof_term),
+            ));
+            Ok(())
+        }
+        R(interactive_proof) => {
+            //TODO suckaaa
+            Ok(())
+        }
+    }
 }
 //
 //

@@ -1,18 +1,19 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
     elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
-    elaborate_forall, elaborate_fun, elaborate_let, elaborate_var_use,
+    elaborate_forall, elaborate_fun, elaborate_let, elaborate_theorem,
+    elaborate_var_use,
 };
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_arrow,
     type_check_axiom, type_check_forall, type_check_fun, type_check_let,
-    type_check_var,
+    type_check_theorem, type_check_var,
 };
 use crate::misc::Union;
-use crate::parser::api::{Expression, NsAst, Statement};
+use crate::parser::api::{Expression, NsAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
-use crate::type_theory::fol::fol::FolStm::{Axiom, Fun, Let};
+use crate::type_theory::fol::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use crate::type_theory::fol::fol::FolTerm::{
     Abstraction, Application, Variable,
 };
@@ -36,6 +37,8 @@ pub enum FolType {
 pub enum FolStm {
     /// axiom_name, formula
     Axiom(String, Box<FolType>),
+    /// theorem_name, formula, proof
+    Theorem(String, Box<FolType>, Union<FolTerm, Vec<Tactic>>),
     /// (var_name, var_type, definition_body)
     Let(String, Option<FolType>, Box<FolTerm>),
     /// (fun_name, args, out_type, body, is_rec)
@@ -106,6 +109,9 @@ impl Fol {
                 elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
             }
             Statement::EmptyRoot(nodes) => elaborate_empty(program, nodes),
+            Statement::Theorem(theorem_name, formula, proof) => {
+                elaborate_theorem(program, theorem_name, formula, proof)
+            }
             _ => Err(format!(
                 "Language construct {:?} not supported in FOL",
                 ast
@@ -196,6 +202,9 @@ impl TypeTheory for Fol {
                 *body,
                 is_rec,
             ),
+            Theorem(theorem_name, formula, proof) => {
+                type_check_theorem(environment, theorem_name, *formula, proof)
+            }
         }
     }
 
