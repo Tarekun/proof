@@ -1,12 +1,18 @@
 use core::panic;
 
+use super::cic::CicStm::{Axiom, Fun, InductiveDef, Let, Theorem};
 use super::cic::CicTerm::{
     Abstraction, Application, Match, Product, Sort, Variable,
 };
 use super::cic::{Cic, CicStm, CicTerm};
-use crate::misc::simple_map;
+use super::cic_utils::make_multiarg_fun_type;
+use crate::misc::{
+    simple_map, Union,
+    Union::{L, R},
+};
+use crate::parser::api::Tactic;
+use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
-use crate::{parser::api::Expression, type_theory::environment::Environment};
 
 //########################### TERM βδ-REDUCTION
 pub fn reduce_term(
@@ -93,49 +99,79 @@ pub fn evaluate_statement(
     environment: &mut Environment<CicTerm, CicTerm>,
     stm: &CicStm,
 ) -> () {
-    ()
-}
-
-fn evaluate_let(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    var_name: String,
-    var_type: Expression,
-    body: Expression,
-) -> Result<(), String> {
-    let assigned_term = Cic::elaborate_expression(body);
-    //this type is implicitly typed checked by the equality on assigned_type
-    let var_type_term = Cic::elaborate_expression(var_type);
-    let assigned_type =
-        Cic::type_check_term(assigned_term.clone(), environment)?;
-
-    if Cic::terms_unify(environment, &assigned_type, &var_type_term) {
-        environment.add_variable_definition(
-            &var_name,
-            &assigned_term,
-            &assigned_type,
-        );
-        Ok(())
-    } else {
-        Err(
-        format!(
-            "Missmatch in variable and body types: specified body type is {:?} but body has type {:?}",
-            var_type_term, assigned_type
-        ))
+    match stm {
+        Axiom(axiom_name, formula) => {
+            evaluate_axiom(environment, axiom_name, formula)
+        }
+        Let(var_name, var_type, body) => {
+            evaluate_let(environment, var_name, var_type, body)
+        }
+        Fun(fun_name, args, out_type, body, is_rec) => {
+            evaluate_fun(environment, fun_name, args, out_type, body, *is_rec)
+        }
+        Theorem(theorem_name, formula, proof) => {
+            evaluate_theorem(environment, theorem_name, formula, proof)
+        }
+        _ => (),
     }
 }
-
-fn evaluate_axiom(
+//
+//
+pub fn evaluate_axiom(
     environment: &mut Environment<CicTerm, CicTerm>,
-    axiom_name: String,
-    ast: Expression,
-) -> Result<(), String> {
-    let axiom_forumla = Cic::elaborate_expression(ast);
-    // check that _formula_type == PROP?
-    let _formula_type =
-        Cic::type_check_term(axiom_forumla.clone(), environment)?;
-    environment.add_variable_to_context(&axiom_name, &axiom_forumla);
-
-    Ok(())
+    axiom_name: &str,
+    formula: &CicTerm,
+) -> () {
+    environment.add_variable_to_context(axiom_name, formula);
+}
+//
+//
+pub fn evaluate_let(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    var_name: &str,
+    var_type: &Option<CicTerm>,
+    body: &CicTerm,
+) -> () {
+    let var_type = match var_type {
+        Some(type_term) => type_term,
+        None => {
+            let body_type = Cic::type_check_term(body.clone(), environment);
+            if body_type.is_err() {
+                panic!("Evaluating a let definition with ill type body, this should have been caught sooner");
+            }
+            &body_type.unwrap()
+        }
+    };
+    environment.add_variable_definition(var_name, body, var_type);
+}
+//
+//
+pub fn evaluate_fun(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    fun_name: &str,
+    args: &Vec<(String, CicTerm)>,
+    out_type: &CicTerm,
+    body: &CicTerm,
+    _is_rec: bool,
+) -> () {
+    let fun_type = make_multiarg_fun_type(&args, out_type);
+    environment.add_variable_definition(fun_name, body, &fun_type);
+}
+//
+//
+pub fn evaluate_theorem(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    theorem_name: &str,
+    formula: &CicTerm,
+    proof: &Union<CicTerm, Vec<Tactic>>,
+) -> () {
+    match proof {
+        L(_proof_term) => {
+            environment.add_variable_to_context(&theorem_name, &formula);
+        }
+        //TODO support itp
+        R(interactive_proof) => {}
+    }
 }
 //########################### STATEMENTS EXECUTION
 //

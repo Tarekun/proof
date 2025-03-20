@@ -188,6 +188,26 @@ pub fn check_positivity(function_type: &CicTerm, name: &str) -> bool {
     true
 }
 
+/// Creates the CIC type of a function with named arguments `arg_types`
+/// that returns a value of type `base`
+pub fn make_multiarg_fun_type(
+    arg_types: &[(String, CicTerm)],
+    base: &CicTerm,
+) -> CicTerm {
+    if arg_types.is_empty() {
+        return base.clone();
+    }
+
+    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
+    let sub_type = make_multiarg_fun_type(rest, base);
+
+    CicTerm::Product(
+        arg_name.to_string(),
+        Box::new(arg_type.to_owned()),
+        Box::new(sub_type),
+    )
+}
+
 //########################### UNIT TESTS
 #[cfg(test)]
 mod unit_tests {}
