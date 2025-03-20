@@ -30,7 +30,8 @@ pub fn reduce_term(
         _ => term.clone(),
     }
 }
-
+//
+//
 fn reduce_variable(
     environment: &Environment<CicTerm, CicTerm>,
     og_term: &CicTerm,
@@ -45,7 +46,8 @@ fn reduce_variable(
         og_term.clone()
     }
 }
-
+//
+//
 fn reduce_application(
     environment: &mut Environment<CicTerm, CicTerm>,
     left: &CicTerm,
@@ -74,7 +76,8 @@ fn reduce_application(
         );
     }
 }
-
+//
+//
 fn reduce_match(
     environment: &mut Environment<CicTerm, CicTerm>,
     matched_term: &CicTerm,
