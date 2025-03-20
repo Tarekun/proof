@@ -4,6 +4,7 @@ use super::elaboration::{
     elaborate_forall, elaborate_fun, elaborate_let, elaborate_theorem,
     elaborate_var_use,
 };
+use super::evaluation::{evaluate_statement, reduce_term};
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_arrow,
     type_check_axiom, type_check_forall, type_check_fun, type_check_let,
@@ -89,7 +90,7 @@ impl Fol {
 
     pub fn elaborate_statement(
         ast: Statement,
-        program: &mut Program<FolTerm, FolStm>,
+        program: &mut Program<Fol>,
     ) -> Result<(), String> {
         match ast {
             Statement::Comment() => Ok(()),
@@ -136,7 +137,7 @@ impl TypeTheory for Fol {
         )
     }
 
-    fn elaborate_ast(ast: NsAst) -> Program<FolTerm, FolStm> {
+    fn elaborate_ast(ast: NsAst) -> Program<Fol> {
         let mut program = Program::new();
 
         match ast {
@@ -222,5 +223,19 @@ impl TypeTheory for Fol {
         type2: &FolType,
     ) -> bool {
         type1 == type2
+    }
+
+    fn reduce_term(
+        environment: &mut Environment<FolTerm, FolType>,
+        term: &FolTerm,
+    ) -> FolTerm {
+        reduce_term(environment, term)
+    }
+
+    fn evaluate_statement(
+        environment: &mut Environment<FolTerm, FolType>,
+        stm: &FolStm,
+    ) -> () {
+        evaluate_statement(environment, stm)
     }
 }

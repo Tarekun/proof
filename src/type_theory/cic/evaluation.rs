@@ -3,7 +3,7 @@ use core::panic;
 use super::cic::CicTerm::{
     Abstraction, Application, Match, Product, Sort, Variable,
 };
-use super::cic::{Cic, CicTerm};
+use super::cic::{Cic, CicStm, CicTerm};
 use crate::misc::simple_map;
 use crate::type_theory::interface::TypeTheory;
 use crate::{parser::api::Expression, type_theory::environment::Environment};
@@ -89,7 +89,14 @@ fn reduce_match(
 //########################### TERM βδ-REDUCTION
 
 //########################### STATEMENTS EXECUTION
-pub fn evaluate_let(
+pub fn evaluate_statement(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    stm: &CicStm,
+) -> () {
+    ()
+}
+
+fn evaluate_let(
     environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
     var_type: Expression,
@@ -117,7 +124,7 @@ pub fn evaluate_let(
     }
 }
 
-pub fn evaluate_axiom(
+fn evaluate_axiom(
     environment: &mut Environment<CicTerm, CicTerm>,
     axiom_name: String,
     ast: Expression,

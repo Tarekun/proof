@@ -17,7 +17,7 @@ pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
 pub fn parse_and_elaborate<T: TypeTheory>(
     config: &Config,
     workspace: &str,
-) -> Result<Program<T::Term, T::Stm>, String> {
+) -> Result<Program<T>, String> {
     let ast = parse_only(config, workspace)?;
     print!("Elaboration of the AST into a program... ");
     let program = T::elaborate_ast(ast);
@@ -28,9 +28,8 @@ pub fn parse_and_elaborate<T: TypeTheory>(
 pub fn type_check<T: TypeTheory>(
     config: &Config,
     workspace: &str,
-) -> Result<Program<T::Term, T::Stm>, String> {
-    let program: Program<T::Term, T::Stm> =
-        parse_and_elaborate::<T>(config, workspace)?;
+) -> Result<Program<T>, String> {
+    let program: Program<T> = parse_and_elaborate::<T>(config, workspace)?;
     print!("Type checking of the program... ");
     let mut environment: Environment<T::Term, T::Type> =
         T::default_environment();

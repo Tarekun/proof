@@ -35,6 +35,7 @@ mod type_theory {
     // }
     pub mod fol {
         pub mod elaboration;
+        pub mod evaluation;
         pub mod fol;
         pub mod type_check;
     }
