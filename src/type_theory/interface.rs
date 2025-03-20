@@ -45,4 +45,16 @@ pub trait TypeTheory {
         type1: &Self::Type,
         type2: &Self::Type,
     ) -> bool;
+
+    // /// Reduces the given term to its normal form
+    // fn reduce_term(
+    //     environment: &mut Environment<Self::Term, Self::Type>,
+    //     term: &Self::Term,
+    // ) -> Self::Term;
+
+    // /// Evaluates the statement, updating the context accordingly
+    // fn evaluate_statement(
+    //     environment: &mut Environment<Self::Term, Self::Type>,
+    //     stm: &Self::Stm,
+    // ) -> ();
 }

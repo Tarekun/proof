@@ -54,20 +54,20 @@ where
         self.schedule.back()
     }
 
-    // /// Execute the prorgam schedule
-    // pub fn execute(&self) -> Result<(), String> {
-    //     for node in &self.schedule {
-    //         match node {
-    //             ProgramNode::OfTerm(term) => {
-    //                 let _normal_form = (self.reduce_term)(term);
-    //                 //TODO do something with the result
-    //             }
-    //             ProgramNode::OfStm(stm) => {
-    //                 let _ = (self.evaluate_statement)(stm);
-    //             }
-    //         }
-    //     }
+    /// Execute the prorgam schedule
+    pub fn execute(&self) -> Result<(), String> {
+        for node in &self.schedule {
+            match node {
+                ProgramNode::OfTerm(term) => {
+                    let _normal_form = (self.reduce_term)(term);
+                    //TODO do something with the result
+                }
+                ProgramNode::OfStm(stm) => {
+                    let _ = (self.evaluate_statement)(stm);
+                }
+            }
+        }
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }

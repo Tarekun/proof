@@ -25,7 +25,7 @@ pub fn parse_and_elaborate<T: TypeTheory>(
     Ok(program)
 }
 
-pub fn parse_and_type_check<T: TypeTheory>(
+pub fn type_check<T: TypeTheory>(
     config: &Config,
     workspace: &str,
 ) -> Result<Program<T::Term, T::Stm>, String> {
@@ -73,7 +73,7 @@ pub fn parse_and_type_check<T: TypeTheory>(
 mod unit_tests {
     use crate::{
         config::{Config, TypeSystem},
-        entrypoints::{parse_and_elaborate, parse_and_type_check, parse_only},
+        entrypoints::{parse_and_elaborate, parse_only, type_check},
         type_theory::{cic::cic::Cic, fol::fol::Fol},
     };
 
@@ -124,16 +124,16 @@ mod unit_tests {
     #[test]
     fn test_type_check() {
         for config in all_system_configs() {
-            let res = parse_and_type_check::<Cic>(&config, "./library");
+            let res = type_check::<Cic>(&config, "./library");
             match res {
                 Err(message) => {
                     println!("{}", message)
                 }
                 _ => {}
             }
-            let res = parse_and_type_check::<Cic>(&config, "./library");
+            let res = type_check::<Cic>(&config, "./library");
             assert!(
-                parse_and_type_check::<Cic>(&config, "./library").is_ok(),
+                type_check::<Cic>(&config, "./library").is_ok(),
                 "Type checking entrypoint cant process std library:\n{:?}",
                 res.err()
             );
