@@ -5,9 +5,9 @@ use std::fmt::Debug;
 
 pub trait TypeTheory {
     /// Enum listing all the term constructors.
-    type Term: Debug + Clone;
+    type Term: Debug + Clone + PartialEq;
     /// Enum listing all the type constructors.
-    type Type: Debug;
+    type Type: Debug + Clone + PartialEq;
     /// Enum listing all the statements elaborated with proper types
     type Stm: Debug + Clone;
 

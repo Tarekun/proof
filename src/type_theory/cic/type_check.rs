@@ -8,6 +8,7 @@ use crate::type_theory::cic::cic_utils::{
     delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
     is_instance_of,
 };
+use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -29,10 +30,7 @@ pub fn type_check_variable(
     environment: &mut Environment<CicTerm, CicTerm>,
     var_name: String,
 ) -> Result<CicTerm, String> {
-    match environment.get_variable_type(&var_name) {
-        Some(var_type) => Ok(var_type),
-        None => Err(format!("Unbound variable: {}", var_name)),
-    }
+    generic_type_check_variable::<Cic>(environment, &var_name)
 }
 //
 //
@@ -42,22 +40,12 @@ pub fn type_check_abstraction(
     var_type: CicTerm,
     body: CicTerm,
 ) -> Result<CicTerm, String> {
-    let types_sort = Cic::type_check_term(var_type.clone(), environment)?;
-    let _ = check_is_sort(&types_sort)?;
-
-    environment.with_local_declaration(
-        &var_name.clone(),
-        &var_type.clone(),
-        |local_env| {
-            let body_type = Cic::type_check_term(body, local_env)?;
-
-            Ok(CicTerm::Product(
-                var_name,
-                Box::new(var_type),
-                Box::new(body_type),
-            ))
-        },
-    )
+    let body_type = generic_type_check_abstraction::<Cic>(environment, &var_name, &var_type, &body)?;
+    Ok(CicTerm::Product(
+        var_name,
+        Box::new(var_type),
+        Box::new(body_type),
+    ))
 }
 //
 //

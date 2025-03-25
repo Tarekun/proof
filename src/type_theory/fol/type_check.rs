@@ -3,6 +3,7 @@ use super::fol::{Fol, FolTerm, FolType};
 use crate::misc::Union;
 use crate::misc::Union::{L, R};
 use crate::parser::api::Tactic;
+use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -26,10 +27,7 @@ pub fn type_check_var(
     environment: &mut Environment<FolTerm, FolType>,
     var_name: String,
 ) -> Result<FolType, String> {
-    match environment.get_from_context(&var_name) {
-        Some((_, var_type)) => Ok(var_type.clone()),
-        None => Err(format!("Unbound variable: {}", var_name)),
-    }
+    generic_type_check_variable::<Fol>(environment, &var_name)
 }
 //
 //
@@ -39,17 +37,13 @@ pub fn type_check_abstraction(
     var_type: FolType,
     body: FolTerm,
 ) -> Result<FolType, String> {
-    let _types_sort = Fol::type_check_type(var_type.clone(), environment)?;
-
-    environment.with_local_declaration(
-        &var_name.clone(),
-        &var_type.clone(),
-        |local_env| {
-            let body_type = Fol::type_check_term(body, local_env)?;
-
-            Ok(Arrow(Box::new(var_type), Box::new(body_type)))
-        },
-    )
+    let body_type = generic_type_check_abstraction::<Fol>(
+        environment,
+        &var_name,
+        &var_type,
+        &body
+    )?;
+    Ok(Arrow(Box::new(var_type), Box::new(body_type)))
 }
 //
 //
