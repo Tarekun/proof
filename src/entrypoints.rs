@@ -39,7 +39,7 @@ pub fn parse_and_type_check<T: TypeTheory>(
     for node in program.schedule_iterable() {
         match node {
             ProgramNode::OfTerm(term) => {
-                match T::type_check_term(term.clone(), &mut environment) {
+                match T::type_check_term(term, &mut environment) {
                     Err(message) => {
                         errors.push(message);
                     }
@@ -47,7 +47,7 @@ pub fn parse_and_type_check<T: TypeTheory>(
                 }
             }
             ProgramNode::OfStm(stm) => {
-                match T::type_check_stm(stm.clone(), &mut environment) {
+                match T::type_check_stm(stm, &mut environment) {
                     Err(message) => {
                         errors.push(message);
                     }

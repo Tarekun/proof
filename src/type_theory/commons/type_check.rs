@@ -23,9 +23,9 @@ pub fn generic_type_check_abstraction<T: TypeTheory>(
     var_type: &T::Type,
     body: &T::Term,
 ) -> Result<T::Type, String> {
-    let _ = T::type_check_type(var_type.clone(), environment)?;
+    let _ = T::type_check_type(var_type, environment)?;
     environment.with_local_declaration(var_name, var_type, |local_env| {
-        let body_type = T::type_check_term(body.to_owned(), local_env)?;
+        let body_type = T::type_check_term(body, local_env)?;
         Ok(body_type)
     })
 }

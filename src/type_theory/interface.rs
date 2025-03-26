@@ -20,15 +20,15 @@ pub trait TypeTheory {
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message
     fn type_check_term(
-        term: Self::Term,
+        term: &Self::Term,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
     fn type_check_type(
-        typee: Self::Type,
+        typee: &Self::Type,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
     fn type_check_stm(
-        term: Self::Stm,
+        term: &Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 

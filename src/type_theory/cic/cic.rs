@@ -157,36 +157,36 @@ impl TypeTheory for Cic {
     }
 
     fn type_check_term(
-        term: CicTerm,
+        term: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
         common_type_checking(term, environment)
     }
 
     fn type_check_type(
-        term: CicTerm,
+        term: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
         common_type_checking(term, environment)
     }
 
     fn type_check_stm(
-        term: CicStm,
+        term: &CicStm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
         match term {
             CicStm::Let(var_name, var_type, body) => {
-                type_check_let(environment, var_name, var_type, *body)
+                type_check_let(environment, var_name, var_type, body)
             }
             CicStm::Axiom(axiom_name, formula) => {
-                type_check_axiom(environment, axiom_name, *formula)
+                type_check_axiom(environment, axiom_name, formula)
             }
             CicStm::InductiveDef(type_name, params, ariety, constructors) => {
                 type_check_inductive(
                     environment,
                     type_name,
                     params,
-                    *ariety,
+                    ariety,
                     constructors,
                 )
             }
@@ -195,13 +195,13 @@ impl TypeTheory for Cic {
                     environment,
                     fun_name,
                     args,
-                    *out_type,
-                    *body,
+                    out_type,
+                    body,
                     is_rec,
                 )
             }
             CicStm::Theorem(theorem_name, formula, proof) => {
-                type_check_theorem(environment, theorem_name, *formula, proof)
+                type_check_theorem(environment, theorem_name, formula, proof)
             }
         }
     }
@@ -232,7 +232,7 @@ impl TypeTheory for Cic {
 }
 
 fn common_type_checking(
-    term: CicTerm,
+    term: &CicTerm,
     environment: &mut Environment<CicTerm, CicTerm>,
 ) -> Result<CicTerm, String> {
     match term {
@@ -241,16 +241,16 @@ fn common_type_checking(
             type_check_variable(environment, var_name)
         }
         CicTerm::Abstraction(var_name, var_type, body) => {
-            type_check_abstraction(environment, var_name, *var_type, *body)
+            type_check_abstraction(environment, var_name, var_type, body)
         }
         CicTerm::Product(var_name, var_type, body) => {
-            type_check_product(environment, var_name, *var_type, *body)
+            type_check_product(environment, var_name, var_type, body)
         }
         CicTerm::Application(left, right) => {
-            type_check_application(environment, *left, *right)
+            type_check_application(environment, left, right)
         }
         CicTerm::Match(matched_term, branches) => {
-            type_check_match(environment, *matched_term, branches)
+            type_check_match(environment, matched_term, branches)
         }
     }
 }

@@ -152,58 +152,58 @@ impl TypeTheory for Fol {
     }
 
     fn type_check_term(
-        term: FolTerm,
+        term: &FolTerm,
         environment: &mut Environment<FolTerm, FolType>,
     ) -> Result<FolType, String> {
         match term {
             Variable(var_name) => type_check_var(environment, var_name),
             Abstraction(var_name, var_type, body) => {
-                type_check_abstraction(environment, var_name, *var_type, *body)
+                type_check_abstraction(environment, var_name, var_type, body)
             }
             Application(left, right) => {
-                type_check_application(environment, *left, *right)
+                type_check_application(environment, left, right)
             }
         }
     }
 
     // TODO i need to decide what exact type to return here
     fn type_check_type(
-        typee: Self::Type,
-        environment: &mut Environment<Self::Term, Self::Type>,
-    ) -> Result<Self::Type, String> {
+        typee: &FolType,
+        environment: &mut Environment<Self::Term, FolType>,
+    ) -> Result<FolType, String> {
         match typee {
             Atomic(type_name) => type_check_atomic(environment, type_name),
             Arrow(domain, codomain) => {
-                type_check_arrow(environment, *domain, *codomain)
+                type_check_arrow(environment, domain, codomain)
             }
             ForAll(var_name, var_type, predicate) => {
-                type_check_forall(environment, var_name, *var_type, *predicate)
+                type_check_forall(environment, var_name, var_type, predicate)
             }
         }
     }
 
     // TODO i need to decide what exact type to return here
     fn type_check_stm(
-        stm: Self::Stm,
+        stm: &Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String> {
         match stm {
             Axiom(axiom_name, predicate) => {
-                type_check_axiom(environment, axiom_name, *predicate)
+                type_check_axiom(environment, axiom_name, predicate)
             }
             Let(var_name, var_type, body) => {
-                type_check_let(environment, var_name, var_type, *body)
+                type_check_let(environment, var_name, var_type, body)
             }
             Fun(fun_name, args, out_type, body, is_rec) => type_check_fun(
                 environment,
                 fun_name,
                 args,
-                *out_type,
-                *body,
+                out_type,
+                body,
                 is_rec,
             ),
             Theorem(theorem_name, formula, proof) => {
-                type_check_theorem(environment, theorem_name, *formula, proof)
+                type_check_theorem(environment, theorem_name, formula, proof)
             }
         }
     }
