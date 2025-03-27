@@ -1,14 +1,15 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::check_positivity;
-use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
+use crate::misc::{simple_map, simple_map_indexed, Union};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
     application_args, apply_arguments, clone_product_with_different_result,
     delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
     is_instance_of,
 };
-use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_variable};
+use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
+use crate::type_theory::commons::utils::generic_multiarg_fun_type;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -18,11 +19,8 @@ pub fn type_check_sort(
     environment: &mut Environment<CicTerm, CicTerm>,
     sort_name: &str,
 ) -> Result<CicTerm, String> {
-    match environment.get_variable_type(sort_name) {
-        //TODO check that the type is a sort itself?
-        Some(sort_type) => Ok(sort_type),
-        None => Err(format!("Unbound sort: {}", sort_name)),
-    }
+    //TODO check that the type is a sort itself?
+    generic_type_check_variable::<Cic>(environment, sort_name)
 }
 //
 //
@@ -55,21 +53,11 @@ pub fn type_check_product(
     var_type: &CicTerm,
     body: &CicTerm,
 ) -> Result<CicTerm, String> {
-    let types_sort = Cic::type_check_term(var_type, environment)?;
-    let _ = check_is_sort(&types_sort)?;
-
-    environment.with_local_declaration(
-        &var_name,
-        &var_type,
-        |local_env| {
-            let body_type = Cic::type_check_term(body, local_env)?;
-
-            match body_type {
-                CicTerm::Sort(_) => Ok(body_type),
-                _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
-            }
-        },
-    )
+    let body_type = generic_type_check_universal::<Cic>(environment, var_name, var_type, body)?;
+    match body_type {
+        CicTerm::Sort(_) => Ok(body_type),
+        _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
+    }
 }
 //
 //
@@ -248,25 +236,7 @@ pub fn type_check_let(
     opt_type: &Option<CicTerm>,
     body: &CicTerm,
 ) -> Result<CicTerm, String> {
-    let body_type = Cic::type_check_term(body, environment)?;
-    let var_type = if opt_type.is_none() {
-        body_type.to_owned()
-    } else {
-        opt_type.to_owned().unwrap()
-    };
-    let _ = type_check_type(&var_type, environment)?;
-
-    if Cic::terms_unify(environment, &body_type, &var_type) {
-        environment.add_variable_definition(&var_name, &body, &var_type);
-        Ok(CicTerm::Variable("Unit".to_string()))
-    } else {
-        Err(format!(
-            "In {} definition annotated type {:?} and body type {:?} do not unify", 
-            var_name, 
-            var_type, 
-            body_type
-        ))
-    }
+    generic_type_check_let::<Cic>(environment, var_name, opt_type, body)
 }
 //
 //
@@ -308,24 +278,7 @@ pub fn type_check_theorem(
     formula: &CicTerm,
     proof: &Union<CicTerm, Vec<Tactic>>
 ) -> Result<CicTerm, String> {
-    let _ = Cic::type_check_type(formula, environment)?;
-    match proof {
-        L(proof_term) => {
-            let proof_type = Cic::type_check_term(proof_term, environment)?;
-            if !Cic::terms_unify(environment, &formula, &proof_type) {
-                return Err(format!(
-                    "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
-                    formula, proof_type
-                ));
-            }
-            environment.add_variable_to_context(&theorem_name, &formula);
-            Ok(CicTerm::Variable("Unit".to_string()))
-        }
-        R(interactive_proof) => {
-            //TODO
-            Ok(CicTerm::Variable("Unit".to_string()))
-        }
-    }
+    generic_type_check_theorem::<Cic>(environment, theorem_name, formula, proof)
 }
 //
 //
@@ -334,10 +287,7 @@ pub fn type_check_axiom(
     axiom_name: &str,
     formula: &CicTerm,
 ) -> Result<CicTerm, String> {
-    let _ = Cic::type_check_term(formula, environment)?;
-    environment.add_variable_to_context(axiom_name, formula);
-
-    Ok(CicTerm::Variable("Unit".to_string()))
+    generic_type_check_axiom::<Cic>(environment, axiom_name, formula)
 }
 //
 /// Given the values of an inductive type definition, returns the corresponding eliminator
@@ -646,18 +596,13 @@ fn make_multiarg_fun_type(
     arg_types: &[(String, CicTerm)],
     base: &CicTerm,
 ) -> CicTerm {
-    if arg_types.is_empty() {
-        return base.clone();
-    }
-
-    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-    let sub_type = make_multiarg_fun_type(rest, base);
-
-    CicTerm::Product(
-        arg_name.to_string(),
-        Box::new(arg_type.to_owned()),
-        Box::new(sub_type),
-    )
+    generic_multiarg_fun_type::<Cic, _>(arg_types, base, |arg_name: String, arg_type: CicTerm, sub_type: CicTerm| {
+        CicTerm::Product(
+            arg_name,
+            Box::new(arg_type),
+            Box::new(sub_type),
+        )
+    })
 }
 //
 /// Checks that the given term is a sort. Return Ok if it is, Err otherwise

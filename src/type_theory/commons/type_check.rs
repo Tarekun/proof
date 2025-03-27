@@ -1,4 +1,9 @@
-use crate::type_theory::{environment::Environment, interface::TypeTheory};
+use crate::{
+    misc::Union,
+    misc::Union::{L, R},
+    parser::api::Tactic,
+    type_theory::{environment::Environment, interface::TypeTheory},
+};
 
 /// Generic variable type checking. Implements the classic VAR type checking
 /// rule of checking x:T ∈ Γ, where x is `var_name`, T the returned type, and
@@ -26,6 +31,19 @@ pub fn generic_type_check_abstraction<T: TypeTheory>(
     let _ = T::type_check_type(var_type, environment)?;
     environment.with_local_declaration(var_name, var_type, |local_env| {
         let body_type = T::type_check_term(body, local_env)?;
+        Ok(body_type)
+    })
+}
+
+pub fn generic_type_check_universal<T: TypeTheory>(
+    environment: &mut Environment<T::Term, T::Type>,
+    var_name: &str,
+    var_type: &T::Type,
+    predicate: &T::Type,
+) -> Result<T::Type, String> {
+    let _ = T::type_check_type(var_type, environment)?;
+    environment.with_local_declaration(var_name, var_type, |local_env| {
+        let body_type = T::type_check_type(predicate, local_env)?;
         Ok(body_type)
     })
 }
@@ -85,3 +103,69 @@ pub fn generic_type_check_abstraction<T: TypeTheory>(
 //         )
 //     })
 // }
+
+pub fn generic_type_check_let<T: TypeTheory>(
+    environment: &mut Environment<T::Term, T::Type>,
+    var_name: &str,
+    opt_type: &Option<T::Type>,
+    body: &T::Term,
+) -> Result<T::Type, String> {
+    let body_type = T::type_check_term(body, environment)?;
+    let var_type = if opt_type.is_none() {
+        body_type.to_owned()
+    } else {
+        opt_type.to_owned().unwrap()
+    };
+    let _ = T::type_check_type(&var_type, environment)?;
+
+    if T::types_unify(environment, &var_type, &body_type) {
+        environment.add_variable_definition(&var_name, &body, &var_type);
+        Ok(body_type)
+    } else {
+        Err(format!(
+            "Error in variable {} definition: declared type {:?} and assigned {:?} do not unify",
+            var_name,
+            var_type,
+            var_type
+        ))
+    }
+}
+//
+//
+pub fn generic_type_check_axiom<T: TypeTheory>(
+    environment: &mut Environment<T::Term, T::Type>,
+    axiom_name: &str,
+    predicate: &T::Type,
+) -> Result<T::Type, String> {
+    let _ = T::type_check_type(predicate, environment)?;
+    environment.add_variable_to_context(axiom_name, predicate);
+
+    Ok(predicate.to_owned())
+}
+//
+//
+pub fn generic_type_check_theorem<T: TypeTheory>(
+    environment: &mut Environment<T::Term, T::Type>,
+    theorem_name: &str,
+    formula: &T::Type,
+    proof: &Union<T::Term, Vec<Tactic>>,
+) -> Result<T::Type, String> {
+    let _ = T::type_check_type(formula, environment)?;
+    match proof {
+        L(proof_term) => {
+            let proof_type = T::type_check_term(proof_term, environment)?;
+            if !T::types_unify(environment, &formula, &proof_type) {
+                return Err(format!(
+                    "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
+                    formula, proof_type
+                ));
+            }
+            environment.add_variable_to_context(theorem_name, formula);
+            Ok(formula.to_owned())
+        }
+        R(interactive_proof) => {
+            //TODO
+            Ok(formula.to_owned())
+        }
+    }
+}

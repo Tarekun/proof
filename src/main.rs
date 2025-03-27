@@ -19,6 +19,7 @@ mod type_theory {
     pub mod interface;
     pub mod commons {
         pub mod type_check;
+        pub mod utils;
     }
     pub mod cic {
         pub mod cic;

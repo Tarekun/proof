@@ -1,9 +1,9 @@
-use super::fol::FolType::{Arrow, ForAll, Atomic};
+use super::fol::FolType::{Arrow, ForAll};
 use super::fol::{Fol, FolTerm, FolType};
 use crate::misc::Union;
-use crate::misc::Union::{L, R};
 use crate::parser::api::Tactic;
-use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_variable};
+use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
+use crate::type_theory::commons::utils::generic_multiarg_fun_type;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -11,14 +11,9 @@ fn make_multiarg_fun_type(
     arg_types: &[(String, FolType)],
     base: FolType,
 ) -> FolType {
-    if arg_types.is_empty() {
-        return base;
-    }
-
-    let ((_arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-    let sub_type = make_multiarg_fun_type(rest, base);
-
-    Arrow(Box::new(arg_type.to_owned()), Box::new(sub_type))
+    generic_multiarg_fun_type::<Fol, _>(arg_types, &base, |_, arg_type, sub_type| {
+        Arrow(Box::new(arg_type), Box::new(sub_type))
+    })
 }
 
 //########################### TERMS TYPE CHECKING
@@ -105,21 +100,11 @@ pub fn type_check_forall(
     var_type: &FolType,
     predicate: &FolType,
 ) -> Result<FolType, String> {
-    let _types_sort = Fol::type_check_type(var_type, environment)?;
-
-    environment.with_local_declaration(
-        var_name,
-        var_type,
-        |local_env| {
-            let _body_type =
-                Fol::type_check_type(predicate, local_env)?;
-
-            Ok(ForAll(
-                var_name.to_string(), 
-                Box::new(var_type.to_owned()), 
-                Box::new(predicate.to_owned()))
-            )
-        },
+    let _body_type = generic_type_check_universal::<Fol>(environment, var_name, var_type, predicate)?;
+    Ok(ForAll(
+        var_name.to_string(), 
+        Box::new(var_type.to_owned()), 
+        Box::new(predicate.to_owned()))
     )
 }
 //########################### TYPES TYPE CHECKING
@@ -131,10 +116,7 @@ pub fn type_check_axiom(
     axiom_name: &str,
     predicate: &FolType,
 ) -> Result<FolType, String> {
-    let _ = Fol::type_check_type(predicate, environment)?;
-    environment.add_variable_to_context(axiom_name, predicate);
-
-    Ok(predicate.to_owned())
+    generic_type_check_axiom::<Fol>(environment, axiom_name, predicate)
 }
 //
 //
@@ -144,24 +126,7 @@ pub fn type_check_theorem(
     formula: &FolType,
     proof: &Union<FolTerm, Vec<Tactic>>
 ) -> Result<FolType, String> {
-    let _ = Fol::type_check_type(formula, environment)?;
-    match proof {
-        L(proof_term) => {
-            let proof_type = Fol::type_check_term(proof_term, environment)?;
-            if !Fol::types_unify(environment, &formula, &proof_type) {
-                return Err(format!(
-                    "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
-                    formula, proof_type
-                ));
-            }
-            environment.add_variable_to_context(&theorem_name, &formula);
-            Ok(Atomic("Unit".to_string()))
-        }
-        R(interactive_proof) => {
-            //TODO
-            Ok(Atomic("Unit".to_string()))
-        }
-    }
+    generic_type_check_theorem::<Fol>(environment, theorem_name, formula, proof)
 }
 //
 //
@@ -171,25 +136,7 @@ pub fn type_check_let(
     opt_type: &Option<FolType>,
     body: &FolTerm,
 ) -> Result<FolType, String> {
-    let body_type = Fol::type_check_term(body, environment)?;
-    let var_type = if opt_type.is_none() {
-        body_type.to_owned()
-    } else {
-        opt_type.to_owned().unwrap()
-    };
-    let _ = Fol::type_check_type(&var_type, environment)?;
-
-    if Fol::types_unify(environment, &var_type, &body_type) {
-        environment.add_variable_definition(&var_name, &body, &var_type);
-        Ok(body_type)
-    } else {
-        Err(format!(
-            "Error in variable {} definition: declared type {:?} and assigned {:?} do not unify",
-            var_name,
-            var_type,
-            var_type
-        ))
-    }
+    generic_type_check_let::<Fol>(environment, var_name, opt_type, body)
 }
 //
 //
