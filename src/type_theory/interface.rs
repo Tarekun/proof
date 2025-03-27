@@ -5,9 +5,9 @@ use std::fmt::Debug;
 
 pub trait TypeTheory {
     /// Enum listing all the term constructors.
-    type Term: Debug + Clone;
+    type Term: Debug + Clone + PartialEq;
     /// Enum listing all the type constructors.
-    type Type: Debug;
+    type Type: Debug + Clone + PartialEq;
     /// Enum listing all the statements elaborated with proper types
     type Stm: Debug + Clone;
 
@@ -20,15 +20,15 @@ pub trait TypeTheory {
     /// Type checks the term and returns its type.
     /// On failure returns an Err with a String message
     fn type_check_term(
-        term: Self::Term,
+        term: &Self::Term,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
     fn type_check_type(
-        typee: Self::Type,
+        typee: &Self::Type,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
     fn type_check_stm(
-        term: Self::Stm,
+        term: &Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 
