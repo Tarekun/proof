@@ -53,6 +53,7 @@ pub fn type_check_product(
     var_type: &CicTerm,
     body: &CicTerm,
 ) -> Result<CicTerm, String> {
+    // TODO: im not sure using the FO quantification is actually correct here
     let body_type = generic_type_check_universal::<Cic>(environment, var_name, var_type, body)?;
     match body_type {
         CicTerm::Sort(_) => Ok(body_type),

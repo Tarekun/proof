@@ -35,6 +35,10 @@ pub fn generic_type_check_abstraction<T: TypeTheory>(
     })
 }
 
+/// Generic universal quantification type checking. Implements first order
+/// universal quantification Γ ⊢ ∀a:A.P(a), where a is `var_name`, A is
+/// `var_type`, and P(a) is a dependent `predicate`.
+/// Creating the dependent type Πa:A.P a is left to type theories implementations
 pub fn generic_type_check_universal<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     var_name: &str,
@@ -104,6 +108,7 @@ pub fn generic_type_check_universal<T: TypeTheory>(
 //     })
 // }
 
+/// Generic let definition type checking. Uses `T::type_check_type` on the variable type
 pub fn generic_type_check_let<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     var_name: &str,
@@ -130,8 +135,9 @@ pub fn generic_type_check_let<T: TypeTheory>(
         ))
     }
 }
-//
-//
+
+/// Geneirc axiom type checking. Uses `T::type_check_type` on `predicate` and
+/// updates the environment with the axiom
 pub fn generic_type_check_axiom<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     axiom_name: &str,
@@ -142,8 +148,9 @@ pub fn generic_type_check_axiom<T: TypeTheory>(
 
     Ok(predicate.to_owned())
 }
-//
-//
+
+/// Generic theorem type checking. If `proof` is a term style proof it type checks
+/// the body and checks unification with the theorem `formula`;
 pub fn generic_type_check_theorem<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,

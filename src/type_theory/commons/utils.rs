@@ -10,7 +10,7 @@ where
     F: Fn(String, T::Type, T::Type) -> T::Type + Copy,
 {
     if arg_types.is_empty() {
-        return base.clone();
+        return base.to_owned();
     }
 
     let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
@@ -19,5 +19,5 @@ where
     let sub_type = generic_multiarg_fun_type::<T, F>(rest, base, aggregator);
 
     // Use the original aggregator after the recursive call
-    aggregator(arg_name.clone(), arg_type.clone(), sub_type)
+    aggregator(arg_name.to_owned(), arg_type.to_owned(), sub_type)
 }
