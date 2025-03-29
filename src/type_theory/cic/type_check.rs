@@ -260,7 +260,7 @@ pub fn type_check_fun(
 
     let body_type = environment
         .with_local_declarations(&assumptions, |local_env| {
-            Cic::type_check_term(body.clone(), local_env)
+            Cic::type_check_term(&body, local_env)
         })?;
     if !Cic::terms_unify(environment, &out_type, &body_type) {
         return Err(format!(
@@ -269,7 +269,7 @@ pub fn type_check_fun(
         ));
     }
 
-    evaluate_fun(environment, &fun_name, &args, &out_type, &body, is_rec);
+    evaluate_fun(environment, &fun_name, &args, &out_type, &body, is_rec.to_owned());
     Ok(CicTerm::Variable("Unit".to_string()))
 }
 //

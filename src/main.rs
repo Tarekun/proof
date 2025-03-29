@@ -18,6 +18,7 @@ mod type_theory {
     pub mod environment;
     pub mod interface;
     pub mod commons {
+        pub mod evaluation;
         pub mod type_check;
         pub mod utils;
     }

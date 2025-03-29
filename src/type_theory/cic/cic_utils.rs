@@ -148,6 +148,15 @@ pub fn application_args(application: CicTerm) -> Vec<CicTerm> {
     }
 }
 
+/// Given a multiarg application term, returns the outermost term element (ie the function
+/// being applied)
+pub fn get_applied_function(application: &CicTerm) -> CicTerm {
+    match application {
+        Application(left, _) => get_applied_function(left),
+        _ => application.to_owned(),
+    }
+}
+
 /// Returns `true` if `term` is an instance of type with name `name`, `false` otherwise
 pub fn is_instance_of(term: &CicTerm, name: &str) -> bool {
     match term {

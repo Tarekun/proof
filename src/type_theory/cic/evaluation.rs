@@ -1,16 +1,20 @@
 use core::panic;
 
-use super::cic::CicStm::{Axiom, Fun, InductiveDef, Let, Theorem};
+use super::cic::CicStm::{Axiom, Fun, Let, Theorem};
 use super::cic::CicTerm::{
     Abstraction, Application, Match, Product, Sort, Variable,
 };
 use super::cic::{Cic, CicStm, CicTerm};
 use super::cic_utils::make_multiarg_fun_type;
-use crate::misc::{
-    simple_map, Union,
-    Union::{L, R},
-};
+use crate::misc::{simple_map, Union};
 use crate::parser::api::Tactic;
+use crate::type_theory::cic::cic_utils::{
+    application_args, get_applied_function,
+};
+use crate::type_theory::commons::evaluation::{
+    generic_evaluate_axiom, generic_evaluate_let, generic_evaluate_theorem,
+    generic_reduce_variable,
+};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -20,7 +24,7 @@ pub fn reduce_term(
     term: &CicTerm,
 ) -> CicTerm {
     match term {
-        Variable(var_name) => reduce_variable(environment, term, var_name),
+        Variable(var_name) => reduce_variable(environment, var_name, term),
         Application(left, right) => {
             reduce_application(environment, left, right)
         }
@@ -30,37 +34,54 @@ pub fn reduce_term(
         _ => term.clone(),
     }
 }
+pub fn normalize_term(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    term: &CicTerm,
+) -> CicTerm {
+    let mut reduced = reduce_term(environment, &term);
+    while reduced != reduce_term(environment, &reduced) {
+        reduced = reduce_term(environment, &reduced);
+    }
+    reduced
+}
 //
 //
 fn reduce_variable(
     environment: &Environment<CicTerm, CicTerm>,
-    og_term: &CicTerm,
     var_name: &str,
+    og_term: &CicTerm,
 ) -> CicTerm {
-    // if a substitution exists the variable δ-reduces to its definition
-    if let Some((_, (body, _))) = environment.get_from_deltas(var_name) {
-        body.clone()
-    }
-    // otherwise it's a constant, ie a value
-    else {
-        og_term.clone()
-    }
+    generic_reduce_variable::<Cic>(environment, var_name, og_term)
 }
 //
-//
+/// Given a functional term returns its body if it has one defined, or None if
+/// it doesnt exist. Assumes that function variables are already β-reduced
+fn get_body(reduced_function: &CicTerm) -> Option<CicTerm> {
+    match reduced_function {
+        Abstraction(_, _, body) => Some(*body.clone()),
+        _ => None,
+    }
+}
 fn reduce_application(
     environment: &mut Environment<CicTerm, CicTerm>,
     left: &CicTerm,
     right: &CicTerm,
 ) -> CicTerm {
-    if let Ok(fun_type) = Cic::type_check_term(left.clone(), environment) {
+    if let Ok(fun_type) = Cic::type_check_term(&left, environment) {
         match fun_type {
             Product(var_name, _, _) => {
                 // if left is function variable take its body, otherwise gets left back
-                let left_body = reduce_term(environment, left);
+                let left_reduced = normalize_term(environment, left);
                 // TODO do i substitute right or do i substitute its reduction? big deal
-                let right_reduced = reduce_term(environment, right);
-                substitute(&left_body, &var_name, &right_reduced)
+                let right_reduced = normalize_term(environment, right);
+
+                match get_body(&left_reduced) {
+                    Some(body) => substitute(&body, &var_name, &right_reduced),
+                    None => Application(
+                        Box::new(left_reduced),
+                        Box::new(right_reduced),
+                    ),
+                }
             }
             _ => {
                 panic!(
@@ -83,12 +104,17 @@ fn reduce_match(
     matched_term: &CicTerm,
     branches: &Vec<(Vec<CicTerm>, CicTerm)>,
 ) -> CicTerm {
-    // let normalized_term = reduce_term(environment, matched_term);
-    // for (pattern, body) in branches {
-    //     if matches_pattern(normalized_term, pattern) {
-
-    //     }
-    // }
+    println!("matched term: {:?}", matched_term);
+    let normalized_term = reduce_term(environment, matched_term);
+    for (pattern, body) in branches {
+        println!(
+            "trying to match '{:?}' with pattern {:?}",
+            normalized_term, pattern
+        );
+        if matches_pattern(&normalized_term, pattern) {
+            return body.clone();
+        }
+    }
 
     panic!(
         "No pattern matched the term {:?}, if this is a type checking or exhaustiveness error, it should have been caught sooner",
@@ -125,7 +151,7 @@ pub fn evaluate_axiom(
     axiom_name: &str,
     formula: &CicTerm,
 ) -> () {
-    environment.add_variable_to_context(axiom_name, formula);
+    generic_evaluate_axiom::<Cic>(environment, axiom_name, formula);
 }
 //
 //
@@ -135,17 +161,7 @@ pub fn evaluate_let(
     var_type: &Option<CicTerm>,
     body: &CicTerm,
 ) -> () {
-    let var_type = match var_type {
-        Some(type_term) => type_term,
-        None => {
-            let body_type = Cic::type_check_term(body.clone(), environment);
-            if body_type.is_err() {
-                panic!("Evaluating a let definition with ill type body, this should have been caught sooner");
-            }
-            &body_type.unwrap()
-        }
-    };
-    environment.add_variable_definition(var_name, body, var_type);
+    generic_evaluate_let::<Cic>(environment, var_name, var_type, body);
 }
 //
 //
@@ -168,32 +184,11 @@ pub fn evaluate_theorem(
     formula: &CicTerm,
     proof: &Union<CicTerm, Vec<Tactic>>,
 ) -> () {
-    match proof {
-        L(_proof_term) => {
-            environment.add_variable_to_context(&theorem_name, &formula);
-        }
-        //TODO support itp
-        R(interactive_proof) => {}
-    }
+    generic_evaluate_theorem::<Cic>(environment, theorem_name, formula, proof);
 }
 //########################### STATEMENTS EXECUTION
 //
 //########################### HELPER FUNCTIONS
-// fn is_reducable(
-//     environment: &Environment<CicTerm, CicTerm>,
-//     term: CicTerm,
-// ) -> bool {
-//     match term {
-//         Application(_, _) => true,
-//         Match(_, _) => true,
-//         Variable(var_name) => match environment.get_from_deltas(&var_name) {
-//             Some(_) => true,
-//             None => false,
-//         },
-//         _ => false,
-//     }
-// }
-
 /// Given a `term` and a variable, returns a term where each instance of
 /// `var_name` is substituted with `arg`
 fn substitute(term: &CicTerm, target_name: &str, arg: &CicTerm) -> CicTerm {
@@ -226,13 +221,22 @@ fn substitute(term: &CicTerm, target_name: &str, arg: &CicTerm) -> CicTerm {
             simple_map(branches.clone(), |(pattern, body)| {
                 (
                     simple_map(pattern, |term| {
-                        substitute(&term, target_name.clone(), arg)
+                        substitute(&term, target_name, arg)
                     }),
                     substitute(&body, target_name, arg),
                 )
             }),
         ),
     }
+}
+
+/// Given a `term` and a `pattern`, returns `true` if the term matches the
+/// pattern, `false` otherwise
+fn matches_pattern(term: &CicTerm, pattern: &Vec<CicTerm>) -> bool {
+    let outermost = get_applied_function(term);
+    let args = application_args(term.to_owned());
+
+    return (outermost == pattern[0]) && (args.len() == pattern.len() - 1);
 }
 //########################### HELPER FUNCTIONS
 
@@ -243,14 +247,59 @@ mod unit_tests {
         cic::{
             cic::{
                 Cic,
-                CicTerm::{
-                    Abstraction, Application, Match, Product, Sort, Variable,
-                },
+                CicTerm::{Abstraction, Application, Product, Sort, Variable},
             },
-            evaluation::{evaluate_let, reduce_application, reduce_variable},
+            evaluation::{
+                matches_pattern, reduce_application, reduce_match,
+                reduce_variable,
+            },
         },
         interface::TypeTheory,
     };
+
+    #[test]
+    fn test_check_pattern_matching() {
+        assert!(
+            matches_pattern(
+                &Variable("z".to_string()),
+                &vec![Variable("z".to_string())]
+            ),
+            "Pattern matching refutes identical constants"
+        );
+        assert!(
+            !matches_pattern(
+                &Variable("z".to_string()),
+                &vec![Variable("s".to_string())]
+            ),
+            "Pattern matching accepts different constants"
+        );
+        assert!(
+            matches_pattern(
+                &Application(
+                    Box::new(Variable("s".to_string())),
+                    Box::new(Variable("z".to_string())),
+                ),
+                &vec![
+                    Variable("s".to_string()),
+                    Variable("renamed_argument".to_string()),
+                ]
+            ),
+            "Pattern matching refutes application with renamed argument"
+        );
+        assert!(
+            !matches_pattern(
+                &Application(
+                    Box::new(Application(
+                        Box::new(Variable("cons".to_string())),
+                        Box::new(Variable("z".to_string())),
+                    )),
+                    Box::new(Variable("l".to_string()))
+                ),
+                &vec![Variable("cons".to_string()), Variable("z".to_string()),]
+            ),
+            "Pattern matching accepts only partial pattern"
+        );
+    }
 
     #[test]
     fn test_var_reduction() {
@@ -264,14 +313,14 @@ mod unit_tests {
         assert_eq!(
             reduce_variable(
                 &test_env,
+                "constant",
                 &Variable("constant".to_string()),
-                "constant"
             ),
             Variable("constant".to_string()),
             "Constant δ-reduces to something other than itself"
         );
         assert_eq!(
-            reduce_variable(&test_env, &Variable("test".to_string()), "test"),
+            reduce_variable(&test_env, "test", &Variable("test".to_string())),
             Variable("Unit".to_string()),
             "Defined variable doesnt δ-reduce to its body"
         );
@@ -281,6 +330,7 @@ mod unit_tests {
     fn test_app_reduction() {
         let mut test_env = Cic::default_environment();
         test_env.add_variable_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_variable_to_context("z", &Variable("Nat".to_string()));
         test_env.add_variable_to_context(
             "s",
             &Product(
@@ -291,9 +341,13 @@ mod unit_tests {
         );
         test_env.add_variable_definition(
             "add_one",
-            &Application(
-                Box::new(Variable("s".to_string())),
-                Box::new(Variable("n".to_string())),
+            &Abstraction(
+                "n".to_string(),
+                Box::new(Variable("Nat".to_string())),
+                Box::new(Application(
+                    Box::new(Variable("s".to_string())),
+                    Box::new(Variable("n".to_string())),
+                )),
             ),
             &Product(
                 "n".to_string(),
@@ -305,6 +359,18 @@ mod unit_tests {
         assert_eq!(
             reduce_application(
                 &mut test_env,
+                &Variable("s".to_string()),
+                &Variable("z".to_string())
+            ),
+            Application(
+                Box::new(Variable("s".to_string())),
+                Box::new(Variable("z".to_string())),
+            ),
+            "Function application of normal form returns a different term"
+        );
+        assert_eq!(
+            reduce_application(
+                &mut test_env,
                 &Variable("add_one".to_string()),
                 &Variable("arg".to_string())
             ),
@@ -313,6 +379,72 @@ mod unit_tests {
                 Box::new(Variable("arg".to_string())),
             ),
             "Function application doesnt reduce to the function body with substituted variable"
+        );
+    }
+
+    #[test]
+    fn test_match_reduction() {
+        let mut test_env = Cic::default_environment();
+        let zero = Variable("z".to_string());
+        let succ_pattern =
+            vec![Variable("s".to_string()), Variable("n".to_string())];
+        let true_term = Variable("true".to_string());
+        let false_term = Variable("false".to_string());
+
+        test_env.add_variable_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_variable_to_context("z", &Variable("Nat".to_string()));
+        test_env.add_variable_to_context(
+            "s",
+            &Product(
+                "_".to_string(),
+                Box::new(Variable("Nat".to_string())),
+                Box::new(Variable("Nat".to_string())),
+            ),
+        );
+        test_env.add_variable_definition(
+            "x",
+            &zero,
+            &Variable("Nat".to_string()),
+        );
+
+        assert_eq!(
+            reduce_match(
+                &mut test_env,
+                &zero,
+                &vec![
+                    (vec![zero.clone()], true_term.clone()),
+                    (succ_pattern.clone(), false_term.clone())
+                ]
+            ),
+            true_term,
+            "Match term doesnt δ-reduce to the right branch body"
+        );
+        assert_eq!(
+            reduce_match(
+                &mut test_env,
+                &Variable("x".to_string()),
+                &vec![
+                    (vec![zero.clone()], true_term.clone()),
+                    (succ_pattern.clone(), false_term.clone())
+                ]
+            ),
+            true_term,
+            "Match term doesnt δ-reduce if matching a variable that needs reduction"
+        );
+        assert_eq!(
+            reduce_match(
+                &mut test_env,
+                &Application(
+                    Box::new(Variable("s".to_string())),
+                    Box::new(Variable("z".to_string()))
+                ),
+                &vec![
+                    (vec![zero.clone()], true_term.clone()),
+                    (succ_pattern.clone(), false_term.clone())
+                ]
+            ),
+            false_term,
+            "Match term doesnt δ-reduce if matching an application pattern"
         );
     }
 }
