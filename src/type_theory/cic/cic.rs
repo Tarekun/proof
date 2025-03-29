@@ -4,7 +4,7 @@ use super::elaboration::{
     elaborate_fun, elaborate_inductive, elaborate_let, elaborate_match,
     elaborate_theorem, elaborate_type_product, elaborate_var_use,
 };
-use super::evaluation::{evaluate_statement, reduce_term};
+use super::evaluation::{evaluate_statement, normalize_term};
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_axiom,
     type_check_fun, type_check_inductive, type_check_let, type_check_match,
@@ -235,7 +235,7 @@ impl TypeTheory for Cic {
         environment: &mut Environment<CicTerm, CicTerm>,
         term: &CicTerm,
     ) -> CicTerm {
-        reduce_term(environment, term)
+        normalize_term(environment, term)
     }
 
     fn evaluate_statement(

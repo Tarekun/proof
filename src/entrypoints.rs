@@ -67,12 +67,19 @@ pub fn type_check<T: TypeTheory>(
     }
 }
 
+pub fn execute<T: TypeTheory>(
+    config: &Config,
+    workspace: &str,
+) -> Result<(), String> {
+    let program: Program<T> = type_check(config, workspace)?;
+    program.execute()
+}
 //########################### UNIT TESTS
 #[cfg(test)]
 mod unit_tests {
     use crate::{
         config::{Config, TypeSystem},
-        entrypoints::{parse_and_elaborate, parse_only, type_check},
+        entrypoints::{execute, parse_and_elaborate, parse_only, type_check},
         type_theory::{cic::cic::Cic, fol::fol::Fol},
     };
 
@@ -124,16 +131,24 @@ mod unit_tests {
     fn test_type_check() {
         for config in all_system_configs() {
             let res = type_check::<Cic>(&config, "./library");
-            match res {
-                Err(message) => {
-                    println!("{}", message)
-                }
-                _ => {}
-            }
-            let res = type_check::<Cic>(&config, "./library");
             assert!(
                 type_check::<Cic>(&config, "./library").is_ok(),
                 "Type checking entrypoint cant process std library:\n{:?}",
+                res.err()
+            );
+        }
+    }
+
+    #[test]
+    fn test_execution() {
+        for config in all_system_configs() {
+            let res = match config.system {
+                TypeSystem::Cic() => execute::<Cic>(&config, "./library"),
+                TypeSystem::Fol() => execute::<Fol>(&config, "./library"),
+            };
+            assert!(
+                res.is_ok(),
+                "Execution cant process std library:\n{:?}",
                 res.err()
             );
         }

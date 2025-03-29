@@ -1,3 +1,5 @@
+use super::fol::FolStm::{Axiom, Let, Theorem};
+use super::fol::FolTerm::{Application, Variable};
 use crate::{
     misc::Union,
     parser::api::Tactic,
@@ -13,11 +15,29 @@ use crate::{
 use super::fol::{Fol, FolStm, FolTerm, FolType};
 
 //########################### TERM βδ-REDUCTION
-pub fn reduce_term(
+fn one_step_reduction(
     environment: &mut Environment<FolTerm, FolType>,
     term: &FolTerm,
 ) -> FolTerm {
-    term.clone()
+    match term {
+        Variable(var_name) => reduce_variable(environment, var_name, term),
+        // Application(left, right) => {
+        //     reduce_application(environment, left, right)
+        // }
+        _ => term.clone(),
+    }
+}
+//
+//
+pub fn normalize_term(
+    environment: &mut Environment<FolTerm, FolType>,
+    term: &FolTerm,
+) -> FolTerm {
+    let mut reduced = one_step_reduction(environment, &term);
+    while reduced != one_step_reduction(environment, &reduced) {
+        reduced = one_step_reduction(environment, &reduced);
+    }
+    reduced
 }
 //
 //
@@ -36,7 +56,21 @@ pub fn evaluate_statement(
     environment: &mut Environment<FolTerm, FolType>,
     stm: &FolStm,
 ) -> () {
-    ()
+    match stm {
+        Axiom(axiom_name, formula) => {
+            evaluate_axiom(environment, axiom_name, formula)
+        }
+        Let(var_name, var_type, body) => {
+            evaluate_let(environment, var_name, var_type, body)
+        }
+        // Fun(fun_name, args, out_type, body, is_rec) => {
+        //     evaluate_fun(environment, fun_name, args, out_type, body, *is_rec)
+        // }
+        Theorem(theorem_name, formula, proof) => {
+            evaluate_theorem(environment, theorem_name, formula, proof)
+        }
+        _ => (),
+    }
 }
 //
 //

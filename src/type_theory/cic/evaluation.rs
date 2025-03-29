@@ -19,7 +19,7 @@ use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
 //########################### TERM βδ-REDUCTION
-pub fn reduce_term(
+fn one_step_reduction(
     environment: &mut Environment<CicTerm, CicTerm>,
     term: &CicTerm,
 ) -> CicTerm {
@@ -34,13 +34,15 @@ pub fn reduce_term(
         _ => term.clone(),
     }
 }
+//
+//
 pub fn normalize_term(
     environment: &mut Environment<CicTerm, CicTerm>,
     term: &CicTerm,
 ) -> CicTerm {
-    let mut reduced = reduce_term(environment, &term);
-    while reduced != reduce_term(environment, &reduced) {
-        reduced = reduce_term(environment, &reduced);
+    let mut reduced = one_step_reduction(environment, &term);
+    while reduced != one_step_reduction(environment, &reduced) {
+        reduced = one_step_reduction(environment, &reduced);
     }
     reduced
 }
@@ -105,7 +107,7 @@ fn reduce_match(
     branches: &Vec<(Vec<CicTerm>, CicTerm)>,
 ) -> CicTerm {
     println!("matched term: {:?}", matched_term);
-    let normalized_term = reduce_term(environment, matched_term);
+    let normalized_term = normalize_term(environment, matched_term);
     for (pattern, body) in branches {
         println!(
             "trying to match '{:?}' with pattern {:?}",
