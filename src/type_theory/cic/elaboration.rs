@@ -364,7 +364,7 @@ fn elaborate_theorem(
             let cic_interactive_proof: Vec<Tactic<CicTerm>> =
                 simple_map(interactive_proof, |tactic| {
                     elaborate_tactic::<CicTerm, _>(tactic, |exp| {
-                        Ok(elaborate_expression(&exp))
+                        elaborate_expression(&exp)
                     })
                     //TODO this is a temporary solution, doesnt handle errors gracefully
                     .unwrap()

@@ -5,6 +5,7 @@ use super::fol::{Fol, FolTerm, FolType};
 use crate::misc::simple_map;
 use crate::parser::api::{Statement, Tactic};
 use crate::type_theory::commons::elaboration::elaborate_tactic;
+use crate::type_theory::commons::utils::{wrap_term, wrap_type};
 use crate::{
     misc::Union,
     misc::Union::{L, R},
@@ -19,7 +20,7 @@ fn map_typed_variables(
     variables
         .iter()
         .map(|(var_name, var_type_exp)| {
-            match Fol::elaborate_expression(var_type_exp.clone()) {
+            match elaborate_expression(var_type_exp.clone()) {
                 Ok(Union::L(term)) => panic!(
                     "TODO handle this but term is no supposed to show up {:?}",
                     term
@@ -70,6 +71,27 @@ fn expect_type(arg: Union<FolTerm, FolType>) -> Result<FolType, String> {
 }
 
 //########################### EXPRESSIONS ELABORATION
+pub fn elaborate_expression(
+    ast: Expression,
+) -> Result<Union<FolTerm, FolType>, String> {
+    match ast {
+        Expression::VarUse(var_name) => elaborate_var_use(var_name),
+        Expression::Abstraction(var_name, var_type, body) => {
+            wrap_term::<Fol>(elaborate_abstraction(var_name, *var_type, *body))
+        }
+        Expression::Application(left, right) => {
+            wrap_term::<Fol>(elaborate_application(*left, *right))
+        }
+        Expression::Arrow(domain, codomain) => {
+            wrap_type::<Fol>(elaborate_arrow(*domain, *codomain))
+        }
+        Expression::TypeProduct(var_name, var_type, body) => {
+            wrap_type::<Fol>(elaborate_forall(var_name, *var_type, *body))
+        }
+        _ => panic!("expression {:?} is not supported in FOL", ast),
+    }
+}
+//
 //
 pub fn elaborate_var_use(
     var_name: String,
@@ -91,10 +113,10 @@ pub fn elaborate_abstraction(
     var_type: Expression,
     body: Expression,
 ) -> Result<FolTerm, String> {
-    let var_type = Fol::elaborate_expression(var_type)?;
+    let var_type = elaborate_expression(var_type)?;
     match var_type {
         Union::R(var_type) => {
-            let body = Fol::elaborate_expression(body)?;
+            let body = elaborate_expression(body)?;
             match body {
                 Union::L(body_term) => Ok(Abstraction(
                     var_name.clone(),
@@ -115,10 +137,10 @@ pub fn elaborate_arrow(
     domain: Expression,
     codomain: Expression,
 ) -> Result<FolType, String> {
-    let domain = Fol::elaborate_expression(domain)?;
+    let domain = elaborate_expression(domain)?;
     match domain {
         Union::R(domain_type) => {
-            let codomain = Fol::elaborate_expression(codomain)?;
+            let codomain = elaborate_expression(codomain)?;
             match codomain {
                 Union::R(codomain_type) => {
                     Ok(Arrow(Box::new(domain_type), Box::new(codomain_type)))
@@ -135,10 +157,10 @@ pub fn elaborate_application(
     left: Expression,
     right: Expression,
 ) -> Result<FolTerm, String> {
-    let left = Fol::elaborate_expression(left)?;
+    let left = elaborate_expression(left)?;
     match left {
         Union::L(function) => {
-            let right = Fol::elaborate_expression(right)?;
+            let right = elaborate_expression(right)?;
             match right {
                 Union::L(argument) => Ok(FolTerm::Application(
                     Box::new(function),
@@ -159,10 +181,10 @@ pub fn elaborate_forall(
     var_type: Expression,
     body: Expression,
 ) -> Result<FolType, String> {
-    let var_type = Fol::elaborate_expression(var_type)?;
+    let var_type = elaborate_expression(var_type)?;
     match var_type {
         Union::R(var_type) => {
-            let body = Fol::elaborate_expression(body)?;
+            let body = elaborate_expression(body)?;
             match body {
                 Union::R(body_formula) => Ok(ForAll(
                     var_name.clone(),
@@ -175,7 +197,6 @@ pub fn elaborate_forall(
         Union::L(term) => type_expected_error("forall", &term),
     }
 }
-//
 //########################### EXPRESSIONS ELABORATION
 //
 //########################### STATEMENTS ELABORATION
@@ -196,7 +217,7 @@ fn elaborate_ast_vector(
                 }
             }
             LofAst::Exp(exp) => {
-                let exp = Fol::elaborate_expression(exp)?;
+                let exp = elaborate_expression(exp)?;
                 match exp {
                     Union::L(term) => program.push_term(&term),
                     // drop top level type expressions as they are not reducable in LOF
@@ -256,7 +277,7 @@ pub fn elaborate_axiom(
     axiom_name: String,
     formula: Expression,
 ) -> Result<(), String> {
-    let formula = Fol::elaborate_expression(formula)?;
+    let formula = elaborate_expression(formula)?;
     match formula {
         Union::R(formula) => {
             program.push_statement(&Axiom(axiom_name, Box::new(formula)));
@@ -275,12 +296,12 @@ pub fn elaborate_theorem(
     formula: Expression,
     proof: Union<Expression, Vec<Tactic<Expression>>>,
 ) -> Result<(), String> {
-    let fol_formula_union = Fol::elaborate_expression(formula)?;
+    let fol_formula_union = elaborate_expression(formula)?;
     let fol_formula = expect_type(fol_formula_union)?;
     let proof: Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>> =
         match proof {
             L(proof_term) => {
-                let fol_proof_term = Fol::elaborate_expression(proof_term)?;
+                let fol_proof_term = elaborate_expression(proof_term)?;
                 let fol_proof_term = expect_term(fol_proof_term)?;
                 L(fol_proof_term)
             }
@@ -288,9 +309,12 @@ pub fn elaborate_theorem(
                 let fol_interactive_proof: Vec<
                     Tactic<Union<FolTerm, FolType>>,
                 > = simple_map(interactive_proof, |tactic| {
-                    elaborate_tactic::<_, _>(tactic, Fol::elaborate_expression)
-                        //TODO this is a temporary solution, doesnt handle errors gracefully
-                        .unwrap()
+                    elaborate_tactic::<Union<FolTerm, FolType>, _>(
+                        tactic,
+                        |exp| elaborate_expression(exp).unwrap(),
+                    )
+                    //TODO this is a temporary solution, doesnt handle errors gracefully
+                    .unwrap()
                 });
                 R(fol_interactive_proof)
             }
@@ -311,11 +335,11 @@ pub fn elaborate_let(
     opt_type: Option<Expression>,
     body: Expression,
 ) -> Result<(), String> {
-    let body = Fol::elaborate_expression(body)?;
+    let body = elaborate_expression(body)?;
     match body {
         Union::L(body_term) => {
             let var_type = match opt_type {
-                Some(type_exp) => Some(Fol::elaborate_expression(type_exp)?),
+                Some(type_exp) => Some(elaborate_expression(type_exp)?),
                 None => None,
             };
             match var_type {
@@ -358,10 +382,10 @@ pub fn elaborate_fun(
     body: Expression,
     is_rec: bool,
 ) -> Result<(), String> {
-    let out_type = Fol::elaborate_expression(out_type)?;
+    let out_type = elaborate_expression(out_type)?;
     match out_type {
         Union::R(out_type) => {
-            let body = Fol::elaborate_expression(body)?;
+            let body = elaborate_expression(body)?;
             match body {
                 Union::L(body) => {
                     program.push_statement(&Fun(
@@ -403,13 +427,16 @@ pub fn elaborate_empty(
 mod unit_tests {
     use crate::{
         misc::Union,
-        parser::api::Expression::VarUse,
-        parser::api::{Expression, Statement},
+        parser::api::{
+            Expression::{self, VarUse},
+            Statement,
+        },
         runtime::program::{Program, ProgramNode},
         type_theory::fol::{
             elaboration::{
                 elaborate_abstraction, elaborate_application, elaborate_arrow,
-                elaborate_forall, elaborate_let, elaborate_var_use,
+                elaborate_expression, elaborate_forall, elaborate_let,
+                elaborate_var_use,
             },
             fol::{
                 Fol,
@@ -428,7 +455,7 @@ mod unit_tests {
             "Variable elaboration doesnt produce proper term"
         );
         assert_eq!(
-            Fol::elaborate_expression(Expression::VarUse("n".to_string())),
+            elaborate_expression(Expression::VarUse("n".to_string())),
             Ok(Union::L(Variable("n".to_string()))),
             "Top level elaboration doesnt support variables"
         );
@@ -465,7 +492,7 @@ mod unit_tests {
             "Abstraction elaboration doesnt produce correct term "
         );
         assert_eq!(
-            Fol::elaborate_expression(Expression::Abstraction(
+            elaborate_expression(Expression::Abstraction(
                 "x".to_string(),
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("x".to_string())),
@@ -493,7 +520,7 @@ mod unit_tests {
             "Application elaboration doesnt produce correct term"
         );
         assert_eq!(
-            Fol::elaborate_expression(Expression::Application(
+            elaborate_expression(Expression::Application(
                 Box::new(Expression::VarUse("f".to_string())),
                 Box::new(Expression::VarUse("x".to_string())),
             )),
@@ -519,7 +546,7 @@ mod unit_tests {
             "Arrow elaboration doesnt produce proper term"
         );
         assert_eq!(
-            Fol::elaborate_expression(Expression::Arrow(
+            elaborate_expression(Expression::Arrow(
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("Bool".to_string())),
             )),
@@ -547,7 +574,7 @@ mod unit_tests {
             "For all elaboration doesnt produce proper term"
         );
         assert_eq!(
-            Fol::elaborate_expression(Expression::TypeProduct(
+            elaborate_expression(Expression::TypeProduct(
                 "n".to_string(),
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("Top".to_string())),
