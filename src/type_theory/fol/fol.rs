@@ -40,7 +40,11 @@ pub enum FolStm {
     /// axiom_name, formula
     Axiom(String, Box<FolType>),
     /// theorem_name, formula, proof
-    Theorem(String, Box<FolType>, Union<FolTerm, Vec<Tactic>>),
+    Theorem(
+        String,
+        Box<FolType>,
+        Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>>,
+    ),
     /// (var_name, var_type, definition_body)
     Let(String, Option<FolType>, Box<FolTerm>),
     /// (fun_name, args, out_type, body, is_rec)

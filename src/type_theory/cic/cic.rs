@@ -43,7 +43,7 @@ pub enum CicStm {
     /// axiom_name, formula
     Axiom(String, Box<CicTerm>),
     /// theorem_name, formula, proof
-    Theorem(String, Box<CicTerm>, Union<CicTerm, Vec<Tactic>>),
+    Theorem(String, Box<CicTerm>, Union<CicTerm, Vec<Tactic<CicTerm>>>),
     /// (var_name, var_type, definition_body)
     Let(String, Option<CicTerm>, Box<CicTerm>),
     /// (fun_name, args, out_type, body, is_rec)

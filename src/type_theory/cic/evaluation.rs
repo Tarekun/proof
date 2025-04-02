@@ -186,7 +186,7 @@ pub fn evaluate_theorem(
     environment: &mut Environment<CicTerm, CicTerm>,
     theorem_name: &str,
     formula: &CicTerm,
-    proof: &Union<CicTerm, Vec<Tactic>>,
+    proof: &Union<CicTerm, Vec<Tactic<CicTerm>>>,
 ) -> () {
     generic_evaluate_theorem::<Cic>(environment, theorem_name, formula, proof);
 }
