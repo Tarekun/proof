@@ -1,8 +1,6 @@
 use super::elaboration::{
-    elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
-    elaborate_forall, elaborate_fun, elaborate_let, elaborate_theorem,
-    elaborate_var_use,
+    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_expression,
+    elaborate_file_root, elaborate_fun, elaborate_let, elaborate_theorem,
 };
 use super::evaluation::{evaluate_statement, one_step_reduction};
 use super::type_check::{
@@ -11,7 +9,7 @@ use super::type_check::{
     type_check_theorem, type_check_var,
 };
 use crate::misc::Union;
-use crate::parser::api::{Expression, LofAst, Statement, Tactic};
+use crate::parser::api::{LofAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
@@ -57,42 +55,8 @@ pub enum FolStm {
     ),
 }
 
-fn wrap_term(
-    term_exp: Result<FolTerm, String>,
-) -> Result<Union<FolTerm, FolType>, String> {
-    let term_exp = term_exp?;
-    Ok(Union::L(term_exp))
-}
-fn wrap_type(
-    type_exp: Result<FolType, String>,
-) -> Result<Union<FolTerm, FolType>, String> {
-    let type_exp = type_exp?;
-    Ok(Union::R(type_exp))
-}
-
 pub struct Fol;
 impl Fol {
-    pub fn elaborate_expression(
-        ast: Expression,
-    ) -> Result<Union<FolTerm, FolType>, String> {
-        match ast {
-            Expression::VarUse(var_name) => elaborate_var_use(var_name),
-            Expression::Abstraction(var_name, var_type, body) => {
-                wrap_term(elaborate_abstraction(var_name, *var_type, *body))
-            }
-            Expression::Application(left, right) => {
-                wrap_term(elaborate_application(*left, *right))
-            }
-            Expression::Arrow(domain, codomain) => {
-                wrap_type(elaborate_arrow(*domain, *codomain))
-            }
-            Expression::TypeProduct(var_name, var_type, body) => {
-                wrap_type(elaborate_forall(var_name, *var_type, *body))
-            }
-            _ => panic!("expression {:?} is not supported in FOL", ast),
-        }
-    }
-
     pub fn elaborate_statement(
         ast: Statement,
         program: &mut Program<Fol>,
@@ -174,7 +138,7 @@ impl Kernel for Fol {
                 let _ = Fol::elaborate_statement(stm, &mut program);
             }
             LofAst::Exp(exp) => {
-                let _ = Fol::elaborate_expression(exp);
+                let _ = elaborate_expression(exp);
             }
         }
 
