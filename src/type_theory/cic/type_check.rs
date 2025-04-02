@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use super::cic::CicTerm::{Application, Product, Sort, Variable, Meta};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::{check_positivity, substitute_meta};
-use super::evaluation::evaluate_inductive;
+use super::evaluation::{evaluate_fun, evaluate_inductive};
 use super::unification::solve_unification;
-use crate::misc::{simple_map, simple_map_indexed, Union};
+use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic::{GLOBAL_INDEX, PLACEHOLDER_DBI};
 use crate::type_theory::cic::cic_utils::{
@@ -299,7 +299,7 @@ pub fn type_check_theorem(
     environment: &mut Environment<CicTerm, CicTerm>,
     theorem_name: &str,
     formula: &CicTerm,
-    proof: &Union<CicTerm, Vec<Tactic>>
+    proof: &Union<CicTerm, Vec<Tactic<CicTerm>>>
 ) -> Result<CicTerm, String> {
     generic_type_check_theorem::<Cic>(environment, theorem_name, formula, proof)
 }
