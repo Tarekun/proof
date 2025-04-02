@@ -159,7 +159,7 @@ pub fn generic_type_check_theorem<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,
     formula: &T::Type,
-    proof: &Union<T::Term, Vec<Tactic>>,
+    proof: &Union<T::Term, Vec<Tactic<T::Term>>>,
 ) -> Result<T::Type, String> {
     let _ = T::type_check_type(formula, environment)?;
     match proof {

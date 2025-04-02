@@ -1,7 +1,7 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::check_positivity;
-use super::evaluation::{evaluate_axiom, evaluate_fun, evaluate_let};
+use super::evaluation::evaluate_fun;
 use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
@@ -10,7 +10,6 @@ use crate::type_theory::cic::cic_utils::{
     is_instance_of, make_multiarg_fun_type,
 };
 use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
-use crate::type_theory::commons::utils::generic_multiarg_fun_type;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -278,7 +277,7 @@ pub fn type_check_theorem(
     environment: &mut Environment<CicTerm, CicTerm>,
     theorem_name: &str,
     formula: &CicTerm,
-    proof: &Union<CicTerm, Vec<Tactic>>
+    proof: &Union<CicTerm, Vec<Tactic<CicTerm>>>
 ) -> Result<CicTerm, String> {
     generic_type_check_theorem::<Cic>(environment, theorem_name, formula, proof)
 }

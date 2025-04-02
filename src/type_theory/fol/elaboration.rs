@@ -1,8 +1,10 @@
 use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use super::fol::FolTerm::{Abstraction, Variable};
 use super::fol::FolType::{Arrow, Atomic, ForAll};
-use super::fol::{Fol, FolStm, FolTerm, FolType};
+use super::fol::{Fol, FolTerm, FolType};
+use crate::misc::simple_map;
 use crate::parser::api::{Statement, Tactic};
+use crate::type_theory::commons::elaboration::elaborate_tactic;
 use crate::{
     misc::Union,
     misc::Union::{L, R},
@@ -271,26 +273,33 @@ pub fn elaborate_theorem(
     program: &mut Program<Fol>,
     theorem_name: String,
     formula: Expression,
-    proof: Union<Expression, Vec<Tactic>>,
+    proof: Union<Expression, Vec<Tactic<Expression>>>,
 ) -> Result<(), String> {
     let fol_formula_union = Fol::elaborate_expression(formula)?;
     let fol_formula = expect_type(fol_formula_union)?;
-    match proof {
+    let proof = match proof {
         L(proof_term) => {
-            let proof_term_union = Fol::elaborate_expression(proof_term)?;
-            let fol_proof_term = expect_term(proof_term_union)?;
-            program.push_statement(&Theorem(
-                theorem_name,
-                Box::new(fol_formula),
-                L(fol_proof_term),
-            ));
-            Ok(())
+            let fol_proof_term = Fol::elaborate_expression(proof_term);
+            L(fol_proof_term)
         }
         R(interactive_proof) => {
-            //TODO suckaaa
-            Ok(())
+            let fol_interactive_proof =
+                simple_map(interactive_proof, |tactic| {
+                    elaborate_tactic::<Fol, _>(
+                        tactic,
+                        Fol::elaborate_expression,
+                    )
+                });
+            R(fol_interactive_proof)
         }
-    }
+    };
+
+    program.push_statement(&Theorem(
+        theorem_name,
+        Box::new(cic_formula),
+        proof,
+    ));
+    Ok(())
 }
 //
 //

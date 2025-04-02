@@ -85,7 +85,7 @@ pub fn evaluate_theorem(
     environment: &mut Environment<FolTerm, FolType>,
     theorem_name: &str,
     formula: &FolType,
-    proof: &Union<FolTerm, Vec<Tactic>>,
+    proof: &Union<FolTerm, Vec<Tactic<FolTerm>>>,
 ) -> () {
     generic_evaluate_theorem::<Fol>(environment, theorem_name, formula, proof);
 }

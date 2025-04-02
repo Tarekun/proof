@@ -1,10 +1,15 @@
 use super::cic::CicStm::{Axiom, Theorem};
 use super::cic::{CicStm, CicTerm};
-use crate::misc::Union;
 use crate::misc::Union::{L, R};
-use crate::parser::api::{Expression, NsAst, Statement, Tactic};
+use crate::misc::{simple_map, Union};
+use crate::parser::api::Tactic;
+use crate::parser::api::{
+    Expression, NsAst, Statement,
+    Tactic::{Begin, Qed, Suppose},
+};
 use crate::runtime::program::Program;
 use crate::type_theory::cic::cic::Cic;
+use crate::type_theory::commons::elaboration::elaborate_tactic;
 
 fn map_typed_variables(
     variables: &Vec<(String, Expression)>,
@@ -264,24 +269,32 @@ pub fn elaborate_theorem(
     program: &mut Program<Cic>,
     theorem_name: String,
     formula: Expression,
-    proof: Union<Expression, Vec<Tactic>>,
+    proof: Union<Expression, Vec<Tactic<Expression>>>,
 ) -> Result<(), String> {
     let cic_formula = Cic::elaborate_expression(formula);
-    match proof {
+    let proof = match proof {
         L(proof_term) => {
             let cic_proof_term = Cic::elaborate_expression(proof_term);
-            program.push_statement(&Theorem(
-                theorem_name,
-                Box::new(cic_formula),
-                L(cic_proof_term),
-            ));
-            Ok(())
+            L(cic_proof_term)
         }
         R(interactive_proof) => {
-            //TODO suckaaa
-            Ok(())
+            let cic_interactive_proof =
+                simple_map(interactive_proof, |tactic| {
+                    elaborate_tactic::<Cic, _>(
+                        tactic,
+                        Cic::elaborate_expression,
+                    )
+                });
+            R(cic_interactive_proof)
         }
-    }
+    };
+
+    program.push_statement(&Theorem(
+        theorem_name,
+        Box::new(cic_formula),
+        proof,
+    ));
+    Ok(())
 }
 //
 //
@@ -299,6 +312,7 @@ pub fn elaborate_empty(
 mod unit_tests {
     use crate::{
         parser::api::Expression,
+        parser::api::Tactic::Suppose,
         runtime::program::{Program, ProgramNode},
         type_theory::cic::{
             cic::{Cic, CicStm, CicTerm},
