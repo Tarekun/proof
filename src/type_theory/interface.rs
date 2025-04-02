@@ -1,3 +1,4 @@
+use crate::misc::Union;
 use crate::parser::api::NsAst;
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;

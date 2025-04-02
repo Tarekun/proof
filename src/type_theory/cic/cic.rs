@@ -1,8 +1,9 @@
 use super::elaboration::{
     elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
-    elaborate_fun, elaborate_inductive, elaborate_let, elaborate_match,
-    elaborate_theorem, elaborate_type_product, elaborate_var_use,
+    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_expression,
+    elaborate_file_root, elaborate_fun, elaborate_inductive, elaborate_let,
+    elaborate_match, elaborate_theorem, elaborate_type_product,
+    elaborate_var_use,
 };
 use super::evaluation::{evaluate_statement, one_step_reduction};
 use super::type_check::{
@@ -13,13 +14,10 @@ use super::type_check::{
 };
 use super::unification::cic_unification;
 use crate::misc::Union;
-use crate::parser::api::Expression::{
-    Abstraction, Application, Arrow, Match, TypeProduct, VarUse,
-};
 use crate::parser::api::Statement::{
     Axiom, Comment, DirRoot, EmptyRoot, FileRoot, Fun, Inductive, Let, Theorem,
 };
-use crate::parser::api::{Expression, NsAst, Statement, Tactic};
+use crate::parser::api::{NsAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
@@ -67,24 +65,6 @@ pub enum CicStm {
 
 pub struct Cic;
 impl Cic {
-    pub fn elaborate_expression(ast: Expression) -> CicTerm {
-        match ast {
-            VarUse(var_name) => elaborate_var_use(var_name),
-            Abstraction(var_name, var_type, body) => {
-                elaborate_abstraction(var_name, *var_type, *body)
-            }
-            TypeProduct(var_name, var_type, body) => {
-                elaborate_type_product(var_name, *var_type, *body)
-            }
-            Application(left, right) => elaborate_application(*left, *right),
-            Match(matched_term, branches) => {
-                elaborate_match(*matched_term, branches)
-            }
-            Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
-            // _ => panic!("not implemented"),
-        }
-    }
-
     pub fn elaborate_statement(
         ast: Statement,
         program: &mut Program<Cic>,
@@ -151,7 +131,7 @@ impl TypeTheory for Cic {
                 };
             }
             NsAst::Exp(exp) => {
-                Cic::elaborate_expression(exp);
+                elaborate_expression(exp);
             }
         }
 
