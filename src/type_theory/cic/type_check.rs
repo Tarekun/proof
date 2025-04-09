@@ -523,9 +523,6 @@ pub fn type_check_inductive(
 ) -> Result<CicTerm, String> {
     //TODO check positivity
     let inductive_type = make_multiarg_fun_type(params, ariety);
-    // let inductive_type_sort =
-    //     Cic::type_check_term(&inductive_type, environment)?;
-    // let _ = check_is_sort(&inductive_type_sort)?;
     let _ = Cic::type_check_type(&inductive_type, environment)?;
 
     let inductive_assumptions: Vec<(String, CicTerm)> = 
@@ -541,9 +538,6 @@ pub fn type_check_inductive(
         &inductive_assumptions,
         |local_env| {
             for (constr_name, constr_type) in constructors {
-                // let constr_type_sort =
-                //     Cic::type_check_term(constr_type, local_env)?;
-                // let _ = check_is_sort(&constr_type_sort)?;
                 let _ = Cic::type_check_type(constr_type, local_env)?;
                 for arg_type in get_arg_types(&constr_type) {
                     if !check_positivity(&arg_type, &type_name) {
