@@ -6,9 +6,12 @@ use crate::{
 };
 
 use super::evaluation::{
-    generic_evaluate_axiom, generic_evaluate_let, generic_evaluate_theorem,
+    generic_evaluate_axiom, generic_evaluate_fun, generic_evaluate_let,
+    generic_evaluate_theorem,
 };
 
+//########################### EXPRESSIONS TYPE CHECKING
+//
 /// Generic variable type checking. Implements the classic VAR type checking
 /// rule of checking x:T ∈ Γ, where x is `var_name`, T the returned type, and
 /// Γ the `environment`
@@ -111,7 +114,10 @@ pub fn generic_type_check_universal<T: TypeTheory>(
 //         )
 //     })
 // }
-
+//########################### EXPRESSIONS TYPE CHECKING
+//
+//########################### STATEMENTS TYPE CHECKING
+//
 /// Generic let definition type checking. Uses `T::type_check_type` on the variable type
 pub fn generic_type_check_let<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
@@ -138,6 +144,50 @@ pub fn generic_type_check_let<T: TypeTheory>(
             var_type
         ))
     }
+}
+
+/// Generic function definition type checking
+pub fn generic_type_check_fun<
+    T: TypeTheory,
+    F: Fn(&[(String, T::Type)], &T::Type) -> T::Type,
+>(
+    environment: &mut Environment<T::Term, T::Type>,
+    fun_name: &str,
+    args: &Vec<(String, T::Type)>,
+    out_type: &T::Type,
+    body: &T::Term,
+    is_rec: &bool,
+    make_fun_type: F,
+) -> Result<T::Type, String> {
+    let fun_type = make_fun_type(&args, &out_type);
+    let _ = T::type_check_type(&fun_type, environment);
+    let mut assumptions = args.to_owned();
+    if *is_rec {
+        assumptions.push((fun_name.to_string(), fun_type.clone()));
+        //TODO possibly include necessary checks on recursive functions
+    }
+
+    let body_type = environment
+        .with_local_declarations(&assumptions, |local_env| {
+            T::type_check_term(&body, local_env)
+        })?;
+    if !T::types_unify(environment, out_type, &body_type) {
+        return Err(format!(
+            "In {} definition, function type {:?} and body result {:?} are inconsistent",
+            fun_name, out_type, body_type
+        ));
+    }
+
+    generic_evaluate_fun::<T, _>(
+        environment,
+        fun_name,
+        args,
+        out_type,
+        body,
+        is_rec,
+        make_fun_type,
+    );
+    Ok(fun_type)
 }
 
 /// Geneirc axiom type checking. Uses `T::type_check_type` on `predicate` and
@@ -185,3 +235,4 @@ pub fn generic_type_check_theorem<T: TypeTheory>(
         }
     }
 }
+//########################### STATEMENTS TYPE CHECKING

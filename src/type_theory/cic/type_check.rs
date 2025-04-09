@@ -1,16 +1,14 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::check_positivity;
-use super::evaluation::{evaluate_axiom, evaluate_fun, evaluate_let};
-use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
+use crate::misc::{simple_map, simple_map_indexed, Union};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
     application_args, apply_arguments, clone_product_with_different_result,
     delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
     is_instance_of, make_multiarg_fun_type,
 };
-use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
-use crate::type_theory::commons::utils::generic_multiarg_fun_type;
+use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -250,27 +248,7 @@ pub fn type_check_fun(
     body: &CicTerm,
     is_rec: &bool,
 ) -> Result<CicTerm, String> {
-    let fun_type = make_multiarg_fun_type(&args, &out_type);
-    let _ = type_check_type(&fun_type, environment);
-    let mut assumptions = args.to_owned();
-    if *is_rec {
-        assumptions.push((fun_name.to_string(), fun_type.clone()));
-        //TODO possibly include necessary checks on recursive functions
-    }
-
-    let body_type = environment
-        .with_local_declarations(&assumptions, |local_env| {
-            Cic::type_check_term(&body, local_env)
-        })?;
-    if !Cic::terms_unify(environment, &out_type, &body_type) {
-        return Err(format!(
-            "In {} definition, function type {:?} and body result {:?} are inconsistent",
-            fun_name, out_type, body_type
-        ));
-    }
-
-    evaluate_fun(environment, fun_name, args, out_type, body, is_rec);
-    Ok(CicTerm::Variable("Unit".to_string()))
+    generic_type_check_fun::<Cic, _>(environment, fun_name, args, out_type, body, is_rec, make_multiarg_fun_type)
 }
 //
 //
@@ -545,9 +523,10 @@ pub fn type_check_inductive(
 ) -> Result<CicTerm, String> {
     //TODO check positivity
     let inductive_type = make_multiarg_fun_type(params, ariety);
-    let inductive_type_sort =
-        Cic::type_check_term(&inductive_type, environment)?;
-    let _ = check_is_sort(&inductive_type_sort)?;
+    // let inductive_type_sort =
+    //     Cic::type_check_term(&inductive_type, environment)?;
+    // let _ = check_is_sort(&inductive_type_sort)?;
+    let _ = Cic::type_check_type(&inductive_type, environment)?;
 
     let inductive_assumptions: Vec<(String, CicTerm)> = 
         vec![
@@ -562,9 +541,10 @@ pub fn type_check_inductive(
         &inductive_assumptions,
         |local_env| {
             for (constr_name, constr_type) in constructors {
-                let constr_type_sort =
-                    Cic::type_check_term(constr_type, local_env)?;
-                let _ = check_is_sort(&constr_type_sort)?;
+                // let constr_type_sort =
+                //     Cic::type_check_term(constr_type, local_env)?;
+                // let _ = check_is_sort(&constr_type_sort)?;
+                let _ = Cic::type_check_type(constr_type, local_env)?;
                 for arg_type in get_arg_types(&constr_type) {
                     if !check_positivity(&arg_type, &type_name) {
                         return Err(format!("Inductive constructor {} has recursive argument with negative polarity", constr_name));
@@ -592,27 +572,6 @@ pub fn type_check_inductive(
 //
 //########################### HELPER FUNCTIONS
 //
-/// Checks that the given term is a sort. Return Ok if it is, Err otherwise
-#[deprecated(
-    note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead"
-)]
-fn check_is_sort(term: &CicTerm) -> Result<(), String> {
-    match term {
-        CicTerm::Sort(_) => Ok(()),
-        _ => Err(format!("Expected sort term, found: {:?}", term)),
-    }
-}
-#[deprecated(
-    note = "TODO: deprecated, callers should move to calling Cic::type_check_type instead"
-)]
-fn type_check_type(
-    term: &CicTerm,
-    environment: &mut Environment<CicTerm, CicTerm>,
-) -> Result<CicTerm, String> {
-    let term_type = Cic::type_check_term(term, environment)?;
-    let _ = check_is_sort(&term_type);
-    Ok(term_type)
-}
 //
 //########################### HELPER FUNCTIONS
 //

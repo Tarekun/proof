@@ -12,8 +12,8 @@ use crate::type_theory::cic::cic_utils::{
     application_args, get_applied_function,
 };
 use crate::type_theory::commons::evaluation::{
-    generic_evaluate_axiom, generic_evaluate_let, generic_evaluate_theorem,
-    generic_reduce_variable,
+    generic_evaluate_axiom, generic_evaluate_fun, generic_evaluate_let,
+    generic_evaluate_theorem, generic_reduce_variable,
 };
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -156,10 +156,17 @@ pub fn evaluate_fun(
     args: &Vec<(String, CicTerm)>,
     out_type: &CicTerm,
     body: &CicTerm,
-    _is_rec: &bool,
+    is_rec: &bool,
 ) -> () {
-    let fun_type = make_multiarg_fun_type(&args, out_type);
-    environment.add_variable_definition(fun_name, body, &fun_type);
+    generic_evaluate_fun::<Cic, _>(
+        environment,
+        fun_name,
+        args,
+        out_type,
+        body,
+        is_rec,
+        make_multiarg_fun_type,
+    );
 }
 //
 //

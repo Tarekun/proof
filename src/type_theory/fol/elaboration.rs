@@ -1,7 +1,7 @@
 use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use super::fol::FolTerm::{Abstraction, Variable};
 use super::fol::FolType::{Arrow, Atomic, ForAll};
-use super::fol::{Fol, FolStm, FolTerm, FolType};
+use super::fol::{Fol, FolTerm, FolType};
 use crate::parser::api::{Statement, Tactic};
 use crate::{
     misc::Union,
