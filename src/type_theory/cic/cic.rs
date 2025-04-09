@@ -231,7 +231,7 @@ impl TypeTheory for Cic {
         }
     }
 
-    fn reduce_term(
+    fn normalize_term(
         environment: &mut Environment<CicTerm, CicTerm>,
         term: &CicTerm,
     ) -> CicTerm {

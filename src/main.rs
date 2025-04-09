@@ -38,6 +38,7 @@ mod type_theory {
         pub mod elaboration;
         pub mod evaluation;
         pub mod fol;
+        pub mod fol_utils;
         pub mod type_check;
     }
 }

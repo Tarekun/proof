@@ -49,7 +49,7 @@ pub trait TypeTheory {
     ) -> bool;
 
     /// Reduces the given term to its normal form
-    fn reduce_term(
+    fn normalize_term(
         environment: &mut Environment<Self::Term, Self::Type>,
         term: &Self::Term,
     ) -> Self::Term;

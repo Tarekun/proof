@@ -55,7 +55,8 @@ where
         for node in &self.schedule {
             match node {
                 ProgramNode::OfTerm(term) => {
-                    let _normal_form = T::reduce_term(&mut runtime_env, term);
+                    let _normal_form =
+                        T::normalize_term(&mut runtime_env, term);
                     //TODO do something with the result
                 }
                 ProgramNode::OfStm(stm) => {

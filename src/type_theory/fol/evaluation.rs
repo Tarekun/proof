@@ -1,5 +1,6 @@
 use super::fol::FolStm::{Axiom, Let, Theorem};
-use super::fol::FolTerm::{Application, Variable};
+use super::fol::FolTerm::Variable;
+use super::fol_utils::make_multiarg_fun_type;
 use crate::{
     misc::Union,
     parser::api::Tactic,
@@ -100,6 +101,19 @@ pub fn evaluate_theorem(
     proof: &Union<FolTerm, Vec<Tactic>>,
 ) -> () {
     generic_evaluate_theorem::<Fol>(environment, theorem_name, formula, proof);
+}
+//
+//
+pub fn evaluate_fun(
+    environment: &mut Environment<FolTerm, FolType>,
+    fun_name: &str,
+    args: &Vec<(String, FolType)>,
+    out_type: &FolType,
+    body: &FolTerm,
+    _is_rec: bool,
+) -> () {
+    let fun_type = make_multiarg_fun_type(&args, out_type);
+    environment.add_variable_definition(fun_name, body, &fun_type);
 }
 //########################### STATEMENTS EXECUTION
 //

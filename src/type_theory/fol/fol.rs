@@ -225,7 +225,7 @@ impl TypeTheory for Fol {
         type1 == type2
     }
 
-    fn reduce_term(
+    fn normalize_term(
         environment: &mut Environment<FolTerm, FolType>,
         term: &FolTerm,
     ) -> FolTerm {
