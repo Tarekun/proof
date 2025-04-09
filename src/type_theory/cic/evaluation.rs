@@ -19,7 +19,7 @@ use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
 //########################### TERM βδ-REDUCTION
-fn one_step_reduction(
+pub fn one_step_reduction(
     environment: &mut Environment<CicTerm, CicTerm>,
     term: &CicTerm,
 ) -> CicTerm {
@@ -33,18 +33,6 @@ fn one_step_reduction(
         }
         _ => term.clone(),
     }
-}
-//
-//
-pub fn normalize_term(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    term: &CicTerm,
-) -> CicTerm {
-    let mut reduced = one_step_reduction(environment, &term);
-    while reduced != one_step_reduction(environment, &reduced) {
-        reduced = one_step_reduction(environment, &reduced);
-    }
-    reduced
 }
 //
 //
@@ -73,9 +61,9 @@ fn reduce_application(
         match fun_type {
             Product(var_name, _, _) => {
                 // if left is function variable take its body, otherwise gets left back
-                let left_reduced = normalize_term(environment, left);
+                let left_reduced = Cic::normalize_term(environment, left);
                 // TODO do i substitute right or do i substitute its reduction? big deal
-                let right_reduced = normalize_term(environment, right);
+                let right_reduced = Cic::normalize_term(environment, right);
 
                 match get_body(&left_reduced) {
                     Some(body) => substitute(&body, &var_name, &right_reduced),
@@ -106,13 +94,8 @@ fn reduce_match(
     matched_term: &CicTerm,
     branches: &Vec<(Vec<CicTerm>, CicTerm)>,
 ) -> CicTerm {
-    println!("matched term: {:?}", matched_term);
-    let normalized_term = normalize_term(environment, matched_term);
+    let normalized_term = Cic::normalize_term(environment, matched_term);
     for (pattern, body) in branches {
-        println!(
-            "trying to match '{:?}' with pattern {:?}",
-            normalized_term, pattern
-        );
         if matches_pattern(&normalized_term, pattern) {
             return body.clone();
         }
@@ -138,7 +121,7 @@ pub fn evaluate_statement(
             evaluate_let(environment, var_name, var_type, body)
         }
         Fun(fun_name, args, out_type, body, is_rec) => {
-            evaluate_fun(environment, fun_name, args, out_type, body, *is_rec)
+            evaluate_fun(environment, fun_name, args, out_type, body, is_rec)
         }
         Theorem(theorem_name, formula, proof) => {
             evaluate_theorem(environment, theorem_name, formula, proof)
@@ -173,7 +156,7 @@ pub fn evaluate_fun(
     args: &Vec<(String, CicTerm)>,
     out_type: &CicTerm,
     body: &CicTerm,
-    _is_rec: bool,
+    _is_rec: &bool,
 ) -> () {
     let fun_type = make_multiarg_fun_type(&args, out_type);
     environment.add_variable_definition(fun_name, body, &fun_type);
@@ -238,6 +221,7 @@ fn matches_pattern(term: &CicTerm, pattern: &Vec<CicTerm>) -> bool {
     let outermost = get_applied_function(term);
     let args = application_args(term.to_owned());
 
+    // TODO i think this should match the types as well but im not sure
     return (outermost == pattern[0]) && (args.len() == pattern.len() - 1);
 }
 //########################### HELPER FUNCTIONS

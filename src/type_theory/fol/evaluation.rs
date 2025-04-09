@@ -1,4 +1,4 @@
-use super::fol::FolStm::{Axiom, Let, Theorem};
+use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use super::fol::FolTerm::Variable;
 use super::fol_utils::make_multiarg_fun_type;
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 use super::fol::{Fol, FolStm, FolTerm, FolType};
 
 //########################### TERM βδ-REDUCTION
-fn one_step_reduction(
+pub fn one_step_reduction(
     environment: &mut Environment<FolTerm, FolType>,
     term: &FolTerm,
 ) -> FolTerm {
@@ -27,18 +27,6 @@ fn one_step_reduction(
         // }
         _ => term.clone(),
     }
-}
-//
-//
-pub fn normalize_term(
-    environment: &mut Environment<FolTerm, FolType>,
-    term: &FolTerm,
-) -> FolTerm {
-    let mut reduced = one_step_reduction(environment, &term);
-    while reduced != one_step_reduction(environment, &reduced) {
-        reduced = one_step_reduction(environment, &reduced);
-    }
-    reduced
 }
 //
 //
@@ -64,13 +52,12 @@ pub fn evaluate_statement(
         Let(var_name, var_type, body) => {
             evaluate_let(environment, var_name, var_type, body)
         }
-        // Fun(fun_name, args, out_type, body, is_rec) => {
-        //     evaluate_fun(environment, fun_name, args, out_type, body, *is_rec)
-        // }
+        Fun(fun_name, args, out_type, body, is_rec) => {
+            evaluate_fun(environment, fun_name, args, out_type, body, is_rec)
+        }
         Theorem(theorem_name, formula, proof) => {
             evaluate_theorem(environment, theorem_name, formula, proof)
         }
-        _ => (),
     }
 }
 //
@@ -110,7 +97,7 @@ pub fn evaluate_fun(
     args: &Vec<(String, FolType)>,
     out_type: &FolType,
     body: &FolTerm,
-    _is_rec: bool,
+    _is_rec: &bool,
 ) -> () {
     let fun_type = make_multiarg_fun_type(&args, out_type);
     environment.add_variable_definition(fun_name, body, &fun_type);

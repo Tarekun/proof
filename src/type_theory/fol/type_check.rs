@@ -1,3 +1,4 @@
+use super::evaluation::evaluate_fun;
 use super::fol::FolType::{Arrow, ForAll};
 use super::fol::{Fol, FolTerm, FolType};
 use super::fol_utils::make_multiarg_fun_type;
@@ -157,7 +158,7 @@ pub fn type_check_fun(
                 ));
             }
         
-            local_env.add_variable_to_context(&fun_name, &fun_type);
+            evaluate_fun(local_env, fun_name, args, out_type, body, is_rec);
             Ok(fun_type)
         })
 }
@@ -578,8 +579,8 @@ mod unit_tests {
         );
         assert!(res.is_ok(), "Fun type checker failed with {:?}", res.err());
         assert_eq!(
-            test_env.get_from_context("f"),
-            Some(("f", &Arrow(Box::new(nat.clone()), Box::new(nat.clone())))),
+            test_env.get_variable_type("f"),
+            Some(Arrow(Box::new(nat.clone()), Box::new(nat.clone()))),
             "Fun type checker didnt update the context properly"
         );
         assert!(

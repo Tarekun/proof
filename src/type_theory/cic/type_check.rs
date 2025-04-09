@@ -269,7 +269,7 @@ pub fn type_check_fun(
         ));
     }
 
-    evaluate_fun(environment, &fun_name, &args, &out_type, &body, is_rec.to_owned());
+    evaluate_fun(environment, fun_name, args, out_type, body, is_rec);
     Ok(CicTerm::Variable("Unit".to_string()))
 }
 //

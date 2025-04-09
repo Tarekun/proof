@@ -1,9 +1,23 @@
 use crate::{
     misc::Union,
-    misc::Union::{L, R},
     parser::api::Tactic,
     type_theory::{environment::Environment, interface::TypeTheory},
 };
+
+pub fn generic_term_normalization<
+    T: TypeTheory,
+    F: Fn(&mut Environment<T::Term, T::Type>, &T::Term) -> T::Term,
+>(
+    environment: &mut Environment<T::Term, T::Type>,
+    term: &T::Term,
+    one_step_reduction: F,
+) -> T::Term {
+    let mut reduced = one_step_reduction(environment, &term);
+    while reduced != one_step_reduction(environment, &reduced) {
+        reduced = one_step_reduction(environment, &reduced);
+    }
+    reduced
+}
 
 //########################### TERM βδ-REDUCTION
 pub fn generic_reduce_variable<T: TypeTheory>(
@@ -56,14 +70,8 @@ pub fn generic_evaluate_theorem<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,
     formula: &T::Type,
-    proof: &Union<T::Term, Vec<Tactic>>,
+    _proof: &Union<T::Term, Vec<Tactic>>,
 ) -> () {
-    match proof {
-        L(_proof_term) => {
-            environment.add_variable_to_context(&theorem_name, &formula);
-        }
-        //TODO support itp
-        R(_interactive_proof) => {}
-    }
+    environment.add_variable_to_context(&theorem_name, &formula);
 }
 //########################### STATEMENTS EXECUTION

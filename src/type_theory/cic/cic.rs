@@ -4,7 +4,7 @@ use super::elaboration::{
     elaborate_fun, elaborate_inductive, elaborate_let, elaborate_match,
     elaborate_theorem, elaborate_type_product, elaborate_var_use,
 };
-use super::evaluation::{evaluate_statement, normalize_term};
+use super::evaluation::{evaluate_statement, one_step_reduction};
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_axiom,
     type_check_fun, type_check_inductive, type_check_let, type_check_match,
@@ -21,6 +21,7 @@ use crate::parser::api::Statement::{
 };
 use crate::parser::api::{Expression, NsAst, Statement, Tactic};
 use crate::runtime::program::Program;
+use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -235,7 +236,11 @@ impl TypeTheory for Cic {
         environment: &mut Environment<CicTerm, CicTerm>,
         term: &CicTerm,
     ) -> CicTerm {
-        normalize_term(environment, term)
+        generic_term_normalization::<Cic, _>(
+            environment,
+            term,
+            one_step_reduction,
+        )
     }
 
     fn evaluate_statement(
