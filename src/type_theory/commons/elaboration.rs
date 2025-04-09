@@ -33,8 +33,7 @@ fn elaborate_suppose<T, F: Fn(Expression) -> T>(
         Some(expression) => Some(elaborate_expression(expression)),
         None => None,
     };
-    // Suppose(assumption_name, formula)
-    Qed()
+    Suppose(assumption_name, formula)
 }
 //########################### TACTICS ELABORATION
 
