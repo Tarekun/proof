@@ -1,12 +1,13 @@
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::check_positivity;
-use crate::misc::{simple_map, simple_map_indexed, Union};
+use super::evaluation::{evaluate_axiom, evaluate_fun, evaluate_let};
+use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
     application_args, apply_arguments, clone_product_with_different_result,
     delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
-    is_instance_of,
+    is_instance_of, make_multiarg_fun_type,
 };
 use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
 use crate::type_theory::commons::utils::generic_multiarg_fun_type;
@@ -259,7 +260,7 @@ pub fn type_check_fun(
 
     let body_type = environment
         .with_local_declarations(&assumptions, |local_env| {
-            Cic::type_check_term(body, local_env)
+            Cic::type_check_term(&body, local_env)
         })?;
     if !Cic::terms_unify(environment, &out_type, &body_type) {
         return Err(format!(
@@ -268,7 +269,7 @@ pub fn type_check_fun(
         ));
     }
 
-    environment.add_variable_to_context(fun_name, &fun_type);
+    evaluate_fun(environment, fun_name, args, out_type, body, is_rec);
     Ok(CicTerm::Variable("Unit".to_string()))
 }
 //
@@ -590,21 +591,6 @@ pub fn type_check_inductive(
 //########################### STATEMENTS TYPE CHECKING
 //
 //########################### HELPER FUNCTIONS
-//
-/// Creates the CIC type of a function with named arguments `arg_types`
-/// that returns a value of type `base`
-fn make_multiarg_fun_type(
-    arg_types: &[(String, CicTerm)],
-    base: &CicTerm,
-) -> CicTerm {
-    generic_multiarg_fun_type::<Cic, _>(arg_types, base, |arg_name: String, arg_type: CicTerm, sub_type: CicTerm| {
-        CicTerm::Product(
-            arg_name,
-            Box::new(arg_type),
-            Box::new(sub_type),
-        )
-    })
-}
 //
 /// Checks that the given term is a sort. Return Ok if it is, Err otherwise
 #[deprecated(

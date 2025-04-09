@@ -1,20 +1,13 @@
+use super::evaluation::evaluate_fun;
 use super::fol::FolType::{Arrow, ForAll};
 use super::fol::{Fol, FolTerm, FolType};
+use super::fol_utils::make_multiarg_fun_type;
 use crate::misc::Union;
 use crate::parser::api::Tactic;
 use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
-use crate::type_theory::commons::utils::generic_multiarg_fun_type;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
-fn make_multiarg_fun_type(
-    arg_types: &[(String, FolType)],
-    base: FolType,
-) -> FolType {
-    generic_multiarg_fun_type::<Fol, _>(arg_types, &base, |_, arg_type, sub_type| {
-        Arrow(Box::new(arg_type), Box::new(sub_type))
-    })
-}
 
 //########################### TERMS TYPE CHECKING
 pub fn type_check_var(
@@ -148,7 +141,7 @@ pub fn type_check_fun(
     body: &FolTerm,
     is_rec: &bool,
 ) -> Result<FolType, String> {
-    let fun_type = make_multiarg_fun_type(&args, out_type.clone());
+    let fun_type = make_multiarg_fun_type(&args, out_type);
     let mut assumptions = args.to_owned();
     if *is_rec {
         assumptions.push((fun_name.to_string(), fun_type.to_owned()));
@@ -165,7 +158,7 @@ pub fn type_check_fun(
                 ));
             }
         
-            local_env.add_variable_to_context(&fun_name, &fun_type);
+            evaluate_fun(local_env, fun_name, args, out_type, body, is_rec);
             Ok(fun_type)
         })
 }
@@ -586,8 +579,8 @@ mod unit_tests {
         );
         assert!(res.is_ok(), "Fun type checker failed with {:?}", res.err());
         assert_eq!(
-            test_env.get_from_context("f"),
-            Some(("f", &Arrow(Box::new(nat.clone()), Box::new(nat.clone())))),
+            test_env.get_variable_type("f"),
+            Some(Arrow(Box::new(nat.clone()), Box::new(nat.clone()))),
             "Fun type checker didnt update the context properly"
         );
         assert!(

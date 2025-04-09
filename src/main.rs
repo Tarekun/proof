@@ -18,6 +18,7 @@ mod type_theory {
     pub mod environment;
     pub mod interface;
     pub mod commons {
+        pub mod evaluation;
         pub mod type_check;
         pub mod utils;
     }
@@ -25,7 +26,7 @@ mod type_theory {
         pub mod cic;
         pub mod cic_utils;
         pub mod elaboration;
-        // pub mod evaluation;
+        pub mod evaluation;
         pub mod type_check;
         pub mod unification;
     }
@@ -35,19 +36,21 @@ mod type_theory {
     // }
     pub mod fol {
         pub mod elaboration;
+        pub mod evaluation;
         pub mod fol;
+        pub mod fol_utils;
         pub mod type_check;
     }
 }
 
 use cli::get_flag_value;
 use config::{load_config, Config, TypeSystem};
-use entrypoints::parse_and_type_check;
+use entrypoints::type_check;
 use std::env;
 use type_theory::{cic::cic::Cic, fol::fol::Fol, interface::TypeTheory};
 
 fn run_with_theory<T: TypeTheory>(config: Config, filepath: &str) {
-    match parse_and_type_check::<T>(&config, filepath) {
+    match type_check::<T>(&config, filepath) {
         Ok(program) => {
             for node in program.schedule_iterable() {
                 println!("node in the scheduled program: {:?}\n", node);

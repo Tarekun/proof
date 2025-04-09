@@ -21,7 +21,7 @@ fn map_typed_variables(
 }
 
 fn elaborate_ast_vector(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     root: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -146,7 +146,7 @@ pub fn elaborate_match(
 //########################### STATEMENTS ELABORATION
 //
 pub fn elaborate_file_root(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     file_path: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -155,7 +155,7 @@ pub fn elaborate_file_root(
 //
 //
 pub fn elaborate_dir_root(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     dir_path: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -180,7 +180,7 @@ pub fn elaborate_dir_root(
 //
 //
 pub fn elaborate_let(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     var_name: String,
     var_type: Option<Expression>,
     body: Expression,
@@ -199,7 +199,7 @@ pub fn elaborate_let(
 //
 //
 pub fn elaborate_fun(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     fun_name: String,
     args: Vec<(String, Expression)>,
     out_type: Expression,
@@ -218,7 +218,7 @@ pub fn elaborate_fun(
 //
 //
 pub fn elaborate_inductive(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     type_name: String,
     parameters: Vec<(String, Expression)>,
     ariety: Expression,
@@ -248,7 +248,7 @@ pub fn elaborate_inductive(
 //
 //
 pub fn elaborate_axiom(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     axiom_name: String,
     formula: Expression,
 ) -> Result<(), String> {
@@ -261,7 +261,7 @@ pub fn elaborate_axiom(
 //
 //
 pub fn elaborate_theorem(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     theorem_name: String,
     formula: Expression,
     proof: Union<Expression, Vec<Tactic>>,
@@ -286,7 +286,7 @@ pub fn elaborate_theorem(
 //
 //
 pub fn elaborate_empty(
-    program: &mut Program<CicTerm, CicStm>,
+    program: &mut Program<Cic>,
     nodes: Vec<NsAst>,
 ) -> Result<(), String> {
     elaborate_ast_vector(program, "".to_string(), nodes)

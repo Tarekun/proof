@@ -12,7 +12,9 @@ pub trait TypeTheory {
     type Stm: Debug + Clone;
 
     /// Elaborate a full AST into an environment.
-    fn elaborate_ast(ast: NsAst) -> Program<Self::Term, Self::Stm>;
+    fn elaborate_ast(ast: NsAst) -> Program<Self>
+    where
+        Self: Sized;
 
     /// Create the default environment
     fn default_environment() -> Environment<Self::Term, Self::Type>;
@@ -45,4 +47,16 @@ pub trait TypeTheory {
         type1: &Self::Type,
         type2: &Self::Type,
     ) -> bool;
+
+    /// Reduces the given term to its normal form
+    fn normalize_term(
+        environment: &mut Environment<Self::Term, Self::Type>,
+        term: &Self::Term,
+    ) -> Self::Term;
+
+    /// Evaluates the statement, updating the context accordingly
+    fn evaluate_statement(
+        environment: &mut Environment<Self::Term, Self::Type>,
+        stm: &Self::Stm,
+    ) -> ();
 }

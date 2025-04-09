@@ -179,7 +179,7 @@ pub fn elaborate_forall(
 //########################### STATEMENTS ELABORATION
 //
 fn elaborate_ast_vector(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     root: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -216,7 +216,7 @@ fn elaborate_ast_vector(
     }
 }
 pub fn elaborate_file_root(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     file_path: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -225,7 +225,7 @@ pub fn elaborate_file_root(
 //
 //
 pub fn elaborate_dir_root(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     dir_path: String,
     asts: Vec<NsAst>,
 ) -> Result<(), String> {
@@ -250,7 +250,7 @@ pub fn elaborate_dir_root(
 //
 //
 pub fn elaborate_axiom(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     axiom_name: String,
     formula: Expression,
 ) -> Result<(), String> {
@@ -268,7 +268,7 @@ pub fn elaborate_axiom(
 //
 //
 pub fn elaborate_theorem(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     theorem_name: String,
     formula: Expression,
     proof: Union<Expression, Vec<Tactic>>,
@@ -295,7 +295,7 @@ pub fn elaborate_theorem(
 //
 //
 pub fn elaborate_let(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     var_name: String,
     opt_type: Option<Expression>,
     body: Expression,
@@ -340,7 +340,7 @@ pub fn elaborate_let(
 //
 //
 pub fn elaborate_fun(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     fun_name: String,
     args: Vec<(String, Expression)>,
     out_type: Expression,
@@ -377,7 +377,7 @@ pub fn elaborate_fun(
 //
 //
 pub fn elaborate_empty(
-    program: &mut Program<FolTerm, FolStm>,
+    program: &mut Program<Fol>,
     nodes: Vec<NsAst>,
 ) -> Result<(), String> {
     elaborate_ast_vector(program, "".to_string(), nodes)

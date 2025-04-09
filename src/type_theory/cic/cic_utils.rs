@@ -148,6 +148,15 @@ pub fn application_args(application: CicTerm) -> Vec<CicTerm> {
     }
 }
 
+/// Given a multiarg application term, returns the outermost term element (ie the function
+/// being applied)
+pub fn get_applied_function(application: &CicTerm) -> CicTerm {
+    match application {
+        Application(left, _) => get_applied_function(left),
+        _ => application.to_owned(),
+    }
+}
+
 /// Returns `true` if `term` is an instance of type with name `name`, `false` otherwise
 pub fn is_instance_of(term: &CicTerm, name: &str) -> bool {
     match term {
@@ -186,6 +195,26 @@ pub fn check_positivity(function_type: &CicTerm, name: &str) -> bool {
     }
 
     true
+}
+
+/// Creates the CIC type of a function with named arguments `arg_types`
+/// that returns a value of type `base`
+pub fn make_multiarg_fun_type(
+    arg_types: &[(String, CicTerm)],
+    base: &CicTerm,
+) -> CicTerm {
+    if arg_types.is_empty() {
+        return base.clone();
+    }
+
+    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
+    let sub_type = make_multiarg_fun_type(rest, base);
+
+    CicTerm::Product(
+        arg_name.to_string(),
+        Box::new(arg_type.to_owned()),
+        Box::new(sub_type),
+    )
 }
 
 //########################### UNIT TESTS

@@ -5,6 +5,10 @@ use crate::{
     type_theory::{environment::Environment, interface::TypeTheory},
 };
 
+use super::evaluation::{
+    generic_evaluate_axiom, generic_evaluate_let, generic_evaluate_theorem,
+};
+
 /// Generic variable type checking. Implements the classic VAR type checking
 /// rule of checking x:T ∈ Γ, where x is `var_name`, T the returned type, and
 /// Γ the `environment`
@@ -124,7 +128,7 @@ pub fn generic_type_check_let<T: TypeTheory>(
     let _ = T::type_check_type(&var_type, environment)?;
 
     if T::types_unify(environment, &var_type, &body_type) {
-        environment.add_variable_definition(&var_name, &body, &var_type);
+        generic_evaluate_let::<T>(environment, var_name, &Some(var_type), body);
         Ok(body_type)
     } else {
         Err(format!(
@@ -144,7 +148,7 @@ pub fn generic_type_check_axiom<T: TypeTheory>(
     predicate: &T::Type,
 ) -> Result<T::Type, String> {
     let _ = T::type_check_type(predicate, environment)?;
-    environment.add_variable_to_context(axiom_name, predicate);
+    generic_evaluate_axiom::<T>(environment, axiom_name, predicate);
 
     Ok(predicate.to_owned())
 }
@@ -167,7 +171,12 @@ pub fn generic_type_check_theorem<T: TypeTheory>(
                     formula, proof_type
                 ));
             }
-            environment.add_variable_to_context(theorem_name, formula);
+            generic_evaluate_theorem::<T>(
+                environment,
+                theorem_name,
+                formula,
+                proof,
+            );
             Ok(formula.to_owned())
         }
         R(interactive_proof) => {
