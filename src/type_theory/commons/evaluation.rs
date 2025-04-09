@@ -57,6 +57,25 @@ pub fn generic_evaluate_let<T: TypeTheory>(
 }
 //
 //
+pub fn generic_evaluate_fun<
+    T: TypeTheory,
+    F: Fn(&[(String, T::Type)], &T::Type) -> T::Type,
+>(
+    environment: &mut Environment<T::Term, T::Type>,
+    fun_name: &str,
+    args: &Vec<(String, T::Type)>,
+    out_type: &T::Type,
+    body: &T::Term,
+    _is_rec: &bool,
+    make_fun_type: F,
+) -> () {
+    let fun_type = make_fun_type(&args, out_type);
+    // TODO η-expand body buz this aint yungblood
+    // let body = T::eta_expand(body, ...) type shi
+    environment.add_variable_definition(fun_name, body, &fun_type);
+}
+//
+//
 pub fn generic_evaluate_axiom<T: TypeTheory>(
     environment: &mut Environment<T::Term, T::Type>,
     axiom_name: &str,

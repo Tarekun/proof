@@ -166,10 +166,14 @@ impl TypeTheory for Cic {
     }
 
     fn type_check_type(
-        term: &CicTerm,
+        typee: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
-        common_type_checking(term, environment)
+        let type_sort = common_type_checking(typee, environment)?;
+        match type_sort {
+            CicTerm::Sort(_) => Ok(type_sort),
+            _ => Err(format!("Expected sort term, found: {:?}", typee)),
+        }
     }
 
     fn type_check_stm(

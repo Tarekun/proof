@@ -14,10 +14,7 @@ where
     }
 
     let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-
-    // Pass aggregator by value (it will be copied)
     let sub_type = generic_multiarg_fun_type::<T, F>(rest, base, aggregator);
 
-    // Use the original aggregator after the recursive call
     aggregator(arg_name.to_owned(), arg_type.to_owned(), sub_type)
 }

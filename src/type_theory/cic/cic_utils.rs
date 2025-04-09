@@ -1,7 +1,8 @@
+use crate::type_theory::commons::utils::generic_multiarg_fun_type;
 use crate::type_theory::environment::Environment;
 
-use super::cic::CicTerm;
 use super::cic::CicTerm::{Abstraction, Application, Product, Sort, Variable};
+use super::cic::{Cic, CicTerm};
 use std::fmt;
 
 pub fn delta_reduce(
@@ -203,17 +204,12 @@ pub fn make_multiarg_fun_type(
     arg_types: &[(String, CicTerm)],
     base: &CicTerm,
 ) -> CicTerm {
-    if arg_types.is_empty() {
-        return base.clone();
-    }
-
-    let ((arg_name, arg_type), rest) = arg_types.split_first().unwrap();
-    let sub_type = make_multiarg_fun_type(rest, base);
-
-    CicTerm::Product(
-        arg_name.to_string(),
-        Box::new(arg_type.to_owned()),
-        Box::new(sub_type),
+    generic_multiarg_fun_type::<Cic, _>(
+        arg_types,
+        base,
+        |arg_name, arg_type, sub_type| {
+            CicTerm::Product(arg_name, Box::new(arg_type), Box::new(sub_type))
+        },
     )
 }
 

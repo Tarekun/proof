@@ -1,10 +1,9 @@
-use super::evaluation::evaluate_fun;
 use super::fol::FolType::{Arrow, ForAll};
 use super::fol::{Fol, FolTerm, FolType};
 use super::fol_utils::make_multiarg_fun_type;
 use crate::misc::Union;
 use crate::parser::api::Tactic;
-use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
+use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -141,26 +140,7 @@ pub fn type_check_fun(
     body: &FolTerm,
     is_rec: &bool,
 ) -> Result<FolType, String> {
-    let fun_type = make_multiarg_fun_type(&args, out_type);
-    let mut assumptions = args.to_owned();
-    if *is_rec {
-        assumptions.push((fun_name.to_string(), fun_type.to_owned()));
-    }
-
-    environment
-        .with_local_declarations(&assumptions, |local_env| {
-            let body_type = Fol::type_check_term(body, local_env)?;
-
-            if !Fol::types_unify(local_env, &out_type, &body_type) {
-                return Err(format!(
-                    "In function {} definition: function type {:?} and body result {:?} are inconsistent",
-                    fun_name, out_type, body_type
-                ));
-            }
-        
-            evaluate_fun(local_env, fun_name, args, out_type, body, is_rec);
-            Ok(fun_type)
-        })
+    generic_type_check_fun::<Fol, _>(environment, fun_name, args, out_type, body, is_rec, make_multiarg_fun_type)
 }
 //
 //########################### STATEMENTS TYPE CHECKING
