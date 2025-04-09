@@ -70,7 +70,7 @@ pub fn generic_evaluate_fun<
     make_fun_type: F,
 ) -> () {
     let fun_type = make_fun_type(&args, out_type);
-    // TODO η-expand body buz this aint yungblood
+    // TODO η-expand body cuz this aint it yungblood
     // let body = T::eta_expand(body, ...) type shi
     environment.add_variable_definition(fun_name, body, &fun_type);
 }
