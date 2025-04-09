@@ -37,3 +37,24 @@ pub fn wrap_type<T: TypeTheory>(
     let type_exp = type_exp?;
     Ok(R(type_exp))
 }
+
+pub enum UnifiedExpression<T: TypeTheory> {
+    L(T::Term),
+    R(T::Type),
+}
+impl<T: TypeTheory> UnifiedExpression<T> {
+    pub fn of_term(term: T::Term) -> UnifiedExpression<T> {
+        UnifiedExpression::L(term)
+    }
+
+    pub fn of_type(typee: T::Type) -> UnifiedExpression<T> {
+        UnifiedExpression::R(typee)
+    }
+
+    pub fn as_union(self) -> Union<T::Term, T::Type> {
+        match self {
+            UnifiedExpression::L(term) => Union::L(term),
+            UnifiedExpression::R(typee) => Union::R(typee),
+        }
+    }
+}

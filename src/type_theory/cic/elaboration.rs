@@ -78,7 +78,7 @@ pub fn elaborate_expression(ast: &Expression) -> CicTerm {
         Expression::Arrow(domain, codomain) => {
             elaborate_arrow(&*domain, &*codomain)
         }
-        Expression::Meta() => elaborate_meta(),
+        Expression::Inferator() => elaborate_meta(),
     };
 
     index_variables(&elaborated)
@@ -88,6 +88,8 @@ pub fn elaborate_expression(ast: &Expression) -> CicTerm {
 #[allow(non_upper_case_globals)]
 static mut next_index: i32 = 0;
 fn elaborate_meta() -> CicTerm {
+    //TODO well... this causes issues with tests
+    //'twas unsafe indeed...
     //unsafe my ass stupid crab
     unsafe {
         let index = next_index;

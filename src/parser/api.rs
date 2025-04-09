@@ -17,8 +17,8 @@ pub enum Expression {
     Application(Box<Expression>, Box<Expression>),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
-    // metavariable for inferable types
-    Meta(),
+    // Infer operator to be elaborated to metavariables
+    Inferator(),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
@@ -55,7 +55,7 @@ pub enum Statement {
 pub enum Tactic<E> {
     Begin(),
     Qed(),
-    Suppose(String, Option<E>),
+    Suppose(String, E),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum LofAst {

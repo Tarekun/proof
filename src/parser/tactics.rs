@@ -37,7 +37,13 @@ impl LofParser {
             self.parse_optionally_typed_identifier(input)
         })(input)?;
 
-        Ok((input, Suppose(var_name.to_string(), opt_type)))
+        Ok((
+            input,
+            Suppose(
+                var_name.to_string(),
+                opt_type.unwrap_or(Expression::Inferator()),
+            ),
+        ))
     }
 
     pub fn parse_tactic<'a>(
@@ -104,10 +110,7 @@ mod unit_tests {
 
         assert_eq!(
             parser.suppose("suppose n:Nat"),
-            Ok((
-                "",
-                Suppose("n".to_string(), Some(VarUse("Nat".to_string())))
-            )),
+            Ok(("", Suppose("n".to_string(), VarUse("Nat".to_string())))),
             "Suppose parser doesnt construct the proper node"
         );
         assert!(
