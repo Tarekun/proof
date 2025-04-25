@@ -128,7 +128,7 @@ impl TypeTheory for Fol {
     type Stm = FolStm;
 
     fn default_environment() -> Environment<FolTerm, FolType> {
-        Environment::with_defaults_lower_order(
+        Environment::with_defaults(
             vec![],
             vec![],
             vec![

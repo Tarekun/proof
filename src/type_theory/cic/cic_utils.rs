@@ -11,8 +11,7 @@ pub fn delta_reduce(
 ) -> Result<CicTerm, String> {
     match term {
         Variable(var_name) => {
-            if let Some((_, (body, _))) = environment.get_from_deltas(&var_name)
-            {
+            if let Some((_, body)) = environment.get_from_deltas(&var_name) {
                 Ok(body.to_owned())
             } else {
                 Err(format!("Variable {} is not present in Δ so it doesnt have a substitution", var_name))

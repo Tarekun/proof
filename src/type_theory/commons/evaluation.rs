@@ -26,7 +26,7 @@ pub fn generic_reduce_variable<T: TypeTheory>(
     og_term: &T::Term,
 ) -> T::Term {
     // if a substitution exists the variable δ-reduces to its definition
-    if let Some((_, (body, _))) = environment.get_from_deltas(var_name) {
+    if let Some((_, body)) = environment.get_from_deltas(var_name) {
         body.to_owned()
     }
     // otherwise it's a constant, ie a value
@@ -53,7 +53,7 @@ pub fn generic_evaluate_let<T: TypeTheory>(
             &body_type.unwrap()
         }
     };
-    environment.add_variable_definition(var_name, body, var_type);
+    environment.add_substitution_with_type(var_name, body, var_type);
 }
 //
 //
@@ -72,7 +72,7 @@ pub fn generic_evaluate_fun<
     let fun_type = make_fun_type(&args, out_type);
     // TODO η-expand body cuz this aint it yungblood
     // let body = T::eta_expand(body, ...) type shi
-    environment.add_variable_definition(fun_name, body, &fun_type);
+    environment.add_substitution_with_type(fun_name, body, &fun_type);
 }
 //
 //
@@ -81,7 +81,7 @@ pub fn generic_evaluate_axiom<T: TypeTheory>(
     axiom_name: &str,
     formula: &T::Type,
 ) -> () {
-    environment.add_variable_to_context(axiom_name, formula);
+    environment.add_to_context(axiom_name, formula);
 }
 //
 //
@@ -91,6 +91,6 @@ pub fn generic_evaluate_theorem<T: TypeTheory>(
     formula: &T::Type,
     _proof: &Union<T::Term, Vec<Tactic>>,
 ) -> () {
-    environment.add_variable_to_context(&theorem_name, &formula);
+    environment.add_to_context(&theorem_name, &formula);
 }
 //########################### STATEMENTS EXECUTION

@@ -297,7 +297,7 @@ mod unit_tests {
     #[test]
     fn test_var_reduction() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "test",
             &Variable("Unit".to_string()),
             &Sort("TYPE".to_string()),
@@ -322,9 +322,9 @@ mod unit_tests {
     #[test]
     fn test_app_reduction() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("Nat", &Sort("TYPE".to_string()));
-        test_env.add_variable_to_context("z", &Variable("Nat".to_string()));
-        test_env.add_variable_to_context(
+        test_env.add_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_to_context("z", &Variable("Nat".to_string()));
+        test_env.add_to_context(
             "s",
             &Product(
                 "".to_string(),
@@ -332,7 +332,7 @@ mod unit_tests {
                 Box::new(Variable("Nat".to_string())),
             ),
         );
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "add_one",
             &Abstraction(
                 "n".to_string(),
@@ -384,9 +384,9 @@ mod unit_tests {
         let true_term = Variable("true".to_string());
         let false_term = Variable("false".to_string());
 
-        test_env.add_variable_to_context("Nat", &Sort("TYPE".to_string()));
-        test_env.add_variable_to_context("z", &Variable("Nat".to_string()));
-        test_env.add_variable_to_context(
+        test_env.add_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_to_context("z", &Variable("Nat".to_string()));
+        test_env.add_to_context(
             "s",
             &Product(
                 "_".to_string(),
@@ -394,7 +394,7 @@ mod unit_tests {
                 Box::new(Variable("Nat".to_string())),
             ),
         );
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "x",
             &zero,
             &Variable("Nat".to_string()),

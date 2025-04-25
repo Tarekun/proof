@@ -36,7 +36,7 @@ pub fn generic_type_check_abstraction<T: TypeTheory>(
     body: &T::Term,
 ) -> Result<T::Type, String> {
     let _ = T::type_check_type(var_type, environment)?;
-    environment.with_local_declaration(var_name, var_type, |local_env| {
+    environment.with_local_assumption(var_name, var_type, |local_env| {
         let body_type = T::type_check_term(body, local_env)?;
         Ok(body_type)
     })
@@ -53,7 +53,7 @@ pub fn generic_type_check_universal<T: TypeTheory>(
     predicate: &T::Type,
 ) -> Result<T::Type, String> {
     let _ = T::type_check_type(var_type, environment)?;
-    environment.with_local_declaration(var_name, var_type, |local_env| {
+    environment.with_local_assumption(var_name, var_type, |local_env| {
         let body_type = T::type_check_type(predicate, local_env)?;
         Ok(body_type)
     })
@@ -168,7 +168,7 @@ pub fn generic_type_check_fun<
     }
 
     let body_type = environment
-        .with_local_declarations(&assumptions, |local_env| {
+        .with_local_assumptions(&assumptions, |local_env| {
             T::type_check_term(&body, local_env)
         })?;
     if !T::types_unify(environment, out_type, &body_type) {

@@ -68,7 +68,7 @@ pub fn type_check_atomic(
     type_name: &str,
 ) -> Result<FolType, String> {
     match environment.get_atomic_type(type_name) {
-        Some((_, type_obj)) => Ok(type_obj.to_owned()),
+        Some(type_obj) => Ok(type_obj.to_owned()),
         _ => Err(format!("Unbound type {}", type_name)),
     }
 }
@@ -171,7 +171,7 @@ mod unit_tests {
     #[test]
     fn test_var_type_check() {
         let mut test_env = Fol::default_environment();
-        test_env.add_variable_to_context("it", &Atomic("Unit".to_string()));
+        test_env.add_to_context("it", &Atomic("Unit".to_string()));
 
         assert_eq!(
             type_check_var(&mut test_env, "it"),
@@ -248,7 +248,7 @@ mod unit_tests {
     #[test]
     fn test_app_type_check() {
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![
@@ -256,15 +256,15 @@ mod unit_tests {
                     ("Unit", &Atomic("Unit".to_string())),
                 ],
             );
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "f",
             &Arrow(
                 Box::new(Atomic("Nat".to_string())),
                 Box::new(Atomic("Nat".to_string())),
             ),
         );
-        test_env.add_variable_to_context("x", &Atomic("Nat".to_string()));
-        test_env.add_variable_to_context("it", &Atomic("Unit".to_string()));
+        test_env.add_to_context("x", &Atomic("Nat".to_string()));
+        test_env.add_to_context("it", &Atomic("Unit".to_string()));
 
         assert_eq!(
             type_check_application(
@@ -320,7 +320,7 @@ mod unit_tests {
     fn test_atomic_type_check() {
         let unit = "Unit";
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![(unit, &Atomic(unit.to_string()))],
@@ -346,7 +346,7 @@ mod unit_tests {
     fn test_arrow_type_check() {
         let nat = Atomic("Nat".to_string());
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![("Nat", &nat)],
@@ -389,7 +389,7 @@ mod unit_tests {
         let top: FolType = Atomic("Top".to_string());
         let nat = Atomic("Nat".to_string());
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![("Top", &top), ("Nat", &nat)],
@@ -443,7 +443,7 @@ mod unit_tests {
     fn test_axiom_type_check() {
         let top: FolType = Atomic("Top".to_string());
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![("Top", &top)],
@@ -469,7 +469,7 @@ mod unit_tests {
         );
         assert_eq!(
             test_env.get_from_context("test_axiom"),
-            Some(("test_axiom", &top)),
+            Some(("test_axiom".to_string(), top)),
             "Axiom type checker did not update the context"
         );
     }
@@ -479,7 +479,7 @@ mod unit_tests {
         let nat = Atomic("Nat".to_string());
         let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![("zero", &nat)],
                 vec![],
                 vec![("Nat", &nat)],
@@ -494,7 +494,7 @@ mod unit_tests {
         assert!(res.is_ok(), "Let type checker failed with {:?}", res.err());
         assert_eq!(
             test_env.get_from_deltas("n"),
-            Some(("n", &(zero.clone(), nat.clone()))),
+            Some(("n".to_string(), zero.clone())),
             "Let type checker didnt update the context properly"
         );
         assert!(
@@ -543,7 +543,7 @@ mod unit_tests {
         let nat = Atomic("Nat".to_string());
         // let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolType> =
-            Environment::with_defaults_lower_order(
+            Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![("Nat", &nat)],
