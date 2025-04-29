@@ -2,7 +2,7 @@ use core::panic;
 
 use super::cic::CicStm::{Axiom, Fun, Let, Theorem};
 use super::cic::CicTerm::{
-    Abstraction, Application, Match, Product, Sort, Variable,
+    Abstraction, Application, Match, Meta, Product, Sort, Variable,
 };
 use super::cic::{Cic, CicStm, CicTerm};
 use super::cic_utils::make_multiarg_fun_type;
@@ -197,6 +197,7 @@ fn substitute(term: &CicTerm, target_name: &str, arg: &CicTerm) -> CicTerm {
             Box::new(substitute(left, target_name, arg)),
             Box::new(substitute(right, target_name, arg)),
         ),
+        // TODO: dont carry substitution if names match to implement overriding of names
         Abstraction(var_name, domain, codomain) => Abstraction(
             var_name.to_string(),
             Box::new(substitute(domain, target_name, arg)),
@@ -219,6 +220,9 @@ fn substitute(term: &CicTerm, target_name: &str, arg: &CicTerm) -> CicTerm {
                 )
             }),
         ),
+        Meta(_) => {
+            panic!("TODO implementare qua la sostituzione delle metavariabili?")
+        }
     }
 }
 

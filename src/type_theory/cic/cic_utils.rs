@@ -52,6 +52,7 @@ fn term_formatter(term: &CicTerm, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             }
             write!(f, "}}")
         }
+        CicTerm::Meta(index) => write!(f, "?[{}]", index),
     }
 }
 impl fmt::Display for CicTerm {
