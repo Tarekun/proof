@@ -7,6 +7,20 @@ pub struct Environment<Term, Type> {
     pub atomic_types: HashMap<String, Type>, //type_name, type_obj
 }
 
+pub struct MetaVariable {
+    pub index: i32,
+}
+impl MetaVariable {
+    pub fn new(index: i32) -> Self {
+        MetaVariable { index }
+    }
+}
+macro_rules! MetaVariable {
+    ($value:expr) => {
+        MetaVariable::new($value)
+    };
+}
+
 //TODO check if this cloning is really necessary or there's better ways
 impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
     pub fn with_defaults(
@@ -49,6 +63,12 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
 
     //######################### ENV MANIPULATION
     //
+    /// Insert a new typed variable into the context
+    pub fn add_to_context(&mut self, name: &str, typee: &Type) {
+        let context_stack = self.context_stack(name);
+        context_stack.push(typee.to_owned());
+    }
+
     pub fn add_substitution(&mut self, name: &str, term: &Term) {
         let definition_stack = self.substitution_stack(name);
         definition_stack.push(term.clone());
@@ -65,11 +85,7 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         self.add_to_context(name, typee);
     }
 
-    /// Insert a new typed variable into the context
-    pub fn add_to_context(&mut self, name: &str, typee: &Type) {
-        let context_stack = self.context_stack(name);
-        context_stack.push(typee.to_owned());
-    }
+    pub fn add_constraint(&mut self) {}
 
     fn remove_substitution(&mut self, name: &str) {
         let definition_stack = self.substitution_stack(name);
@@ -323,5 +339,102 @@ mod unit_tests {
             test_env.is_var_bound("b"),
             "Environment signals bound variable as unbound if it was introduced as a substitution"
         );
+    }
+
+    #[test]
+    fn test_with_local_assumption() {
+        let mut test_env = Cic::default_environment();
+        let var_name = "local_var";
+        let var_type = Sort("TYPE".to_string());
+
+        test_env.with_local_assumption(var_name, &var_type, |env| {
+            assert_eq!(
+                Some((var_name.to_string(), var_type.clone())),
+                env.get_from_context(var_name),
+                "Local assumption was not added to the context"
+            );
+        });
+        assert_eq!(
+            None,
+            test_env.get_from_context(var_name),
+            "Local assumption was not removed from the context after closure execution"
+        );
+    }
+
+    #[test]
+    fn test_with_local_assumptions() {
+        let mut test_env = Cic::default_environment();
+        let typed_variables = vec![
+            ("var1".to_string(), Sort("TYPE".to_string())),
+            ("var2".to_string(), Sort("PROP".to_string())),
+        ];
+
+        test_env.with_local_assumptions(&typed_variables, |env| {
+            for (name, typee) in typed_variables.iter() {
+                assert_eq!(
+                    Some((name.to_string(), typee.clone())),
+                    env.get_from_context(name),
+                    "Local assumption was not added to the context"
+                );
+            }
+        });
+        for (name, _) in typed_variables.iter() {
+            assert_eq!(
+                None,
+                test_env.get_from_context(name),
+                "Local assumption was not removed from the context after closure execution"
+            );
+        }
+    }
+
+    #[test]
+    fn test_with_local_substitution() {
+        let mut test_env = Cic::default_environment();
+        let var_name = "local_var";
+        let substitution_term = Variable(var_name.to_string());
+
+        test_env.with_local_substitution(
+            var_name,
+            &substitution_term,
+            &None,
+            |env| {
+                assert_eq!(
+                    Some((var_name.to_string(), substitution_term.clone())),
+                    env.get_from_deltas(var_name),
+                    "Local substitution was not added to the deltas"
+                );
+            },
+        );
+        assert_eq!(
+            None,
+            test_env.get_from_deltas(var_name),
+            "Local substitution was not removed from the deltas after closure execution"
+        );
+    }
+
+    #[test]
+    fn test_with_local_substitutions() {
+        let mut test_env = Cic::default_environment();
+        let var_names_and_terms = vec![
+            ("var1".to_string(), Variable("term1".to_string()), None),
+            ("var2".to_string(), Variable("term2".to_string()), None),
+        ];
+
+        test_env.with_local_substitutions(&var_names_and_terms, |env| {
+            for (name, term, _) in var_names_and_terms.iter() {
+                assert_eq!(
+                    Some((name.to_string(), term.clone())),
+                    env.get_from_deltas(name),
+                    "Local substitution was not added to the deltas"
+                );
+            }
+        });
+        for (name, _, _) in var_names_and_terms.iter() {
+            assert_eq!(
+                None,
+                test_env.get_from_deltas(name),
+                "Local substitution was not removed from the deltas after closure execution"
+            );
+        }
     }
 }
