@@ -187,6 +187,15 @@ impl LofParser {
         Ok((input, Expression::Match(Box::new(term), branches)))
     }
 
+    pub fn parse_meta<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Expression> {
+        let (input, _) = preceded(multispace0, char('?'))(input)?;
+
+        Ok((input, Expression::Meta()))
+    }
+
     pub fn parse_expression<'a>(
         &'a self,
         input: &'a str,
@@ -202,6 +211,7 @@ impl LofParser {
             |input| self.parse_var(input),
             |input| self.parse_parens(input),
             |input| self.parse_pattern_match(input),
+            |input| self.parse_meta(input),
         ))(input)
     }
 }
@@ -453,6 +463,26 @@ mod unit_tests {
         assert!(
             parser.parse_pattern_match("match xwith | O => x,").is_err(),
             "Pattern match parser doesnt split keywords"
+        );
+    }
+
+    #[test]
+    fn test_infer_operator() {
+        let parser = LofParser::new(Config::default());
+
+        assert!(
+            parser.parse_meta("?").is_ok(),
+            "parser doesnt support the infer operator ?"
+        );
+
+        assert!(
+            parser.parse_meta("\n  \t\r\r\t  ?").is_ok(),
+            "parser doesnt support the infer operator ? preceeded by whitespaces"
+        );
+
+        assert!(
+            parser.parse_expression("  ? ").is_ok(),
+            "top level parser doesnt support the infer operator ?"
         );
     }
 }

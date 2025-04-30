@@ -2,50 +2,9 @@ use super::cic::CicTerm;
 use super::cic::CicTerm::{
     Abstraction, Application, Match, Meta, Product, Sort, Variable,
 };
-use crate::misc::simple_map;
+use crate::type_theory::cic::cic_utils::substitute_meta;
 use crate::type_theory::environment::Environment;
 use std::collections::{HashMap, VecDeque};
-
-fn substitute_meta(term: &CicTerm, target: &i32, arg: &CicTerm) -> CicTerm {
-    match term {
-        Meta(index) => {
-            if index == target {
-                arg.clone()
-            } else {
-                term.clone()
-            }
-        }
-        Sort(_) => term.clone(),
-        Variable(_) => term.clone(),
-        Application(left, right) => Application(
-            Box::new(substitute_meta(left, target, arg)),
-            Box::new(substitute_meta(right, target, arg)),
-        ),
-        // TODO: dont carry substitution if names match to implement overriding of names
-        Abstraction(var_name, domain, codomain) => Abstraction(
-            var_name.to_string(),
-            Box::new(substitute_meta(domain, target, arg)),
-            Box::new(substitute_meta(codomain, target, arg)),
-        ),
-        Product(var_name, domain, codomain) => Product(
-            var_name.to_string(),
-            Box::new(substitute_meta(domain, target, arg)),
-            Box::new(substitute_meta(codomain, target, arg)),
-        ),
-        Match(matched_term, branches) => Match(
-            Box::new(substitute_meta(matched_term, target, arg)),
-            //TODO i dont want to clone branches here tbh
-            simple_map(branches.clone(), |(pattern, body)| {
-                (
-                    simple_map(pattern, |term| {
-                        substitute_meta(&term, target, arg)
-                    }),
-                    substitute_meta(&body, target, arg),
-                )
-            }),
-        ),
-    }
-}
 
 pub fn cic_unification(
     environment: &mut Environment<CicTerm, CicTerm>,
@@ -57,6 +16,17 @@ pub fn cic_unification(
         equal_under_substitution(environment, term1, term2);
 
     Ok(are_alpha_equivalent || are_equal_under_substitutions)
+}
+
+pub fn instatiate_metas(
+    term: &CicTerm,
+    unifier: HashMap<i32, CicTerm>,
+) -> CicTerm {
+    let mut term = term.clone();
+    for (index, body) in unifier {
+        term = substitute_meta(&term, &index, &body);
+    }
+    term
 }
 
 pub fn solve_unification(
@@ -289,26 +259,40 @@ pub fn equal_under_substitution(
     term1: &CicTerm,
     term2: &CicTerm,
 ) -> bool {
-    fn check_var_subst(
-        environment: &mut Environment<CicTerm, CicTerm>,
-        variable: &CicTerm,
-        fixed_term: &CicTerm,
-    ) -> bool {
-        match variable {
-            Variable(var_name) => {
-                if let Some((_, body)) = environment.get_from_deltas(&var_name)
-                {
-                    variable == fixed_term || body == *fixed_term
-                } else {
-                    variable == fixed_term
-                }
-            }
-            _ => variable == fixed_term,
-        }
-    }
+    match (term1, term2) {
+        (Variable(name1), Variable(name2)) => {
+            let mut res: bool = name1 == name2;
 
-    check_var_subst(environment, term1, term2)
-        || check_var_subst(environment, term2, term1)
+            if let Some((_, body)) = environment.get_from_deltas(&name1) {
+                res = res || body == *term2;
+            }
+            if let Some((_, body)) = environment.get_from_deltas(&name2) {
+                res = res || body == *term1;
+            }
+
+            res
+        }
+        (Sort(name1), Sort(name2)) => name1 == name2,
+        (Meta(index1), Meta(index2)) => index1 == index2,
+        (Abstraction(_, domain1, body1), Abstraction(_, domain2, body2)) => {
+            equal_under_substitution(environment, domain1, domain2)
+                && equal_under_substitution(environment, body1, body2)
+        }
+        (Product(_, domain1, codomain1), Product(_, domain2, codomain2)) => {
+            equal_under_substitution(environment, domain1, domain2)
+                && equal_under_substitution(environment, codomain1, codomain2)
+        }
+        (Application(fun1, arg1), Application(fun2, arg2)) => {
+            equal_under_substitution(environment, fun1, fun2)
+                && equal_under_substitution(environment, arg1, arg2)
+        }
+        (Match(term1, pattern1), Match(term2, pattern2)) => {
+            //TODO i dont want to do this now
+            false
+        }
+        // terms arent structurally equal
+        _ => false,
+    }
 }
 
 #[cfg(test)]

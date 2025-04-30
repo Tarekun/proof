@@ -1,15 +1,17 @@
 use tracing::error;
-
-use super::cic::CicTerm::{Application, Product, Sort, Variable};
+use std::collections::HashMap;
+use super::cic::CicTerm::{Application, Product, Sort, Variable, Meta};
 use super::cic::{Cic, CicTerm};
-use super::cic_utils::check_positivity;
+use super::cic_utils::{check_positivity, substitute_meta};
+use super::unification::solve_unification;
 use crate::misc::{simple_map, simple_map_indexed, Union};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
     application_args, apply_arguments, clone_product_with_different_result,
-    delta_reduce, get_arg_types, get_prod_innermost, get_variables_as_terms,
-    is_instance_of, make_multiarg_fun_type,
+    get_arg_types, get_prod_innermost, get_variables_as_terms,
+    is_instance_of, make_multiarg_fun_type, substitute,
 };
+use crate::type_theory::cic::unification::{equal_under_substitution, instatiate_metas};
 use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -40,6 +42,14 @@ pub fn type_check_abstraction(
     body: &CicTerm,
 ) -> Result<CicTerm, String> {
     let body_type = generic_type_check_abstraction::<Cic>(environment, var_name, var_type, body)?;
+    let (var_type, body_type) = if let Meta(index) = var_type {
+        let substitution = solve_unification(environment.get_constraints())?;
+        (&substitute_meta(var_type, index, substitution.get(index).unwrap()),
+        substitute_meta(&body_type, index, substitution.get(index).unwrap()))
+    } else {
+        (var_type, body_type)
+    };
+
     Ok(CicTerm::Product(
         var_name.to_string(),
         Box::new(var_type.clone()),
@@ -72,25 +82,43 @@ pub fn type_check_application(
         local_env: &mut Environment<CicTerm, CicTerm>,
         term: CicTerm,
     ) -> Result<CicTerm, String> {
-        match term {
+        match term.clone() {
             Application(left, right) => {
                 let function_type =
                     type_check_nested_app(local_env, *left.clone())?;
-                let arg_type = Cic::type_check_term(&right, local_env)?;
+                let arg_type = 
+                    Cic::type_check_term(&right, local_env)?;
 
                 match function_type.clone() {
-                    CicTerm::Product(var_name, domain, codomain) => {
-                        if Cic::terms_unify(local_env, &(*domain), &arg_type) {
+                    Product(var_name, domain, codomain) => {
+                        // perform unification first
+                        let mut unifier: HashMap<i32, CicTerm> = HashMap::new();
+                        let arg_type = if let Meta(index) = arg_type {
+                            local_env.add_constraint(&arg_type, &domain);
+                            unifier = solve_unification(local_env.get_constraints())?;
+                            let resolved = unifier.get(&index).unwrap().to_owned();
+                            resolved
+                        } else {
+                            arg_type
+                        };
+                        let domain = if let Meta(index) = *domain {
+                            local_env.add_constraint(&domain, &arg_type);
+                            unifier = solve_unification(local_env.get_constraints())?;
+                            let resolved = unifier.get(&index).unwrap().to_owned();
+                            resolved
+                        } else {
+                            *domain
+                        };
+
+                        if equal_under_substitution(local_env, &domain, &arg_type) {
                             local_env.add_substitution_with_type(&var_name, &right, &arg_type);
-                            //se è una variabile già applicata, fai la sostituzione
-                            match delta_reduce(local_env, *codomain.clone()) {
-                                Ok(body) => Ok(body),
-                                _ => Ok(*codomain)
-                            }
+                            let var_swapped = substitute(&codomain, &var_name, &right);
+                            let meta_swapped = instatiate_metas(&var_swapped, unifier);
+                            Ok(meta_swapped)
                         } else {
                             Err(format!(
-                                "Function and argument have uncompatible types: function expects a {:?} but the argument has type {:?}", 
-                                *domain,
+                                "Function and argument have incompatible types: function expects a {:?} but the argument has type {:?}", 
+                                domain,
                                 arg_type
                             ))
                         }
@@ -109,7 +137,7 @@ pub fn type_check_application(
         }
     }
 
-    environment.with_rollback(|local_env| {
+    environment.with_rollback_keep_meta(|local_env| {
         type_check_nested_app(
             local_env,
             Application(Box::new(left.clone()), Box::new(right.clone())),
@@ -191,6 +219,8 @@ pub fn type_check_match(
             environment,
         )?;
         if !Cic::terms_unify(environment, &result_type, &matching_type) {
+            //TODO this is the logic that should actually be used
+            // if !equal_under_substitution(environment, &result_type, &matching_type) {
             return Err(
                 format!(
                     "Pattern doesnt produce expected type: expected {:?} produced {:?}",
@@ -576,7 +606,7 @@ pub fn type_check_inductive(
 mod unit_tests {
     use crate::type_theory::cic::{
         cic::CicStm::{Fun, InductiveDef},
-        cic::CicTerm::{Abstraction, Application, Match, Product, Sort, Variable},
+        cic::CicTerm::{Abstraction, Application, Match, Product, Sort, Variable, Meta},
         cic::{Cic, CicTerm},
         type_check::{
             inductive_eliminator, type_check_fun, type_check_inductive,
@@ -798,7 +828,6 @@ mod unit_tests {
     }
 
     #[test]
-    // TODO include tests for polymorphic types
     fn test_type_check_application() {
         let mut test_env = Cic::default_environment();
         test_env
@@ -882,9 +911,9 @@ mod unit_tests {
                         Box::new(Product(
                             "_".to_string(),
                             Box::new(Variable("Unit".to_string())),
-                            Box::new(Variable("T".to_string())),
+                            Box::new(Variable(type_var_name.to_string())),
                         )),
-                        Box::new(Variable("T".to_string())),
+                        Box::new(Variable(type_var_name.to_string())),
                     )),
                 )),
             ),
@@ -1072,7 +1101,6 @@ mod unit_tests {
         // );
     }
 
-    //TODO add check for positivity
     #[test]
     fn test_type_check_inductive() {
         let mut test_env = Cic::default_environment();
@@ -1835,4 +1863,102 @@ mod unit_tests {
             "Oh no, Curry's paradox is accepted"
         );
     }
+
+
+    #[test]
+    fn test_abstraction_inference() {
+        let mut test_env = Cic::default_environment();
+        test_env
+            .add_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_to_context(
+            "s", 
+            &Product(
+                "_".to_string(),
+                Box::new(Variable("Nat".to_string())),
+                Box::new(Variable("Nat".to_string()))
+            )
+        );
+
+        assert_eq!(
+            Cic::type_check_term(
+                &Abstraction(
+                    "n".to_string(), 
+                    Box::new(Meta(0)), 
+                    Box::new(Application(
+                        Box::new(Variable("s".to_string())), 
+                        Box::new(Variable("n".to_string()))
+                    ))
+                ), 
+                &mut test_env
+            ),
+            Ok(Product("n".to_string(), Box::new(Variable("Nat".to_string())), Box::new(Variable("Nat".to_string())))),
+            "errore"
+        );
+    }
+
+    #[test]
+    fn test_application_inference() {
+        let mut test_env = Cic::default_environment();
+        test_env
+            .add_to_context("Nat", &Sort("TYPE".to_string()));
+
+        test_env.add_to_context(
+            "List", 
+            &Product(
+                "T".to_string(),
+                Box::new(Sort("TYPE".to_string())),
+                Box::new(Sort("TYPE".to_string()))
+            )
+        );
+        test_env.add_to_context(
+            "cons", 
+            &Product(
+                "T".to_string(),
+                Box::new(Sort("TYPE".to_string())),
+                Box::new(Product(
+                    "e".to_string(),
+                    Box::new(Variable("T".to_string())),
+                    Box::new(Product(
+                        "l".to_string(),
+                        Box::new(Application(
+                            Box::new(Variable("List".to_string())),
+                            Box::new(Variable("T".to_string())),
+                        )),
+                        Box::new(Application(
+                            Box::new(Variable("List".to_string())),
+                            Box::new(Variable("T".to_string())),
+                        ))
+                    ))
+                ))
+            )
+        );
+        test_env.add_to_context("elem", &Variable("Nat".to_string()));
+        test_env.add_to_context("li", &Application(
+            Box::new(Variable("List".to_string())),
+            Box::new(Variable("Nat".to_string())),
+        ));
+    
+        assert_eq!(
+            Cic::type_check_term(
+                &Application(
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(Variable("cons".to_string())), 
+                            // Box::new(Variable("Nat".to_string()))
+                            Box::new(Meta(10))
+                        )),
+                        Box::new(Variable("elem".to_string()))
+                    )), 
+                    Box::new(Variable("li".to_string()))
+                ),
+                &mut test_env
+            ),
+            Ok(Application(
+                Box::new(Variable("List".to_string())),
+                Box::new(Variable("Nat".to_string())),
+            )),
+            "vediamo un po"
+        );    
+    }
+
 }

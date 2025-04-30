@@ -5,7 +5,7 @@ use super::cic::CicTerm::{
     Abstraction, Application, Match, Meta, Product, Sort, Variable,
 };
 use super::cic::{Cic, CicStm, CicTerm};
-use super::cic_utils::make_multiarg_fun_type;
+use super::cic_utils::{make_multiarg_fun_type, substitute};
 use crate::misc::{simple_map, Union};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
@@ -181,51 +181,6 @@ pub fn evaluate_theorem(
 //########################### STATEMENTS EXECUTION
 //
 //########################### HELPER FUNCTIONS
-/// Given a `term` and a variable, returns a term where each instance of
-/// `var_name` is substituted with `arg`
-fn substitute(term: &CicTerm, target_name: &str, arg: &CicTerm) -> CicTerm {
-    match term {
-        Sort(_) => term.clone(),
-        Variable(var_name) => {
-            if var_name == target_name {
-                arg.clone()
-            } else {
-                term.clone()
-            }
-        }
-        Application(left, right) => Application(
-            Box::new(substitute(left, target_name, arg)),
-            Box::new(substitute(right, target_name, arg)),
-        ),
-        // TODO: dont carry substitution if names match to implement overriding of names
-        Abstraction(var_name, domain, codomain) => Abstraction(
-            var_name.to_string(),
-            Box::new(substitute(domain, target_name, arg)),
-            Box::new(substitute(codomain, target_name, arg)),
-        ),
-        Product(var_name, domain, codomain) => Product(
-            var_name.to_string(),
-            Box::new(substitute(domain, target_name, arg)),
-            Box::new(substitute(codomain, target_name, arg)),
-        ),
-        Match(matched_term, branches) => Match(
-            Box::new(substitute(matched_term, target_name, arg)),
-            //TODO i dont want to clone branches here tbh
-            simple_map(branches.clone(), |(pattern, body)| {
-                (
-                    simple_map(pattern, |term| {
-                        substitute(&term, target_name, arg)
-                    }),
-                    substitute(&body, target_name, arg),
-                )
-            }),
-        ),
-        Meta(_) => {
-            panic!("TODO implementare qua la sostituzione delle metavariabili?")
-        }
-    }
-}
-
 /// Given a `term` and a `pattern`, returns `true` if the term matches the
 /// pattern, `false` otherwise
 fn matches_pattern(term: &CicTerm, pattern: &Vec<CicTerm>) -> bool {

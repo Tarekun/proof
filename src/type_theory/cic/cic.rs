@@ -84,7 +84,8 @@ impl Cic {
                 elaborate_match(*matched_term, branches)
             }
             Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
-            // _ => panic!("not implemented"),
+            // Meta() => CicTerm::Meta(())
+            _ => panic!("not implemented"),
         }
     }
 
@@ -285,9 +286,9 @@ fn common_type_checking(
         CicTerm::Match(matched_term, branches) => {
             type_check_match(environment, matched_term, branches)
         }
-        CicTerm::Meta(_) => {
-            Err("MetaVariables should never appear as type checkable terms"
-                .to_string())
+        CicTerm::Meta(index) => {
+            // Err(format!("MetaVariables should never appear as type checkable terms. Received ?[{}]", index))
+            Ok(CicTerm::Sort("TYPE".to_string()))
         }
     }
 }
