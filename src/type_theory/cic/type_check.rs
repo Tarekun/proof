@@ -79,7 +79,7 @@ pub fn type_check_application(
                 match function_type.clone() {
                     CicTerm::Product(var_name, domain, codomain) => {
                         if Cic::terms_unify(local_env, &(*domain), &arg_type) {
-                            local_env.add_variable_definition(&var_name, &right, &arg_type);
+                            local_env.add_substitution_with_type(&var_name, &right, &arg_type);
                             //se è una variabile già applicata, fai la sostituzione
                             match delta_reduce(local_env, *codomain.clone()) {
                                 Ok(body) => Ok(body),
@@ -202,7 +202,7 @@ pub fn type_check_match(
         let pattern_assumptions =
             type_constr_vars(&constr_type, pattern[1..].to_vec());
         let body_type = environment
-            .with_local_declarations(&pattern_assumptions, |local_env| {
+            .with_local_assumptions(&pattern_assumptions, |local_env| {
                 Cic::type_check_term(body, local_env)
             })?;
         if return_type.is_none() {
@@ -499,11 +499,11 @@ fn update_context_inductive(
 ) {
     //TODO make a record of the full constructor list for match type checking
     let ind_type = make_multiarg_fun_type(params, ariety);
-    environment.add_variable_to_context(name, &ind_type);
+    environment.add_to_context(name, &ind_type);
     for (constr_name, constr_type) in &constructors {
-        environment.add_variable_to_context(constr_name, constr_type);
+        environment.add_to_context(constr_name, constr_type);
     }
-    environment.add_variable_to_context(
+    environment.add_to_context(
         &format!("e_{}", name),
         &inductive_eliminator(
             name.to_string(), 
@@ -534,7 +534,7 @@ pub fn type_check_inductive(
             .collect();
 
     let mut constr_bindings = vec![];
-    environment.with_local_declarations(
+    environment.with_local_assumptions(
         &inductive_assumptions,
         |local_env| {
             for (constr_name, constr_type) in constructors {
@@ -586,14 +586,14 @@ mod unit_tests {
     fn test_type_check_sort_n_vars() {
         let mut test_env = Cic::default_environment();
         test_env
-            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         // assumption, the type statement is included in the context
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "n",
             &CicTerm::Variable("nat".to_string()),
         );
         // definition, we have the variabled and a typed body
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "m",
             &CicTerm::Variable("n".to_string()),
             &CicTerm::Variable("nat".to_string()),
@@ -666,14 +666,14 @@ mod unit_tests {
     fn test_type_check_abstraction() {
         let mut test_env = Cic::default_environment();
         test_env
-            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         // assumption, the type statement is included in the context
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "o",
             &CicTerm::Variable("nat".to_string()),
         );
         // function over nat
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "s",
             &Product(
                 "n".to_string(),
@@ -739,7 +739,7 @@ mod unit_tests {
     fn test_type_check_product() {
         let mut test_env = Cic::default_environment();
         // polymorphic type constructor
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "list",
             &Product(
                 "T".to_string(),
@@ -800,20 +800,20 @@ mod unit_tests {
     fn test_type_check_application() {
         let mut test_env = Cic::default_environment();
         test_env
-            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
         // assumption, the type statement is included in the context
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "n",
             &CicTerm::Variable("nat".to_string()),
         );
         // definition, we have the variabled and a typed body
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "m",
             &CicTerm::Variable("n".to_string()),
             &CicTerm::Variable("nat".to_string()),
         );
         // function over nat
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "s",
             &CicTerm::Product(
                 "n".to_string(),
@@ -861,13 +861,13 @@ mod unit_tests {
     #[test]
     fn test_argument_dependent_function() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("Bool", &Sort("TYPE".to_string()));
+        test_env.add_to_context("Bool", &Sort("TYPE".to_string()));
         test_env
-            .add_variable_to_context("true", &&Variable("Bool".to_string()));
-        test_env.add_variable_to_context("Unit", &Sort("TYPE".to_string()));
-        test_env.add_variable_to_context("it", &Variable("Unit".to_string()));
+            .add_to_context("true", &&Variable("Bool".to_string()));
+        test_env.add_to_context("Unit", &Sort("TYPE".to_string()));
+        test_env.add_to_context("it", &Variable("Unit".to_string()));
         let type_var_name = "T";
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "if",
             &Product(
                 type_var_name.to_string(),
@@ -944,16 +944,16 @@ mod unit_tests {
     fn test_type_check_match() {
         let mut test_env = Cic::default_environment();
         test_env
-            .add_variable_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_variable_to_context(
+            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_to_context(
             "Bool",
             &CicTerm::Sort("TYPE".to_string()),
         );
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "o",
             &CicTerm::Variable("nat".to_string()),
         );
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "s",
             &CicTerm::Product(
                 "_".to_string(),
@@ -961,11 +961,11 @@ mod unit_tests {
                 Box::new(CicTerm::Variable("nat".to_string())),
             ),
         );
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "c",
             &CicTerm::Variable("nat".to_string()),
         );
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "true",
             &CicTerm::Variable("Bool".to_string()),
         );
@@ -1127,7 +1127,7 @@ mod unit_tests {
             "Inductive type checking is accepting definition on non existent arieties"
         );
         assert!(
-            test_env.with_local_declarations(&vec![
+            test_env.with_local_assumptions(&vec![
                 ("nat".to_string(), TYPE.clone()),
                 ("zero".to_string(), Variable("nat".to_string()))
             ], |local_env| {
@@ -1143,7 +1143,7 @@ mod unit_tests {
             "Inductive type checking is accepting definition with simple term ariety"
         );
         assert!(
-            test_env.with_local_declarations(&vec![
+            test_env.with_local_assumptions(&vec![
                 ("nat".to_string(), TYPE.clone()),
                 ("zero".to_string(), Variable("nat".to_string()))
             ], |local_env| {
@@ -1280,12 +1280,12 @@ mod unit_tests {
     fn test_type_check_fun() {
         let mut test_env = Cic::default_environment();
         test_env
-            .add_variable_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_variable_to_context(
+            .add_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
+        test_env.add_to_context(
             "z",
             &Variable("Nat".to_string()),
         );
-        test_env.add_variable_to_context(
+        test_env.add_to_context(
             "s",
             &Product(
                 "_".to_string(),
@@ -1810,7 +1810,7 @@ mod unit_tests {
     #[test]
     fn test_positivity_check() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("Empty", &Sort("TYPE".to_string()));
+        test_env.add_to_context("Empty", &Sort("TYPE".to_string()));
 
         assert!(
             Cic::type_check_stm(

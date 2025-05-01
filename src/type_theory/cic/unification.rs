@@ -79,10 +79,9 @@ pub fn equal_under_substitution(
     ) -> bool {
         match variable {
             Variable(var_name) => {
-                if let Some((_, (body, _))) =
-                    environment.get_from_deltas(&var_name)
+                if let Some((_, body)) = environment.get_from_deltas(&var_name)
                 {
-                    variable == fixed_term || body == fixed_term
+                    variable == fixed_term || body == *fixed_term
                 } else {
                     variable == fixed_term
                 }
@@ -111,8 +110,8 @@ mod unit_tests {
     #[test]
     fn test_alpha_eqivalence() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_to_context("Nat", &Sort("TYPE".to_string()));
-        test_env.add_variable_to_context("Bool", &Sort("TYPE".to_string()));
+        test_env.add_to_context("Nat", &Sort("TYPE".to_string()));
+        test_env.add_to_context("Bool", &Sort("TYPE".to_string()));
 
         assert_eq!(
             alpha_equivalent(
@@ -180,7 +179,7 @@ mod unit_tests {
     #[test]
     fn test_substitution() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "T",
             &Variable("Bool".to_string()),
             &Sort("TYPE".to_string()),
@@ -199,7 +198,7 @@ mod unit_tests {
     #[test]
     fn test_aplha_with_substitution() {
         let mut test_env = Cic::default_environment();
-        test_env.add_variable_definition(
+        test_env.add_substitution_with_type(
             "T",
             &Variable("Nat".to_string()),
             &Sort("TYPE".to_string()),

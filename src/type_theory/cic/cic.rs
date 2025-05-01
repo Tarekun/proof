@@ -137,7 +137,7 @@ impl TypeTheory for Cic {
         let axioms: Vec<(&str, &CicTerm)> =
             vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
 
-        Environment::with_defaults(axioms, Vec::default())
+        Environment::with_defaults(axioms, Vec::default(), vec![])
     }
 
     fn elaborate_ast(ast: NsAst) -> Program<Cic> {
