@@ -5,3 +5,5 @@ cobertura.xml
 
 vscode_extension/node_modules/
 vscode_extension/out/
+.aider*
+out

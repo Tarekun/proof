@@ -1,3 +1,5 @@
+use tracing::debug;
+
 use crate::config::Config;
 use crate::parser::api::LofParser;
 use crate::parser::api::NsAst;
@@ -6,10 +8,10 @@ use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
 pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
-    print!("Parsing of workspace: '{}'... ", workspace);
+    debug!("Parsing of workspace: '{}'... ", workspace);
     let parser = LofParser::new(config.clone());
     let ast = parser.parse_workspace(config, &workspace)?;
-    println!("Done.");
+    debug!("Done.");
 
     Ok(ast)
 }
@@ -19,9 +21,9 @@ pub fn parse_and_elaborate<T: TypeTheory>(
     workspace: &str,
 ) -> Result<Program<T>, String> {
     let ast = parse_only(config, workspace)?;
-    print!("Elaboration of the AST into a program... ");
+    debug!("Elaboration of the AST into a program... ");
     let program = T::elaborate_ast(ast);
-    println!("Done.");
+    debug!("Done.");
     Ok(program)
 }
 
@@ -30,7 +32,7 @@ pub fn type_check<T: TypeTheory>(
     workspace: &str,
 ) -> Result<Program<T>, String> {
     let program: Program<T> = parse_and_elaborate::<T>(config, workspace)?;
-    print!("Type checking of the program... ");
+    debug!("Type checking of the program... ");
     let mut environment: Environment<T::Term, T::Type> =
         T::default_environment();
     let mut errors = vec![];
@@ -55,7 +57,7 @@ pub fn type_check<T: TypeTheory>(
             }
         }
     }
-    println!("Done.");
+    debug!("Done.");
 
     if errors.is_empty() {
         Ok(program)
@@ -85,9 +87,7 @@ mod unit_tests {
 
     fn all_system_configs() -> Vec<Config> {
         vec![
-            Config {
-                system: TypeSystem::Cic(),
-            },
+            Config::default(),
             // Config {
             //     system: TypeSystem::Fol(),
             // },

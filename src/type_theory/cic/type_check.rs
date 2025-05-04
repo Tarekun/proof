@@ -1,3 +1,5 @@
+use tracing::error;
+
 use super::cic::CicTerm::{Application, Product, Sort, Variable};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::check_positivity;
@@ -349,8 +351,8 @@ fn inductive_eliminator(
                     recursive.push(((format!("r_{}", index)), arg_type));
                 } else if are_recursive {
                     // TODO this could be an error case, should cover it?
-                    println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-                    println!("THE UNEXPECTED ERROR HAPPEND");
+                    error!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+                    error!("THE UNEXPECTED ERROR HAPPEND");
                 } else {
                     non_recursive.push(((format!("nr_{}", index)), arg_type));
                 }
