@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod entrypoints;
 mod file_manager;
+mod logger;
 mod misc;
 mod parser {
     pub mod api;
@@ -46,17 +47,19 @@ mod type_theory {
 use cli::get_flag_value;
 use config::{load_config, Config, TypeSystem};
 use entrypoints::type_check;
+use logger::init_logger;
 use std::env;
+use tracing::{debug, error, info};
 use type_theory::{cic::cic::Cic, fol::fol::Fol, interface::TypeTheory};
 
 fn run_with_theory<T: TypeTheory>(config: Config, filepath: &str) {
     match type_check::<T>(&config, filepath) {
         Ok(program) => {
             for node in program.schedule_iterable() {
-                println!("node in the scheduled program: {:?}\n", node);
+                debug!("node in the type checked program: {:?}\n", node);
             }
         }
-        Err(message) => println!("Program failed: {}", message),
+        Err(message) => error!("Program failed: {}", message),
     }
 }
 
@@ -65,7 +68,7 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: cargo run <filepath.ns>");
+        println!("Usage: cargo run <filepath.ns>");
         return;
     }
 
@@ -76,7 +79,8 @@ fn main() {
         None => "./config.yml".to_string(),
     };
     let config: config::Config = load_config(&config_path).unwrap();
-    println!("Specified config: {:?}", config);
+    init_logger(&config);
+    info!("Specified config: {:?}", config);
 
     match config.system {
         TypeSystem::Cic() => run_with_theory::<Cic>(config, &filepath),

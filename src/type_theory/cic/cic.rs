@@ -24,6 +24,7 @@ use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
+use tracing::debug;
 
 #[derive(PartialEq, Clone)]
 pub enum CicTerm {
@@ -143,6 +144,7 @@ impl TypeTheory for Cic {
     fn elaborate_ast(ast: NsAst) -> Program<Cic> {
         let mut program = Program::new();
 
+        debug!("Elaboration of ast node {:?}", ast);
         match ast {
             NsAst::Stm(stm) => {
                 match Cic::elaborate_statement(stm, &mut program) {
@@ -162,6 +164,7 @@ impl TypeTheory for Cic {
         term: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
+        debug!("Term-type checking of {:?}", term);
         common_type_checking(term, environment)
     }
 
@@ -169,6 +172,7 @@ impl TypeTheory for Cic {
         typee: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
+        debug!("Type-type checking of {:?}", typee);
         let type_sort = common_type_checking(typee, environment)?;
         match type_sort {
             CicTerm::Sort(_) => Ok(type_sort),
@@ -177,10 +181,11 @@ impl TypeTheory for Cic {
     }
 
     fn type_check_stm(
-        term: &CicStm,
+        stm: &CicStm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
-        match term {
+        debug!("Type-type checking of {:?}", stm);
+        match stm {
             CicStm::Let(var_name, var_type, body) => {
                 type_check_let(environment, var_name, var_type, body)
             }
@@ -240,6 +245,7 @@ impl TypeTheory for Cic {
         environment: &mut Environment<CicTerm, CicTerm>,
         term: &CicTerm,
     ) -> CicTerm {
+        debug!("Normalizing term: {:?}", term);
         generic_term_normalization::<Cic, _>(
             environment,
             term,
@@ -251,6 +257,7 @@ impl TypeTheory for Cic {
         environment: &mut Environment<CicTerm, CicTerm>,
         stm: &Self::Stm,
     ) -> () {
+        debug!("Evaluating statement: {:?}", stm);
         evaluate_statement(environment, stm)
     }
 }
