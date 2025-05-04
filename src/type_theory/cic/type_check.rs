@@ -82,14 +82,14 @@ pub fn type_check_application(
         local_env: &mut Environment<CicTerm, CicTerm>,
         term: CicTerm,
     ) -> Result<CicTerm, String> {
-        match term.clone() {
+        match term {
             Application(left, right) => {
                 let function_type =
                     type_check_nested_app(local_env, *left.clone())?;
                 let arg_type = 
                     Cic::type_check_term(&right, local_env)?;
 
-                match function_type.clone() {
+                match function_type {
                     Product(var_name, domain, codomain) => {
                         // perform unification first
                         let mut unifier: HashMap<i32, CicTerm> = HashMap::new();

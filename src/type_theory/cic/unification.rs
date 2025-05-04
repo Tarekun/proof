@@ -22,6 +22,7 @@ pub fn instatiate_metas(
     term: &CicTerm,
     unifier: HashMap<i32, CicTerm>,
 ) -> CicTerm {
+    //TODO make this function efficient, this creates a quadratic cost
     let mut term = term.clone();
     for (index, body) in unifier {
         term = substitute_meta(&term, &index, &body);
@@ -175,20 +176,20 @@ pub fn solve_unification(
                         // if left_branches.len() != right_branches.len() {
                         //     return missmatch_error(left, right);
                         // }
-                        // for (
-                        //     (left_pattern, left_body),
-                        //     (right_pattern, right_body),
-                        // ) in left_branches.iter().zip(right_branches)
-                        // {
-                        //     constraints.push_back((
-                        //         left_pattern.clone(),
-                        //         right_pattern.clone(),
-                        //     ));
-                        //     constraints.push_back((
-                        //         (*left_body).clone(),
-                        //         (*right_body).clone(),
-                        //     ));
-                        // }
+                        for (
+                            (left_pattern, left_body),
+                            (right_pattern, right_body),
+                        ) in left_branches.iter().zip(right_branches)
+                        {
+                            // constraints.push_back((
+                            //     left_pattern.clone(),
+                            //     right_pattern.clone(),
+                            // ));
+                            constraints.push_back((
+                                (*left_body).clone(),
+                                right_body.clone(),
+                            ));
+                        }
 
                         solver(constraints, substitution)
                     }
