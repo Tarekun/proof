@@ -1,7 +1,10 @@
+use crate::misc::simple_map;
 use crate::type_theory::commons::utils::generic_multiarg_fun_type;
 use crate::type_theory::environment::Environment;
 
-use super::cic::CicTerm::{Abstraction, Application, Product, Sort, Variable};
+use super::cic::CicTerm::{
+    Abstraction, Application, Match, Meta, Product, Sort, Variable,
+};
 use super::cic::{Cic, CicTerm};
 use std::fmt;
 
@@ -52,6 +55,7 @@ fn term_formatter(term: &CicTerm, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             }
             write!(f, "}}")
         }
+        CicTerm::Meta(index) => write!(f, "?[{}]", index),
     }
 }
 impl fmt::Display for CicTerm {
@@ -195,6 +199,92 @@ pub fn check_positivity(function_type: &CicTerm, name: &str) -> bool {
     }
 
     true
+}
+
+/// Returns `term` where each instance of the meta variable `target` is swapped with `arg`
+pub fn substitute_meta(term: &CicTerm, target: &i32, arg: &CicTerm) -> CicTerm {
+    match term {
+        Meta(index) => {
+            if index == target {
+                arg.clone()
+            } else {
+                term.clone()
+            }
+        }
+        Sort(_) => term.clone(),
+        Variable(_) => term.clone(),
+        Application(left, right) => Application(
+            Box::new(substitute_meta(left, target, arg)),
+            Box::new(substitute_meta(right, target, arg)),
+        ),
+        // TODO: dont carry substitution if names match to implement overriding of names
+        Abstraction(var_name, domain, codomain) => Abstraction(
+            var_name.to_string(),
+            Box::new(substitute_meta(domain, target, arg)),
+            Box::new(substitute_meta(codomain, target, arg)),
+        ),
+        Product(var_name, domain, codomain) => Product(
+            var_name.to_string(),
+            Box::new(substitute_meta(domain, target, arg)),
+            Box::new(substitute_meta(codomain, target, arg)),
+        ),
+        Match(matched_term, branches) => Match(
+            Box::new(substitute_meta(matched_term, target, arg)),
+            //TODO i dont want to clone branches here tbh
+            simple_map(branches.clone(), |(pattern, body)| {
+                (
+                    simple_map(pattern, |term| {
+                        substitute_meta(&term, target, arg)
+                    }),
+                    substitute_meta(&body, target, arg),
+                )
+            }),
+        ),
+    }
+}
+
+/// Given a `term` and a variable, returns a term where each instance of
+/// `var_name` is substituted with `arg`
+pub fn substitute(term: &CicTerm, target_name: &str, arg: &CicTerm) -> CicTerm {
+    match term {
+        Sort(_) => term.clone(),
+        Variable(var_name) => {
+            if var_name == target_name {
+                arg.clone()
+            } else {
+                term.clone()
+            }
+        }
+        Application(left, right) => Application(
+            Box::new(substitute(left, target_name, arg)),
+            Box::new(substitute(right, target_name, arg)),
+        ),
+        // TODO: dont carry substitution if names match to implement overriding of names
+        Abstraction(var_name, domain, codomain) => Abstraction(
+            var_name.to_string(),
+            Box::new(substitute(domain, target_name, arg)),
+            Box::new(substitute(codomain, target_name, arg)),
+        ),
+        Product(var_name, domain, codomain) => Product(
+            var_name.to_string(),
+            Box::new(substitute(domain, target_name, arg)),
+            Box::new(substitute(codomain, target_name, arg)),
+        ),
+        Match(matched_term, branches) => Match(
+            Box::new(substitute(matched_term, target_name, arg)),
+            //TODO i dont want to clone branches here tbh
+            simple_map(branches.clone(), |(pattern, body)| {
+                (
+                    simple_map(pattern, |term| {
+                        substitute(&term, target_name, arg)
+                    }),
+                    substitute(&body, target_name, arg),
+                )
+            }),
+        ),
+        //TODO implementare qua la sostituzione delle metavariabili?
+        Meta(_) => term.clone(),
+    }
 }
 
 /// Creates the CIC type of a function with named arguments `arg_types`

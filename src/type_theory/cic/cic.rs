@@ -40,6 +40,8 @@ pub enum CicTerm {
     Application(Box<CicTerm>, Box<CicTerm>),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<CicTerm>, Vec<(Vec<CicTerm>, CicTerm)>),
+    /// index
+    Meta(i32),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum CicStm {
@@ -82,7 +84,8 @@ impl Cic {
                 elaborate_match(*matched_term, branches)
             }
             Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
-            // _ => panic!("not implemented"),
+            // Meta() => CicTerm::Meta(())
+            _ => panic!("not implemented"),
         }
     }
 
@@ -282,6 +285,10 @@ fn common_type_checking(
         }
         CicTerm::Match(matched_term, branches) => {
             type_check_match(environment, matched_term, branches)
+        }
+        CicTerm::Meta(index) => {
+            // Err(format!("MetaVariables should never appear as type checkable terms. Received ?[{}]", index))
+            Ok(CicTerm::Sort("TYPE".to_string()))
         }
     }
 }

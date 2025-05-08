@@ -15,8 +15,10 @@ pub enum Expression {
     /// (domain, codomain)
     Arrow(Box<Expression>, Box<Expression>),
     Application(Box<Expression>, Box<Expression>),
-    // (matched_term, [ branch: ([pattern], body) ])
+    /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
+    // metavariable for inferable types
+    Meta(),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {

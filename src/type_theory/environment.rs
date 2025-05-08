@@ -5,6 +5,7 @@ pub struct Environment<Term, Type> {
     pub context: HashMap<String, Vec<Type>>, //var_name, variable type
     pub deltas: HashMap<String, Vec<Term>>,  //var_name, definition term, type
     pub atomic_types: HashMap<String, Type>, //type_name, type_obj
+    constraints: Vec<(Term, Term)>,
 }
 
 pub struct MetaVariable {
@@ -49,6 +50,7 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             context: context_map,
             deltas: deltas_map,
             atomic_types: atomic_types_map,
+            constraints: vec![],
         }
     }
 
@@ -85,7 +87,9 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         self.add_to_context(name, typee);
     }
 
-    pub fn add_constraint(&mut self) {}
+    pub fn add_constraint(&mut self, left: &Term, right: &Term) {
+        self.constraints.push((left.clone(), right.clone()));
+    }
 
     fn remove_substitution(&mut self, name: &str) {
         let definition_stack = self.substitution_stack(name);
@@ -204,6 +208,20 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
 
         result
     }
+
+    /// Runs a callable under a local environment which is a rollbackable copy
+    /// of `self` that can be mutated without staining the original environment.
+    /// Keeps meta variable constraints produced
+    pub fn with_rollback_keep_meta<F: FnOnce(&mut Self) -> R, R>(
+        &mut self,
+        callable: F,
+    ) -> R {
+        let mut cloned = self.clone();
+        let result = callable(&mut cloned);
+        self.constraints = cloned.constraints;
+
+        result
+    }
     //
     //######################### LOCAL ENV UTILS
 
@@ -231,6 +249,10 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             .map(|type_obj| type_obj.to_owned())
     }
 
+    pub fn get_constraints(&self) -> Vec<(Term, Term)> {
+        self.constraints.clone()
+    }
+
     pub fn is_var_bound(&self, var_name: &str) -> bool {
         match self.get_from_context(var_name) {
             Some(_) => true,
@@ -246,6 +268,10 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             Some((_, var_type)) => Some(var_type.clone()),
             None => None,
         }
+    }
+
+    pub fn getdelta(&self) -> HashMap<String, Vec<Term>> {
+        self.deltas.clone()
     }
     //
     //######################### VARIABLE LOOKUPS
