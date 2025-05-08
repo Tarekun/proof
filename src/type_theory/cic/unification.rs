@@ -137,6 +137,7 @@ pub fn solve_unification(
                             solver(constraints, substitution)
                         }
                     }
+                    //TODO figure out what to do with var names
                     (
                         Abstraction(_, left_arg_type, left_body),
                         Abstraction(_, right_arg_type, right_body),
@@ -147,6 +148,7 @@ pub fn solve_unification(
                         constraints.push_back((*left_body, *right_body));
                         solver(constraints, substitution)
                     }
+                    //TODO figure out what to do with var names
                     (
                         Product(_, left_arg_type, left_body),
                         Product(_, right_arg_type, right_body),
@@ -164,6 +166,7 @@ pub fn solve_unification(
                         constraints.push_back((*left_arg, *right_arg));
                         solver(constraints, substitution)
                     }
+                    //TODO figure out what to do with branches
                     (
                         Match(left_matched_term, left_branches),
                         Match(right_matched_term, right_branches),
@@ -172,24 +175,6 @@ pub fn solve_unification(
                             (*left_matched_term).clone(),
                             (*right_matched_term).clone(),
                         ));
-
-                        // if left_branches.len() != right_branches.len() {
-                        //     return missmatch_error(left, right);
-                        // }
-                        for (
-                            (left_pattern, left_body),
-                            (right_pattern, right_body),
-                        ) in left_branches.iter().zip(right_branches)
-                        {
-                            // constraints.push_back((
-                            //     left_pattern.clone(),
-                            //     right_pattern.clone(),
-                            // ));
-                            constraints.push_back((
-                                (*left_body).clone(),
-                                right_body.clone(),
-                            ));
-                        }
 
                         solver(constraints, substitution)
                     }

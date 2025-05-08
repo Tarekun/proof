@@ -93,6 +93,8 @@ pub fn type_check_application(
                     Product(var_name, domain, codomain) => {
                         // perform unification first
                         let mut unifier: HashMap<i32, CicTerm> = HashMap::new();
+
+                        //TODO should refactor this
                         let arg_type = if let Meta(index) = arg_type {
                             local_env.add_constraint(&arg_type, &domain);
                             unifier = solve_unification(local_env.get_constraints())?;
