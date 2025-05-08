@@ -7,6 +7,15 @@ use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
+#[derive(Debug)]
+pub enum EntryPoint {
+    Execute,
+    TypeCheck,
+    Elaborate,
+    ParseOnly,
+    Help,
+}
+
 pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
     debug!("Parsing of workspace: '{}'... ", workspace);
     let parser = LofParser::new(config.clone());
@@ -76,6 +85,18 @@ pub fn execute<T: TypeTheory>(
     let program: Program<T> = type_check(config, workspace)?;
     program.execute()
 }
+
+pub fn help() {
+    println!("Usage: lof <workspace> [--flags]");
+    println!("workspace can be either a .lof file or a directory");
+    println!();
+    println!("Flags:");
+    println!("\t-t, --typecheck\t\tRun the type checking entrypoint");
+    println!("\t-e, --elaborate\t\tRun the parse and elaborate entrypoint");
+    println!("\t-p, --parse\t\tRun the parse only entrypoint");
+    println!("\t--config <path>\t\tSpecify a custom config file path (defaults to ./config.yml)");
+}
+
 //########################### UNIT TESTS
 #[cfg(test)]
 mod unit_tests {
