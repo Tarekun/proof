@@ -1,9 +1,7 @@
 use core::panic;
 
 use super::cic::CicStm::{Axiom, Fun, Let, Theorem};
-use super::cic::CicTerm::{
-    Abstraction, Application, Match, Meta, Product, Sort, Variable,
-};
+use super::cic::CicTerm::{Abstraction, Application, Match, Product, Variable};
 use super::cic::{Cic, CicStm, CicTerm};
 use super::cic_utils::{eta_expand, make_multiarg_fun_type, substitute};
 use super::type_check::inductive_eliminator;
@@ -13,8 +11,8 @@ use crate::type_theory::cic::cic_utils::{
     application_args, get_applied_function,
 };
 use crate::type_theory::commons::evaluation::{
-    generic_evaluate_axiom, generic_evaluate_fun, generic_evaluate_let,
-    generic_evaluate_theorem, generic_reduce_variable,
+    generic_evaluate_axiom, generic_evaluate_let, generic_evaluate_theorem,
+    generic_reduce_variable,
 };
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -61,16 +59,10 @@ fn reduce_application(
     match Cic::type_check_term(&left, environment) {
         Ok(fun_type) => match fun_type {
             Product(var_name, _, _) => {
-                println!(
-                    "normalizing application of left {:?} with argument {:?}",
-                    left, right
-                );
                 // if left is function variable take its body, otherwise gets left back
                 let left_reduced = Cic::normalize_term(environment, left);
-                println!("left reduced: {:?}", left_reduced);
                 // TODO do i substitute right or do i substitute its reduction? big deal
                 let right_reduced = Cic::normalize_term(environment, right);
-                println!("right reduced: {:?}", right_reduced);
 
                 match get_body(&left_reduced) {
                     Some(body) => substitute(&body, &var_name, &right_reduced),
@@ -102,12 +94,7 @@ fn reduce_match(
     matched_term: &CicTerm,
     branches: &Vec<(Vec<CicTerm>, CicTerm)>,
 ) -> CicTerm {
-    println!(
-        "trying to match term {:?} under substitutions {:?}",
-        matched_term, environment.deltas
-    );
     let normalized_term = Cic::normalize_term(environment, matched_term);
-    println!("computed normal form: {:?}", normalized_term);
     for (pattern, body) in branches {
         if matches_pattern(&normalized_term, pattern) {
             return body.clone();
@@ -138,7 +125,7 @@ pub fn evaluate_statement(
         }
         Theorem(theorem_name, formula, proof) => {
             evaluate_theorem(environment, theorem_name, formula, proof)
-        } // _ => (),
+        }
         CicStm::InductiveDef(type_name, params, ariety, constructors) => {
             evaluate_inductive(
                 environment,
@@ -177,12 +164,10 @@ pub fn evaluate_fun(
     args: &Vec<(String, CicTerm)>,
     out_type: &CicTerm,
     body: &CicTerm,
-    is_rec: &bool,
+    _is_rec: &bool,
 ) -> () {
     let fun_type = make_multiarg_fun_type(args, out_type);
     let full_body = eta_expand(args, body);
-    // TODO η-expand body cuz this aint it yungblood
-    // let body = T::eta_expand(body, ...) type shi
     environment.add_substitution_with_type(fun_name, &full_body, &fun_type);
     // generic_evaluate_fun::<Cic, _>(
     //     environment,
@@ -236,11 +221,8 @@ pub fn evaluate_inductive(
 /// Given a `term` and a `pattern`, returns `true` if the term matches the
 /// pattern, `false` otherwise
 fn matches_pattern(term: &CicTerm, pattern: &Vec<CicTerm>) -> bool {
-    println!("trying to match {:?} with the pattern {:?}", term, pattern);
     let outermost = get_applied_function(term);
     let args = application_args(term.to_owned());
-    println!("resulting outermost: {:?}", outermost);
-    println!("resulting args: {:?}", args);
 
     // TODO i think this should match the types as well but im not sure
     return (outermost == pattern[0]) && (args.len() == pattern.len() - 1);

@@ -84,23 +84,6 @@ pub fn type_check_application(
         arg_type: CicTerm, 
         domain: CicTerm,
     ) -> Result<(CicTerm, CicTerm, HashMap<i32, CicTerm>), String> {
-        // let mut unifier: HashMap<i32, CicTerm> = HashMap::new();
-        // let arg_type = if let Meta(index) = arg_type {
-        //     local_env.add_constraint(&arg_type, &domain);
-        //     unifier = solve_unification(local_env.get_constraints())?;
-        //     let resolved = unifier.get(&index).unwrap().to_owned();
-        //     resolved
-        // } else {
-        //     arg_type
-        // };
-        // let domain = if let Meta(index) = domain {
-        //     local_env.add_constraint(&domain, &arg_type);
-        //     unifier = solve_unification(local_env.get_constraints())?;
-        //     let resolved = unifier.get(&index).unwrap().to_owned();
-        //     resolved
-        // } else {
-        //     domain
-        // };
         local_env.add_constraint(&domain, &arg_type);
         let unifier = solve_unification(local_env.get_constraints())?;
         let domain = instatiate_metas(&domain, &unifier);
