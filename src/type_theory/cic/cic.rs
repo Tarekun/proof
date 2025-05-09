@@ -1,9 +1,3 @@
-use super::elaboration::{
-    elaborate_abstraction, elaborate_application, elaborate_arrow,
-    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_file_root,
-    elaborate_fun, elaborate_inductive, elaborate_let, elaborate_match,
-    elaborate_theorem, elaborate_type_product, elaborate_var_use,
-};
 use super::evaluation::{evaluate_statement, one_step_reduction};
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_axiom,
@@ -13,14 +7,11 @@ use super::type_check::{
 };
 use super::unification::cic_unification;
 use crate::misc::Union;
-use crate::parser::api::Expression::{
-    Abstraction, Application, Arrow, Match, TypeProduct, VarUse,
-};
-use crate::parser::api::Statement::{
-    Axiom, Comment, DirRoot, EmptyRoot, FileRoot, Fun, Inductive, Let, Theorem,
-};
-use crate::parser::api::{Expression, NsAst, Statement, Tactic};
+use crate::parser::api::{LofAst, Tactic};
 use crate::runtime::program::Program;
+use crate::type_theory::cic::elaboration::{
+    elaborate_expression, elaborate_statement,
+};
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -69,67 +60,6 @@ pub enum CicStm {
 }
 
 pub struct Cic;
-impl Cic {
-    pub fn elaborate_expression(ast: Expression) -> CicTerm {
-        match ast {
-            VarUse(var_name) => elaborate_var_use(var_name),
-            Abstraction(var_name, var_type, body) => {
-                elaborate_abstraction(var_name, *var_type, *body)
-            }
-            TypeProduct(var_name, var_type, body) => {
-                elaborate_type_product(var_name, *var_type, *body)
-            }
-            Application(left, right) => elaborate_application(*left, *right),
-            Match(matched_term, branches) => {
-                elaborate_match(*matched_term, branches)
-            }
-            Arrow(domain, codomain) => elaborate_arrow(*domain, *codomain),
-            // Meta() => CicTerm::Meta(())
-            _ => panic!("not implemented"),
-        }
-    }
-
-    pub fn elaborate_statement(
-        ast: Statement,
-        program: &mut Program<Cic>,
-    ) -> Result<(), String> {
-        match ast {
-            Comment() => Ok(()),
-            FileRoot(file_path, asts) => {
-                elaborate_file_root(program, file_path, asts)
-            }
-            Axiom(axiom_name, formula) => {
-                elaborate_axiom(program, axiom_name, *formula)
-            }
-            Let(var_name, var_type, body) => {
-                elaborate_let(program, var_name, var_type, *body)
-            }
-            Inductive(type_name, parameters, ariety, constructors) => {
-                elaborate_inductive(
-                    program,
-                    type_name,
-                    parameters,
-                    *ariety,
-                    constructors,
-                )
-            }
-            DirRoot(dirpath, asts) => {
-                elaborate_dir_root(program, dirpath, asts)
-            }
-            Fun(fun_name, args, out_type, body, is_rec) => {
-                elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
-            }
-            EmptyRoot(nodes) => elaborate_empty(program, nodes),
-            Theorem(theorem_name, formula, proof) => {
-                elaborate_theorem(program, theorem_name, formula, proof)
-            } // _ => Err(format!(
-              //     "Language construct {:?} not supported in CIC",
-              //     ast
-              // )),
-        }
-    }
-}
-
 impl TypeTheory for Cic {
     type Term = CicTerm;
     type Type = CicTerm;
@@ -144,19 +74,19 @@ impl TypeTheory for Cic {
         Environment::with_defaults(axioms, Vec::default(), vec![])
     }
 
-    fn elaborate_ast(ast: NsAst) -> Program<Cic> {
+    fn elaborate_ast(ast: LofAst) -> Program<Cic> {
         let mut program = Program::new();
 
         debug!("Elaboration of ast node {:?}", ast);
         match ast {
-            NsAst::Stm(stm) => {
-                match Cic::elaborate_statement(stm, &mut program) {
+            LofAst::Stm(stm) => {
+                match elaborate_statement(stm, &mut program) {
                     Err(message) => panic!("{}", message),
                     Ok(_) => {}
                 };
             }
-            NsAst::Exp(exp) => {
-                Cic::elaborate_expression(exp);
+            LofAst::Exp(exp) => {
+                elaborate_expression(exp);
             }
         }
 

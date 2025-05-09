@@ -23,9 +23,9 @@ pub enum Expression {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Comment(),
-    FileRoot(String, Vec<NsAst>),
-    DirRoot(String, Vec<NsAst>),
-    EmptyRoot(Vec<NsAst>),
+    FileRoot(String, Vec<LofAst>),
+    DirRoot(String, Vec<LofAst>),
+    EmptyRoot(Vec<LofAst>),
     Axiom(String, Box<Expression>),
     /// (theorem_name, formula, proof)
     Theorem(String, Expression, Union<Expression, Vec<Tactic>>),
@@ -54,7 +54,7 @@ pub enum Tactic {
     Suppose(String, Option<Expression>),
 }
 #[derive(Debug, PartialEq, Clone)]
-pub enum NsAst {
+pub enum LofAst {
     Stm(Statement),
     Exp(Expression),
 }
@@ -69,15 +69,18 @@ impl LofParser {
     }
 
     /// Top level parser for single nodes that wraps expressions and statements
-    pub fn parse_node<'a>(&'a self, input: &'a str) -> IResult<&'a str, NsAst> {
+    pub fn parse_node<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, LofAst> {
         alt((
-            map(|input| self.parse_expression(input), NsAst::Exp),
-            map(|input| self.parse_statement(input), NsAst::Stm),
-            map(|input| self.parse_theory_block(input), NsAst::Stm),
+            map(|input| self.parse_expression(input), LofAst::Exp),
+            map(|input| self.parse_statement(input), LofAst::Stm),
+            map(|input| self.parse_theory_block(input), LofAst::Stm),
         ))(input)
     }
 
-    pub fn parse_source_file(&self, filepath: &str) -> (String, NsAst) {
+    pub fn parse_source_file(&self, filepath: &str) -> (String, LofAst) {
         let source = match read_source_file(filepath) {
             Ok(content) => content,
             Err(e) => {
@@ -94,7 +97,7 @@ impl LofParser {
 
         (
             remaining_input.to_string(),
-            NsAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
+            LofAst::Stm(Statement::FileRoot(filepath.to_string(), terms)),
         )
     }
 
@@ -102,7 +105,7 @@ impl LofParser {
         &self,
         _config: &Config,
         workspace: &str,
-    ) -> Result<NsAst, String> {
+    ) -> Result<LofAst, String> {
         let lof_files: Vec<String> = list_sources(workspace);
         let mut asts = vec![];
         let mut errors = vec![];
@@ -125,6 +128,6 @@ impl LofParser {
         if !errors.is_empty() {
             return Err(errors.join("\n"));
         }
-        Ok(NsAst::Stm(Statement::DirRoot(workspace.to_string(), asts)))
+        Ok(LofAst::Stm(Statement::DirRoot(workspace.to_string(), asts)))
     }
 }

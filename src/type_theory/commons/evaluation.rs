@@ -69,8 +69,9 @@ pub fn generic_evaluate_fun<
     _is_rec: &bool,
     make_fun_type: F,
 ) -> () {
-    let fun_type = make_fun_type(&args, out_type);
+    let fun_type = make_fun_type(args, out_type);
     // TODO η-expand body cuz this aint it yungblood
+    // let full_body = eta_expand(args, body);
     // let body = T::eta_expand(body, ...) type shi
     environment.add_substitution_with_type(fun_name, body, &fun_type);
 }

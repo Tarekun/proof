@@ -1,5 +1,5 @@
 use super::api::Statement::Theorem;
-use super::api::{Expression, LofParser, NsAst, Statement};
+use super::api::{Expression, LofAst, LofParser, Statement};
 use crate::config::id_to_system;
 use crate::misc::Union;
 use nom::{
@@ -29,8 +29,8 @@ impl LofParser {
 
         let (_, ast) = self.parse_source_file(&format!("{}.lof", filepath));
         match ast {
-            NsAst::Stm(file_root_stm) => Ok((input, file_root_stm)),
-            NsAst::Exp(_exp) => panic!("fuck this type system fr"),
+            LofAst::Stm(file_root_stm) => Ok((input, file_root_stm)),
+            LofAst::Exp(_exp) => panic!("fuck this type system fr"),
         }
     }
     //
@@ -246,8 +246,8 @@ mod unit_tests {
         misc::Union,
         parser::api::{
             Expression::{Application, Arrow, VarUse},
+            LofAst::Exp,
             LofParser,
-            NsAst::Exp,
             Statement::{
                 self, Axiom, Comment, EmptyRoot, Inductive, Let, Theorem,
             },

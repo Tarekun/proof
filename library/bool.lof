@@ -39,3 +39,6 @@ fun if (T: TYPE) (exp: Bool) (ifTrue: Unit -> T) (ifFalse: Unit -> T) : T {
   | true => ifTrue it,
   | false => ifFalse it,
 }
+
+# temporary expression used to test if the infer operator works
+if ? true (\lambda i: Unit. false) (\lambda i: Unit. true)

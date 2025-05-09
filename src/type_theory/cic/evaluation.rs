@@ -1,19 +1,18 @@
 use core::panic;
 
 use super::cic::CicStm::{Axiom, Fun, Let, Theorem};
-use super::cic::CicTerm::{
-    Abstraction, Application, Match, Meta, Product, Sort, Variable,
-};
+use super::cic::CicTerm::{Abstraction, Application, Match, Product, Variable};
 use super::cic::{Cic, CicStm, CicTerm};
-use super::cic_utils::{make_multiarg_fun_type, substitute};
-use crate::misc::{simple_map, Union};
+use super::cic_utils::{eta_expand, make_multiarg_fun_type, substitute};
+use super::type_check::inductive_eliminator;
+use crate::misc::Union;
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic_utils::{
     application_args, get_applied_function,
 };
 use crate::type_theory::commons::evaluation::{
-    generic_evaluate_axiom, generic_evaluate_fun, generic_evaluate_let,
-    generic_evaluate_theorem, generic_reduce_variable,
+    generic_evaluate_axiom, generic_evaluate_let, generic_evaluate_theorem,
+    generic_reduce_variable,
 };
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -57,8 +56,8 @@ fn reduce_application(
     left: &CicTerm,
     right: &CicTerm,
 ) -> CicTerm {
-    if let Ok(fun_type) = Cic::type_check_term(&left, environment) {
-        match fun_type {
+    match Cic::type_check_term(&left, environment) {
+        Ok(fun_type) => match fun_type {
             Product(var_name, _, _) => {
                 // if left is function variable take its body, otherwise gets left back
                 let left_reduced = Cic::normalize_term(environment, left);
@@ -79,12 +78,13 @@ fn reduce_application(
                     left
                 );
             }
+        },
+        Err(message) => {
+            panic!(
+                "Trying to reduce an application of term {:?} that is ill-typed. This should have been caught sooner. Details {:?}",
+                left, message
+            );
         }
-    } else {
-        panic!(
-            "Trying to reduce an application of term {:?} that is ill-typed. This should have been caught sooner",
-            left
-        );
     }
 }
 //
@@ -126,7 +126,15 @@ pub fn evaluate_statement(
         Theorem(theorem_name, formula, proof) => {
             evaluate_theorem(environment, theorem_name, formula, proof)
         }
-        _ => (),
+        CicStm::InductiveDef(type_name, params, ariety, constructors) => {
+            evaluate_inductive(
+                environment,
+                type_name,
+                params,
+                ariety,
+                constructors,
+            )
+        }
     }
 }
 //
@@ -156,17 +164,20 @@ pub fn evaluate_fun(
     args: &Vec<(String, CicTerm)>,
     out_type: &CicTerm,
     body: &CicTerm,
-    is_rec: &bool,
+    _is_rec: &bool,
 ) -> () {
-    generic_evaluate_fun::<Cic, _>(
-        environment,
-        fun_name,
-        args,
-        out_type,
-        body,
-        is_rec,
-        make_multiarg_fun_type,
-    );
+    let fun_type = make_multiarg_fun_type(args, out_type);
+    let full_body = eta_expand(args, body);
+    environment.add_substitution_with_type(fun_name, &full_body, &fun_type);
+    // generic_evaluate_fun::<Cic, _>(
+    //     environment,
+    //     fun_name,
+    //     args,
+    //     out_type,
+    //     body,
+    //     is_rec,
+    //     make_multiarg_fun_type,
+    // );
 }
 //
 //
@@ -178,6 +189,32 @@ pub fn evaluate_theorem(
 ) -> () {
     generic_evaluate_theorem::<Cic>(environment, theorem_name, formula, proof);
 }
+//
+//
+pub fn evaluate_inductive(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    name: &str,
+    params: &Vec<(String, CicTerm)>,
+    ariety: &CicTerm,
+    constructors: &Vec<(String, CicTerm)>,
+) {
+    //TODO make a record of the full constructor list for match type checking
+    let ind_type = make_multiarg_fun_type(params, ariety);
+    environment.add_to_context(name, &ind_type);
+    for (constr_name, constr_type) in constructors {
+        environment.add_to_context(constr_name, constr_type);
+    }
+    environment.add_to_context(
+        &format!("e_{}", name),
+        &inductive_eliminator(
+            name.to_string(),
+            params.to_owned(),
+            ariety.to_owned(),
+            constructors.to_owned(),
+        ),
+    );
+}
+
 //########################### STATEMENTS EXECUTION
 //
 //########################### HELPER FUNCTIONS
