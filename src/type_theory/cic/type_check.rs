@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use super::cic::CicTerm::{Application, Product, Sort, Variable, Meta};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::{check_positivity, substitute_meta};
+use super::evaluation::evaluate_inductive;
 use super::unification::solve_unification;
 use crate::misc::{simple_map, simple_map_indexed, Union};
 use crate::parser::api::Tactic;
@@ -78,6 +79,36 @@ pub fn type_check_application(
     left: &CicTerm,
     right: &CicTerm,
 ) -> Result<CicTerm, String> {
+    fn solve_metas(
+        local_env: &mut Environment<CicTerm, CicTerm>,
+        arg_type: CicTerm, 
+        domain: CicTerm,
+    ) -> Result<(CicTerm, CicTerm, HashMap<i32, CicTerm>), String> {
+        // let mut unifier: HashMap<i32, CicTerm> = HashMap::new();
+        // let arg_type = if let Meta(index) = arg_type {
+        //     local_env.add_constraint(&arg_type, &domain);
+        //     unifier = solve_unification(local_env.get_constraints())?;
+        //     let resolved = unifier.get(&index).unwrap().to_owned();
+        //     resolved
+        // } else {
+        //     arg_type
+        // };
+        // let domain = if let Meta(index) = domain {
+        //     local_env.add_constraint(&domain, &arg_type);
+        //     unifier = solve_unification(local_env.get_constraints())?;
+        //     let resolved = unifier.get(&index).unwrap().to_owned();
+        //     resolved
+        // } else {
+        //     domain
+        // };
+        local_env.add_constraint(&domain, &arg_type);
+        let unifier = solve_unification(local_env.get_constraints())?;
+        let domain = instatiate_metas(&domain, &unifier);
+        let arg_type = instatiate_metas(&arg_type, &unifier);
+
+        Ok((arg_type, domain, unifier))
+    }
+
     fn type_check_nested_app(
         local_env: &mut Environment<CicTerm, CicTerm>,
         term: CicTerm,
@@ -91,31 +122,19 @@ pub fn type_check_application(
 
                 match function_type {
                     Product(var_name, domain, codomain) => {
-                        // perform unification first
-                        let mut unifier: HashMap<i32, CicTerm> = HashMap::new();
-
-                        //TODO should refactor this
-                        let arg_type = if let Meta(index) = arg_type {
-                            local_env.add_constraint(&arg_type, &domain);
-                            unifier = solve_unification(local_env.get_constraints())?;
-                            let resolved = unifier.get(&index).unwrap().to_owned();
-                            resolved
-                        } else {
-                            arg_type
-                        };
-                        let domain = if let Meta(index) = *domain {
-                            local_env.add_constraint(&domain, &arg_type);
-                            unifier = solve_unification(local_env.get_constraints())?;
-                            let resolved = unifier.get(&index).unwrap().to_owned();
-                            resolved
-                        } else {
+                        // solve metavariables in domain types before checking for equality
+                        let (arg_type, domain, unifier) = solve_metas(
+                            local_env, 
+                            arg_type, 
                             *domain
-                        };
+                        )?;
 
+                        // need to support alpha equivalence here
                         if equal_under_substitution(local_env, &domain, &arg_type) {
                             local_env.add_substitution_with_type(&var_name, &right, &arg_type);
                             let var_swapped = substitute(&codomain, &var_name, &right);
-                            let meta_swapped = instatiate_metas(&var_swapped, unifier);
+                            // solve possible metavariables of `right`
+                            let meta_swapped = instatiate_metas(&var_swapped, &unifier);
                             Ok(meta_swapped)
                         } else {
                             Err(format!(
@@ -306,7 +325,7 @@ pub fn type_check_axiom(
 //
 /// Given the values of an inductive type definition, returns the corresponding eliminator
 /// Reference that guided this implementation is Inductive Families by Peter Dybjer
-fn inductive_eliminator(
+pub fn inductive_eliminator(
     type_name: String,
     params: Vec<(String, CicTerm)>,
     ariety: CicTerm,
@@ -524,30 +543,6 @@ fn inductive_eliminator(
     full_parametrization
 }
 
-fn update_context_inductive(
-    environment: &mut Environment<CicTerm, CicTerm>,
-    name: &str,
-    params: &Vec<(String, CicTerm)>,
-    ariety: &CicTerm,
-    constructors: Vec<(String, CicTerm)>,
-) {
-    //TODO make a record of the full constructor list for match type checking
-    let ind_type = make_multiarg_fun_type(params, ariety);
-    environment.add_to_context(name, &ind_type);
-    for (constr_name, constr_type) in &constructors {
-        environment.add_to_context(constr_name, constr_type);
-    }
-    environment.add_to_context(
-        &format!("e_{}", name),
-        &inductive_eliminator(
-            name.to_string(), 
-            params.to_owned(), 
-            ariety.to_owned(), 
-            constructors
-        ),
-    );
-}
-
 pub fn type_check_inductive(
     environment: &mut Environment<CicTerm, CicTerm>,
     type_name: &str,
@@ -586,12 +581,12 @@ pub fn type_check_inductive(
         },
     )?;
 
-    update_context_inductive(
+    evaluate_inductive(
         environment,
         type_name,
         params,
         ariety,
-        constr_bindings,
+        &constr_bindings,
     );
     Ok(CicTerm::Variable("Unit".to_string()))
 }

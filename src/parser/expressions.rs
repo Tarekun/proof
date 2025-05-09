@@ -131,6 +131,7 @@ impl LofParser {
     ) -> IResult<&'a str, Expression> {
         alt((
             |input| self.parse_var(input),
+            |input| self.parse_meta(input),
             |input| self.parse_parens(input),
         ))(input)
     }
@@ -201,6 +202,7 @@ impl LofParser {
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         alt((
+            |input| self.parse_meta(input),
             |input| self.parse_abs(input),
             |input| self.parse_type_abs(input),
             |input| self.parse_arrow_type(input),
@@ -211,7 +213,6 @@ impl LofParser {
             |input| self.parse_var(input),
             |input| self.parse_parens(input),
             |input| self.parse_pattern_match(input),
-            |input| self.parse_meta(input),
         ))(input)
     }
 }
@@ -222,7 +223,11 @@ impl LofParser {
 mod unit_tests {
     use crate::{
         config::Config,
-        parser::api::{Expression, LofParser},
+        parser::api::{
+            Expression,
+            Expression::{Application, Meta, VarUse},
+            LofParser,
+        },
     };
 
     #[test]
@@ -484,5 +489,23 @@ mod unit_tests {
             parser.parse_expression("  ? ").is_ok(),
             "top level parser doesnt support the infer operator ?"
         );
+
+        assert_eq!(
+            parser.parse_expression("cons ? z l"),
+            Ok((
+                "",
+                Application(
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(VarUse("cons".to_string())),
+                            Box::new(Meta()),
+                        )),
+                        Box::new(VarUse("z".to_string()))
+                    )),
+                    Box::new(VarUse("l".to_string()))
+                )
+            )),
+            "Metavariable parser doesnt integrate with applications"
+        )
     }
 }

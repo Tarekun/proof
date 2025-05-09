@@ -1,4 +1,4 @@
-use crate::parser::api::NsAst;
+use crate::parser::api::LofAst;
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use std::fmt::Debug;
@@ -12,7 +12,7 @@ pub trait TypeTheory {
     type Stm: Debug + Clone;
 
     /// Elaborate a full AST into an environment.
-    fn elaborate_ast(ast: NsAst) -> Program<Self>
+    fn elaborate_ast(ast: LofAst) -> Program<Self>
     where
         Self: Sized;
 

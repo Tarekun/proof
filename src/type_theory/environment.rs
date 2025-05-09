@@ -6,20 +6,7 @@ pub struct Environment<Term, Type> {
     pub deltas: HashMap<String, Vec<Term>>,  //var_name, definition term, type
     pub atomic_types: HashMap<String, Type>, //type_name, type_obj
     constraints: Vec<(Term, Term)>,
-}
-
-pub struct MetaVariable {
-    pub index: i32,
-}
-impl MetaVariable {
-    pub fn new(index: i32) -> Self {
-        MetaVariable { index }
-    }
-}
-macro_rules! MetaVariable {
-    ($value:expr) => {
-        MetaVariable::new($value)
-    };
+    next_index: i32,
 }
 
 //TODO check if this cloning is really necessary or there's better ways
@@ -51,6 +38,7 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             deltas: deltas_map,
             atomic_types: atomic_types_map,
             constraints: vec![],
+            next_index: 0,
         }
     }
 
@@ -106,6 +94,12 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         if context_stack.len() == 0 {
             self.context.remove(name);
         }
+    }
+
+    /// Returns a fresh meta variable index
+    pub fn fresh_meta(&mut self) -> i32 {
+        self.next_index += 1;
+        return self.next_index - 1;
     }
     //
     //######################### ENV MANIPULATION
@@ -268,10 +262,6 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
             Some((_, var_type)) => Some(var_type.clone()),
             None => None,
         }
-    }
-
-    pub fn getdelta(&self) -> HashMap<String, Vec<Term>> {
-        self.deltas.clone()
     }
     //
     //######################### VARIABLE LOOKUPS

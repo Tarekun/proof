@@ -20,7 +20,7 @@ pub fn cic_unification(
 
 pub fn instatiate_metas(
     term: &CicTerm,
-    unifier: HashMap<i32, CicTerm>,
+    unifier: &HashMap<i32, CicTerm>,
 ) -> CicTerm {
     //TODO make this function efficient, this creates a quadratic cost
     let mut term = term.clone();

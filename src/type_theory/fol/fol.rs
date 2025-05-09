@@ -11,7 +11,7 @@ use super::type_check::{
     type_check_theorem, type_check_var,
 };
 use crate::misc::Union;
-use crate::parser::api::{Expression, NsAst, Statement, Tactic};
+use crate::parser::api::{Expression, LofAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
@@ -138,14 +138,14 @@ impl TypeTheory for Fol {
         )
     }
 
-    fn elaborate_ast(ast: NsAst) -> Program<Fol> {
+    fn elaborate_ast(ast: LofAst) -> Program<Fol> {
         let mut program = Program::new();
 
         match ast {
-            NsAst::Stm(stm) => {
+            LofAst::Stm(stm) => {
                 let _ = Fol::elaborate_statement(stm, &mut program);
             }
-            NsAst::Exp(exp) => {
+            LofAst::Exp(exp) => {
                 let _ = Fol::elaborate_expression(exp);
             }
         }

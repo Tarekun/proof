@@ -6,7 +6,7 @@ use crate::parser::api::{Statement, Tactic};
 use crate::{
     misc::Union,
     misc::Union::{L, R},
-    parser::api::{Expression, NsAst},
+    parser::api::{Expression, LofAst},
     runtime::program::Program,
 };
 use regex::Regex;
@@ -181,19 +181,19 @@ pub fn elaborate_forall(
 fn elaborate_ast_vector(
     program: &mut Program<Fol>,
     root: String,
-    asts: Vec<NsAst>,
+    asts: Vec<LofAst>,
 ) -> Result<(), String> {
     let mut errors: Vec<_> = vec![];
 
     for sub_ast in asts {
         match sub_ast {
-            NsAst::Stm(stm) => {
+            LofAst::Stm(stm) => {
                 match Fol::elaborate_statement(stm.clone(), program) {
                     Err(message) => errors.push(message),
                     Ok(_) => {}
                 }
             }
-            NsAst::Exp(exp) => {
+            LofAst::Exp(exp) => {
                 let exp = Fol::elaborate_expression(exp)?;
                 match exp {
                     Union::L(term) => program.push_term(&term),
@@ -218,7 +218,7 @@ fn elaborate_ast_vector(
 pub fn elaborate_file_root(
     program: &mut Program<Fol>,
     file_path: String,
-    asts: Vec<NsAst>,
+    asts: Vec<LofAst>,
 ) -> Result<(), String> {
     elaborate_ast_vector(program, file_path, asts)
 }
@@ -227,12 +227,12 @@ pub fn elaborate_file_root(
 pub fn elaborate_dir_root(
     program: &mut Program<Fol>,
     dir_path: String,
-    asts: Vec<NsAst>,
+    asts: Vec<LofAst>,
 ) -> Result<(), String> {
     // elaborate_ast_vector(program, dir_path, asts);
     for sub_ast in asts {
         match sub_ast {
-            NsAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
+            LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
                 let _ = elaborate_file_root(
                     program,
                     format!("{}/{}", dir_path, file_path),
@@ -378,7 +378,7 @@ pub fn elaborate_fun(
 //
 pub fn elaborate_empty(
     program: &mut Program<Fol>,
-    nodes: Vec<NsAst>,
+    nodes: Vec<LofAst>,
 ) -> Result<(), String> {
     elaborate_ast_vector(program, "".to_string(), nodes)
 }

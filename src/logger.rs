@@ -11,7 +11,8 @@ use tracing_subscriber::Registry;
 struct LocalTimer;
 impl FormatTime for LocalTimer {
     fn format_time(&self, w: &mut Writer<'_>) -> std::fmt::Result {
-        write!(w, "{}", Local::now().format("%Y-%m-%d %H:%M:%S"))
+        write!(w, "{}", Local::now().format("%H:%M:%S"))
+        // write!(w, "{}", Local::now().format("%Y-%m-%d %H:%M:%S"))
     }
 }
 

@@ -1,8 +1,8 @@
 use tracing::debug;
 
 use crate::config::Config;
+use crate::parser::api::LofAst;
 use crate::parser::api::LofParser;
-use crate::parser::api::NsAst;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
@@ -16,11 +16,11 @@ pub enum EntryPoint {
     Help,
 }
 
-pub fn parse_only(config: &Config, workspace: &str) -> Result<NsAst, String> {
-    debug!("Parsing of workspace: '{}'... ", workspace);
+pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
+    debug!("Parsing of workspace: '{}'...", workspace);
     let parser = LofParser::new(config.clone());
     let ast = parser.parse_workspace(config, &workspace)?;
-    debug!("Done.");
+    debug!("Parsing done.");
 
     Ok(ast)
 }
@@ -30,9 +30,9 @@ pub fn parse_and_elaborate<T: TypeTheory>(
     workspace: &str,
 ) -> Result<Program<T>, String> {
     let ast = parse_only(config, workspace)?;
-    debug!("Elaboration of the AST into a program... ");
+    debug!("Elaboration of the AST into a program...");
     let program = T::elaborate_ast(ast);
-    debug!("Done.");
+    debug!("Elaboration done.");
     Ok(program)
 }
 
@@ -41,7 +41,7 @@ pub fn type_check<T: TypeTheory>(
     workspace: &str,
 ) -> Result<Program<T>, String> {
     let program: Program<T> = parse_and_elaborate::<T>(config, workspace)?;
-    debug!("Type checking of the program... ");
+    debug!("Type checking of the program...");
     let mut environment: Environment<T::Term, T::Type> =
         T::default_environment();
     let mut errors = vec![];
@@ -66,7 +66,7 @@ pub fn type_check<T: TypeTheory>(
             }
         }
     }
-    debug!("Done.");
+    debug!("Type checking done.");
 
     if errors.is_empty() {
         Ok(program)
@@ -82,7 +82,7 @@ pub fn execute<T: TypeTheory>(
     config: &Config,
     workspace: &str,
 ) -> Result<(), String> {
-    let program: Program<T> = type_check(config, workspace)?;
+    let mut program: Program<T> = type_check(config, workspace)?;
     program.execute()
 }
 

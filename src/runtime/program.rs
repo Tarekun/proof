@@ -1,6 +1,6 @@
+use crate::runtime::program::ProgramNode::{OfStm, OfTerm};
+use crate::type_theory::{environment::Environment, interface::TypeTheory};
 use std::collections::VecDeque;
-
-use crate::type_theory::interface::TypeTheory;
 
 #[derive(Debug, PartialEq)]
 pub enum ProgramNode<Term, Stm> {
@@ -13,17 +13,17 @@ where
     T: TypeTheory,
 {
     schedule: VecDeque<ProgramNode<T::Term, T::Stm>>,
+    pub environment: Environment<T::Term, T::Type>,
 }
 
 impl<T> Program<T>
 where
     T: TypeTheory,
 {
-    pub fn new(/*reduce_term: F1, evaluate_statement: F2*/) -> Self {
+    pub fn new() -> Self {
         Program {
             schedule: VecDeque::new(),
-            // reduce_term,
-            // evaluate_statement,
+            environment: T::default_environment(),
         }
     }
 
@@ -50,17 +50,16 @@ where
     }
 
     /// Execute the prorgam schedule
-    pub fn execute(&self) -> Result<(), String> {
-        let mut runtime_env = T::default_environment();
+    pub fn execute(&mut self) -> Result<(), String> {
         for node in &self.schedule {
             match node {
-                ProgramNode::OfTerm(term) => {
+                OfTerm(term) => {
                     let _normal_form =
-                        T::normalize_term(&mut runtime_env, term);
+                        T::normalize_term(&mut self.environment, term);
                     //TODO do something with the result
                 }
-                ProgramNode::OfStm(stm) => {
-                    let _ = T::evaluate_statement(&mut runtime_env, stm);
+                OfStm(stm) => {
+                    let _ = T::evaluate_statement(&mut self.environment, stm);
                 }
             }
         }
