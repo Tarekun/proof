@@ -21,8 +21,8 @@ use tracing::debug;
 pub enum CicTerm {
     /// (sort name)
     Sort(String),
-    /// (var name)
-    Variable(String),
+    /// (var name, De Bruijn index)
+    Variable(String, i32),
     /// (var name, var type, body)
     Abstraction(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (var name, var type, body)
