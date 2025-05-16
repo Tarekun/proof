@@ -18,7 +18,8 @@ use crate::type_theory::commons::type_check::{
     generic_type_check_universal, generic_type_check_variable
 };
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::interface::Kernel;
+use crate::type_theory::interface::Refiner;
 
 //########################### EXPRESSIONS TYPE CHECKING
 //
@@ -587,5 +588,3 @@ pub fn type_check_inductive(
 //
 //
 //########################### HELPER FUNCTIONS
-//
-//########################### UNIT TESTS

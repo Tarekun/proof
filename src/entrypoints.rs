@@ -5,7 +5,7 @@ use crate::parser::api::LofAst;
 use crate::parser::api::LofParser;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::interface::{Kernel, Reducer, TypeTheory};
 
 #[derive(Debug)]
 pub enum EntryPoint {
@@ -25,7 +25,7 @@ pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
     Ok(ast)
 }
 
-pub fn parse_and_elaborate<T: TypeTheory>(
+pub fn parse_and_elaborate<T: TypeTheory + Kernel>(
     config: &Config,
     workspace: &str,
 ) -> Result<Program<T>, String> {
@@ -36,7 +36,7 @@ pub fn parse_and_elaborate<T: TypeTheory>(
     Ok(program)
 }
 
-pub fn type_check<T: TypeTheory>(
+pub fn type_check<T: TypeTheory + Kernel + Reducer>(
     config: &Config,
     workspace: &str,
 ) -> Result<Program<T>, String> {
@@ -78,7 +78,7 @@ pub fn type_check<T: TypeTheory>(
     }
 }
 
-pub fn execute<T: TypeTheory>(
+pub fn execute<T: TypeTheory + Kernel + Reducer>(
     config: &Config,
     workspace: &str,
 ) -> Result<(), String> {

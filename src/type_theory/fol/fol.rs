@@ -21,7 +21,7 @@ use crate::type_theory::fol::fol::FolTerm::{
 };
 use crate::type_theory::fol::fol::FolType::{Arrow, Atomic, ForAll};
 use crate::type_theory::fol::type_check::type_check_atomic;
-use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::interface::{Kernel, Reducer, Refiner, TypeTheory};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FolTerm {
@@ -137,7 +137,9 @@ impl TypeTheory for Fol {
             ],
         )
     }
+}
 
+impl Kernel for Fol {
     fn elaborate_ast(ast: LofAst) -> Program<Fol> {
         let mut program = Program::new();
 
@@ -209,7 +211,9 @@ impl TypeTheory for Fol {
             }
         }
     }
+}
 
+impl Refiner for Fol {
     fn terms_unify(
         _environment: &mut Environment<FolTerm, FolType>,
         term1: &FolTerm,
@@ -225,7 +229,9 @@ impl TypeTheory for Fol {
     ) -> bool {
         type1 == type2
     }
+}
 
+impl Reducer for Fol {
     fn normalize_term(
         environment: &mut Environment<FolTerm, FolType>,
         term: &FolTerm,
