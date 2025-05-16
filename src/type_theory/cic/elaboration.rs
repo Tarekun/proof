@@ -58,7 +58,6 @@ fn elaborate_ast_vector(
 //
 //########################### EXPRESSIONS ELABORATION
 /// Performs elaboration of the LoF `Expression` to a `CicTerm`.
-/// Uses the environment to create freshly indexed meta variables
 pub fn elaborate_expression(ast: &Expression) -> CicTerm {
     let elaborated = match ast {
         Expression::VarUse(var_name) => elaborate_var_use(var_name),

@@ -205,7 +205,7 @@ fn common_type_checking(
 ) -> Result<CicTerm, String> {
     match term {
         CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
-        CicTerm::Variable(var_name, dbi) => {
+        CicTerm::Variable(var_name, _) => {
             type_check_variable(environment, var_name)
         }
         CicTerm::Abstraction(var_name, var_type, body) => {

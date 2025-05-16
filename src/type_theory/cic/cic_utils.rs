@@ -1,4 +1,4 @@
-use crate::misc::simple_map;
+use crate::misc::{simple_map, simple_map_indexed};
 use crate::type_theory::cic::cic::{
     FIRST_INDEX, GLOBAL_INDEX, PLACEHOLDER_DBI,
 };
@@ -374,8 +374,37 @@ pub fn index_variables(term: &CicTerm) -> CicTerm {
                 Box::new(solver(right, current_dbi, bound_vars)),
             ),
             Match(matched_term, branches) => {
-                let branches = ();
-                term.to_owned()
+                let matched_term =
+                    solver(matched_term, current_dbi, bound_vars);
+
+                let branches = simple_map(
+                    branches.clone(),
+                    |(pattern, body): (Vec<CicTerm>, CicTerm)| {
+                        let constructor: CicTerm =
+                            solver(&pattern[0], current_dbi, bound_vars);
+                        let arguments: Vec<CicTerm> = simple_map_indexed(
+                            pattern[1..].to_vec(),
+                            |(index, arg)| {
+                                solver(
+                                    &arg,
+                                    current_dbi + index as i32,
+                                    bound_vars,
+                                )
+                            },
+                        );
+
+                        let args_len = arguments.len() as i32;
+                        let mut new_pattern: Vec<CicTerm> = vec![constructor];
+                        new_pattern.extend(arguments);
+
+                        (
+                            new_pattern,
+                            solver(&body, current_dbi + args_len, bound_vars),
+                        )
+                    },
+                );
+
+                Match(Box::new(matched_term), branches)
             }
         }
     }
@@ -386,109 +415,115 @@ pub fn index_variables(term: &CicTerm) -> CicTerm {
 #[cfg(test)]
 mod unit_tests {
     use crate::type_theory::cic::{
-        cic::CicTerm::{
-            Abstraction, Application, Match, Product, Sort, Variable,
+        cic::{
+            CicTerm::{
+                Abstraction, Application, Match, Product, Sort, Variable,
+            },
+            GLOBAL_INDEX, PLACEHOLDER_DBI,
         },
         cic_utils::index_variables,
     };
 
-    // #[test]
-    // fn test_index_variables() {
-    //     // Test 1: Simple variable
-    //     let var = Variable("x".to_string(), 0);
-    //     assert_eq!(index_variables(&var), var);
+    #[test]
+    fn test_index_variables() {
+        assert_eq!(
+            index_variables(&Variable("x".to_string(), PLACEHOLDER_DBI)),
+            Variable("x".to_string(), GLOBAL_INDEX),
+            "Variable indexer doesnt use the global index properly"
+        );
 
-    //     // Test 2: Abstraction with one variable
-    //     let abs = Abstraction(
-    //         "y".to_string(),
-    //         Box::new(Sort("TYPE".to_string())),
-    //         Box::new(Variable("z".to_string(), 0)),
-    //     );
-    //     let expected_abs = Abstraction(
-    //         "y".to_string(),
-    //         Box::new(Sort("TYPE".to_string())),
-    //         Box::new(Variable("z".to_string(), 1)),
-    //     );
-    //     assert_eq!(index_variables(&abs), expected_abs);
+        assert_eq!(
+            index_variables(&Abstraction(
+                "y".to_string(),
+                Box::new(Sort("TYPE".to_string())),
+                Box::new(Variable("y".to_string(), PLACEHOLDER_DBI)),
+            )),
+            Abstraction(
+                "y".to_string(),
+                Box::new(Sort("TYPE".to_string())),
+                Box::new(Variable("y".to_string(), 0)),
+            ),
+            "Abstraction indexing not working"
+        );
 
-    //     // Test 3: Nested abstraction
-    //     let nested_abs = Abstraction(
-    //         "a".to_string(),
-    //         Box::new(Abstraction(
-    //             "b".to_string(),
-    //             Box::new(Sort("TYPE".to_string())),
-    //             Box::new(Variable("c".to_string(), 0)),
-    //         )),
-    //         Box::new(Variable("d".to_string(), 0)),
-    //     );
-    //     let expected_nested_abs = Abstraction(
-    //         "a".to_string(),
-    //         Box::new(Abstraction(
-    //             "b".to_string(),
-    //             Box::new(Sort("TYPE".to_string())),
-    //             Box::new(Variable("c".to_string(), 2)),
-    //         )),
-    //         Box::new(Variable("d".to_string(), 1)),
-    //     );
-    //     assert_eq!(index_variables(&nested_abs), expected_nested_abs);
+        assert_eq!(
+            index_variables(&Abstraction(
+                "a".to_string(),
+                Box::new(Variable("Unit".to_string(), PLACEHOLDER_DBI)),
+                Box::new(Abstraction(
+                    "b".to_string(),
+                    Box::new(Sort("TYPE".to_string())),
+                    Box::new(Variable("b".to_string(), PLACEHOLDER_DBI)),
+                )),
+            )),
+            Abstraction(
+                "a".to_string(),
+                Box::new(Variable("Unit".to_string(), GLOBAL_INDEX)),
+                Box::new(Abstraction(
+                    "b".to_string(),
+                    Box::new(Sort("TYPE".to_string())),
+                    Box::new(Variable("b".to_string(), 1)),
+                )),
+            )
+        );
 
-    //     // Test 4: Application with variables
-    //     let app = Application(
-    //         Box::new(Abstraction(
-    //             "f".to_string(),
-    //             Box::new(Sort("TYPE".to_string())),
-    //             Box::new(Variable("x".to_string(), 0)),
-    //         )),
-    //         Box::new(Variable("y".to_string(), 0)),
-    //     );
-    //     let expected_app = Application(
-    //         Box::new(Abstraction(
-    //             "f".to_string(),
-    //             Box::new(Sort("TYPE".to_string())),
-    //             Box::new(Variable("x".to_string(), 1)),
-    //         )),
-    //         Box::new(Variable("y".to_string(), 0)),
-    //     );
-    //     assert_eq!(index_variables(&app), expected_app);
+        // // Test 4: Application with variables
+        // let app = Application(
+        //     Box::new(Abstraction(
+        //         "f".to_string(),
+        //         Box::new(Sort("TYPE".to_string())),
+        //         Box::new(Variable("x".to_string(), 0)),
+        //     )),
+        //     Box::new(Variable("y".to_string(), 0)),
+        // );
+        // let expected_app = Application(
+        //     Box::new(Abstraction(
+        //         "f".to_string(),
+        //         Box::new(Sort("TYPE".to_string())),
+        //         Box::new(Variable("x".to_string(), 1)),
+        //     )),
+        //     Box::new(Variable("y".to_string(), 0)),
+        // );
+        // assert_eq!(index_variables(&app), expected_app);
 
-    //     // Test 5: Product with variables
-    //     let prod = Product(
-    //         "f".to_string(),
-    //         Box::new(Sort("TYPE".to_string())),
-    //         Box::new(Abstraction(
-    //             "x".to_string(),
-    //             Box::new(Sort("TYPE".to_string())),
-    //             Box::new(Variable("y".to_string(), 0)),
-    //         )),
-    //     );
-    //     let expected_prod = Product(
-    //         "f".to_string(),
-    //         Box::new(Sort("TYPE".to_string())),
-    //         Box::new(Abstraction(
-    //             "x".to_string(),
-    //             Box::new(Sort("TYPE".to_string())),
-    //             Box::new(Variable("y".to_string(), 2)),
-    //         )),
-    //     );
-    //     assert_eq!(index_variables(&prod), expected_prod);
+        // // Test 5: Product with variables
+        // let prod = Product(
+        //     "f".to_string(),
+        //     Box::new(Sort("TYPE".to_string())),
+        //     Box::new(Abstraction(
+        //         "x".to_string(),
+        //         Box::new(Sort("TYPE".to_string())),
+        //         Box::new(Variable("y".to_string(), 0)),
+        //     )),
+        // );
+        // let expected_prod = Product(
+        //     "f".to_string(),
+        //     Box::new(Sort("TYPE".to_string())),
+        //     Box::new(Abstraction(
+        //         "x".to_string(),
+        //         Box::new(Sort("TYPE".to_string())),
+        //         Box::new(Variable("y".to_string(), 2)),
+        //     )),
+        // );
+        // assert_eq!(index_variables(&prod), expected_prod);
 
-    //     // Test 6: Match with variables
-    //     // let match_term = Match(
-    //     //     Box::new(Variable("x".to_string(), 0)),
-    //     //     vec![
-    //     //         vec![Variable("y".to_string(), 0)],
-    //     //         vec![Variable("z".to_string(), 0)],
-    //     //     ],
-    //     // );
-    //     // let expected_match = Match(
-    //     //     Box::new(Variable("x".to_string(), 0)),
-    //     //     vec![
-    //     //         vec![Variable("y".to_string(), 1)],
-    //     //         vec![Variable("z".to_string(), 2)],
-    //     //     ],
-    //     // );
-    //     // assert_eq!(index_variables(&match_term), expected_match);
-    // }
+        // Test 6: Match with variables
+        // let match_term = Match(
+        //     Box::new(Variable("x".to_string(), 0)),
+        //     vec![
+        //         vec![Variable("y".to_string(), 0)],
+        //         vec![Variable("z".to_string(), 0)],
+        //     ],
+        // );
+        // let expected_match = Match(
+        //     Box::new(Variable("x".to_string(), 0)),
+        //     vec![
+        //         vec![Variable("y".to_string(), 1)],
+        //         vec![Variable("z".to_string(), 2)],
+        //     ],
+        // );
+        // assert_eq!(index_variables(&match_term), expected_match);
+    }
 
     // #[test]
     // fn test_delta_reduce() {
