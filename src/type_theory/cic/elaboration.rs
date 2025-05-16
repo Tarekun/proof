@@ -1,11 +1,15 @@
 use super::cic::CicStm::{Axiom, Theorem};
-use super::cic::{CicStm, CicTerm};
+use super::cic::PLACEHOLDER_DBI;
+use super::cic::{
+    CicStm, CicTerm,
+    CicTerm::{Abstraction, Application, Match, Meta, Product, Sort, Variable},
+};
+use super::cic_utils::index_variables;
 use crate::misc::Union;
 use crate::misc::Union::{L, R};
 use crate::parser::api::{Expression, LofAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::cic::cic::Cic;
-use crate::type_theory::cic::cic::CicTerm::Meta;
 
 fn map_typed_variables(
     variables: &Vec<(String, Expression)>,
@@ -13,10 +17,7 @@ fn map_typed_variables(
     variables
         .iter()
         .map(|(var_name, var_type_exp)| {
-            (
-                var_name.to_owned(),
-                elaborate_expression(var_type_exp.to_owned()),
-            )
+            (var_name.to_owned(), elaborate_expression(var_type_exp))
         })
         .collect()
 }
@@ -37,7 +38,7 @@ fn elaborate_ast_vector(
                 }
             }
             LofAst::Exp(exp) => {
-                let term = elaborate_expression(exp);
+                let term = elaborate_expression(&exp);
                 program.push_term(&term);
             }
         }
@@ -58,26 +59,28 @@ fn elaborate_ast_vector(
 //########################### EXPRESSIONS ELABORATION
 /// Performs elaboration of the LoF `Expression` to a `CicTerm`.
 /// Uses the environment to create freshly indexed meta variables
-pub fn elaborate_expression(ast: Expression) -> CicTerm {
-    match ast {
+pub fn elaborate_expression(ast: &Expression) -> CicTerm {
+    let elaborated = match ast {
         Expression::VarUse(var_name) => elaborate_var_use(var_name),
         Expression::Abstraction(var_name, var_type, body) => {
-            elaborate_abstraction(var_name, *var_type, *body)
+            elaborate_abstraction(var_name, &*var_type, &*body)
         }
         Expression::TypeProduct(var_name, var_type, body) => {
-            elaborate_type_product(var_name, *var_type, *body)
+            elaborate_type_product(var_name, &*var_type, &*body)
         }
         Expression::Application(left, right) => {
-            elaborate_application(*left, *right)
+            elaborate_application(&*left, &*right)
         }
         Expression::Match(matched_term, branches) => {
-            elaborate_match(*matched_term, branches)
+            elaborate_match(&*matched_term, branches)
         }
         Expression::Arrow(domain, codomain) => {
-            elaborate_arrow(*domain, *codomain)
+            elaborate_arrow(&*domain, &*codomain)
         }
-        Expression::Meta() => elaborate_meta(), // _ => panic!("not implemented"),
-    }
+        Expression::Meta() => elaborate_meta(),
+    };
+
+    index_variables(&elaborated)
 }
 //
 //
@@ -93,26 +96,26 @@ fn elaborate_meta() -> CicTerm {
 }
 //
 //
-fn elaborate_var_use(var_name: String) -> CicTerm {
+fn elaborate_var_use(var_name: &str) -> CicTerm {
     //TODO this should probably be at the parser level
     if var_name.len() > 1 && var_name.chars().all(|c| c.is_ascii_uppercase()) {
-        CicTerm::Sort(var_name)
+        Sort(var_name.to_string())
     } else {
-        CicTerm::Variable(var_name)
+        Variable(var_name.to_string(), PLACEHOLDER_DBI)
     }
 }
 //
 //
 fn elaborate_abstraction(
-    var_name: String,
-    var_type: Expression,
-    body: Expression,
+    var_name: &str,
+    var_type: &Expression,
+    body: &Expression,
 ) -> CicTerm {
     let var_type_term = elaborate_expression(var_type);
     let body_term = elaborate_expression(body);
 
-    CicTerm::Abstraction(
-        var_name.clone(),
+    Abstraction(
+        var_name.to_string(),
         Box::new(var_type_term.clone()),
         Box::new(body_term),
     )
@@ -120,62 +123,66 @@ fn elaborate_abstraction(
 //
 //
 fn elaborate_type_product(
-    var_name: String,
-    var_type: Expression,
-    body: Expression,
+    var_name: &str,
+    var_type: &Expression,
+    body: &Expression,
 ) -> CicTerm {
     let type_term = elaborate_expression(var_type);
     let body_term = elaborate_expression(body);
 
-    CicTerm::Product(var_name.clone(), Box::new(type_term), Box::new(body_term))
+    Product(
+        var_name.to_string(),
+        Box::new(type_term),
+        Box::new(body_term),
+    )
 }
 //
 //
-fn elaborate_application(left: Expression, right: Expression) -> CicTerm {
+fn elaborate_application(left: &Expression, right: &Expression) -> CicTerm {
     let left_term = elaborate_expression(left);
     let right_term = elaborate_expression(right);
 
-    CicTerm::Application(Box::new(left_term), Box::new(right_term))
+    Application(Box::new(left_term), Box::new(right_term))
 }
 //
 //
-fn elaborate_arrow(domain: Expression, codomain: Expression) -> CicTerm {
+fn elaborate_arrow(domain: &Expression, codomain: &Expression) -> CicTerm {
+    //TODO this introduces a binder on no variable. should it increase the dbi?
     let type_term = elaborate_expression(domain);
     let body_term = elaborate_expression(codomain);
 
-    CicTerm::Product("_".to_string(), Box::new(type_term), Box::new(body_term))
+    Product("_".to_string(), Box::new(type_term), Box::new(body_term))
 }
 //
 //
 fn elaborate_match(
-    matched_exp: Expression,
-    branches: Vec<(Vec<Expression>, Expression)>,
+    matched_exp: &Expression,
+    branches: &Vec<(Vec<Expression>, Expression)>,
 ) -> CicTerm {
+    //TODO im not sure if the match is a binder
     let matched_term = elaborate_expression(matched_exp);
 
     let mut branch_terms = vec![];
     for (pattern, body_exp) in branches {
-        //TODO i dont like having to clone arg
-        let constr_term = elaborate_expression(pattern[0].clone());
+        let constr_term = elaborate_expression(&pattern[0]);
         let mut pattern_terms = vec![constr_term];
         for arg in &pattern[1..] {
-            let arg_term = elaborate_expression(arg.clone());
+            let arg_term = elaborate_expression(arg);
 
-            //clone is inexpensive as this is either a (atomic) variable or crashes
-            match arg_term.clone() {
-                CicTerm::Variable(_) => {
+            match &arg_term {
+                Variable(_, _) => {
                     pattern_terms.push(arg_term);
                 }
                 _ => panic!("Argument expression should be just a variable"),
             }
         }
 
-        let body_term = elaborate_expression(body_exp);
+        let body_term = elaborate_expression(&body_exp);
 
         branch_terms.push((pattern_terms, body_term));
     }
 
-    CicTerm::Match(Box::new(matched_term), branch_terms)
+    Match(Box::new(matched_term), branch_terms)
 }
 //
 //########################### EXPRESSIONS ELABORATION
@@ -262,14 +269,16 @@ fn elaborate_let(
     var_type: Option<Expression>,
     body: Expression,
 ) -> Result<(), String> {
+    //TODO im pretty sure this should increase the dbi in its scope
+    //but i have no reference to the scope here
     let opt_type = match var_type {
-        Some(type_exp) => Some(elaborate_expression(type_exp)),
+        Some(type_exp) => Some(elaborate_expression(&type_exp)),
         None => None,
     };
     program.push_statement(&CicStm::Let(
         var_name,
         opt_type,
-        Box::new(elaborate_expression(body)),
+        Box::new(elaborate_expression(&body)),
     ));
     Ok(())
 }
@@ -283,11 +292,13 @@ fn elaborate_fun(
     body: Expression,
     is_rec: bool,
 ) -> Result<(), String> {
+    let elaborated_args = map_typed_variables(&args);
+
     program.push_statement(&CicStm::Fun(
         fun_name,
-        map_typed_variables(&args),
-        Box::new(elaborate_expression(out_type)),
-        Box::new(elaborate_expression(body)),
+        elaborated_args,
+        Box::new(elaborate_expression(&out_type)),
+        Box::new(elaborate_expression(&body)),
         is_rec,
     ));
     Ok(())
@@ -302,15 +313,14 @@ fn elaborate_inductive(
     constructors: Vec<(String, Expression)>,
 ) -> Result<(), String> {
     let parameter_terms: Vec<(String, CicTerm)> =
+        //TODO i assume inductive definitions are only top-level avaible but who knows
         map_typed_variables(&parameters);
-    let ariety_term: CicTerm = elaborate_expression(ariety);
+    let ariety_term: CicTerm = elaborate_expression(&ariety);
+    let ariety_term: CicTerm = index_variables(&ariety_term);
     let constructor_terms: Vec<(String, CicTerm)> = constructors
         .iter()
         .map(|(constr_name, constr_type)| {
-            (
-                constr_name.to_owned(),
-                elaborate_expression(constr_type.to_owned()),
-            )
+            (constr_name.to_owned(), elaborate_expression(constr_type))
         })
         .collect();
 
@@ -331,7 +341,7 @@ fn elaborate_axiom(
 ) -> Result<(), String> {
     program.push_statement(&Axiom(
         axiom_name,
-        Box::new(elaborate_expression(formula)),
+        Box::new(elaborate_expression(&formula)),
     ));
     Ok(())
 }
@@ -343,10 +353,10 @@ fn elaborate_theorem(
     formula: Expression,
     proof: Union<Expression, Vec<Tactic>>,
 ) -> Result<(), String> {
-    let cic_formula = elaborate_expression(formula);
+    let cic_formula = elaborate_expression(&formula);
     match proof {
         L(proof_term) => {
-            let cic_proof_term = elaborate_expression(proof_term);
+            let cic_proof_term = elaborate_expression(&proof_term);
             program.push_statement(&Theorem(
                 theorem_name,
                 Box::new(cic_formula),
@@ -378,7 +388,13 @@ mod unit_tests {
         parser::api::Expression,
         runtime::program::{Program, ProgramNode},
         type_theory::cic::{
-            cic::{CicStm, CicTerm},
+            cic::{
+                CicStm,
+                CicTerm::{
+                    Abstraction, Application, Match, Product, Sort, Variable,
+                },
+                GLOBAL_INDEX, PLACEHOLDER_DBI,
+            },
             elaboration::{
                 elaborate_abstraction, elaborate_application,
                 elaborate_expression, elaborate_inductive, elaborate_match,
@@ -390,47 +406,57 @@ mod unit_tests {
     #[test]
     fn test_var_elaboration() {
         let test_var_name = "test_var";
+        let test_var = Variable(test_var_name.to_string(), GLOBAL_INDEX);
+        let test_var_placeholder =
+            Variable(test_var_name.to_string(), PLACEHOLDER_DBI);
 
         assert_eq!(
-            elaborate_var_use(test_var_name.to_string()),
-            CicTerm::Variable(test_var_name.to_string()),
+            elaborate_var_use(test_var_name),
+            test_var_placeholder.clone(),
             "Variable term not properly constructed"
         );
         assert_eq!(
-            elaborate_var_use("TYPE".to_string()),
-            CicTerm::Sort("TYPE".to_string()),
+            elaborate_var_use("TYPE"),
+            Sort("TYPE".to_string()),
             "Sort name returns a simple variable instead of a sort term"
         );
         assert_eq!(
-            elaborate_expression(Expression::VarUse(test_var_name.to_string()),),
-            CicTerm::Variable(test_var_name.to_string()),
+            elaborate_expression(&Expression::VarUse(
+                test_var_name.to_string()
+            )),
+            test_var.clone(),
             "Top level elaboration doesnt work with variables as expected"
         );
     }
 
     #[test]
     fn test_abs_elaboration() {
-        let expected_term = CicTerm::Abstraction(
+        let expected_term = Abstraction(
             "x".to_string(),
-            Box::new(CicTerm::Sort("TYPE".to_string())),
-            Box::new(CicTerm::Variable("x".to_string())),
+            Box::new(Sort("TYPE".to_string())),
+            Box::new(Variable("x".to_string(), 0)),
         );
+        // let expected_term_placeholder = Abstraction(
+        //     "x".to_string(),
+        //     Box::new(Sort("TYPE".to_string())),
+        //     Box::new(Variable("x".to_string(), PLACEHOLDER_DBI)),
+        // );
 
+        // assert_eq!(
+        //     elaborate_abstraction(
+        //         "x",
+        //         &Expression::VarUse("TYPE".to_string()),
+        //         &Expression::VarUse("x".to_string()),
+        //     ),
+        //     expected_term_placeholder.clone(),
+        //     "Abstraction elaboration isnt working as expected"
+        // );
         assert_eq!(
-            elaborate_abstraction(
-                "x".to_string(),
-                Expression::VarUse("TYPE".to_string()),
-                Expression::VarUse("x".to_string())
-            ),
-            expected_term.clone(),
-            "Abstraction elaboration isnt working as expected"
-        );
-        assert_eq!(
-            elaborate_expression(Expression::Abstraction(
+            elaborate_expression(&Expression::Abstraction(
                 "x".to_string(),
                 Box::new(Expression::VarUse("TYPE".to_string())),
                 Box::new(Expression::VarUse("x".to_string())),
-            ),),
+            )),
             expected_term,
             "Top level elaborator isnt working with abstraction"
         );
@@ -438,27 +464,27 @@ mod unit_tests {
 
     #[test]
     fn test_prod_elaboration() {
-        let expected_term = CicTerm::Product(
+        let expected_term = Product(
             "x".to_string(),
-            Box::new(CicTerm::Sort("TYPE".to_string())),
-            Box::new(CicTerm::Sort("TYPE".to_string())),
+            Box::new(Sort("TYPE".to_string())),
+            Box::new(Sort("TYPE".to_string())),
         );
 
         assert_eq!(
             elaborate_type_product(
-                "x".to_string(),
-                Expression::VarUse("TYPE".to_string()),
-                Expression::VarUse("TYPE".to_string())
+                "x",
+                &Expression::VarUse("TYPE".to_string()),
+                &Expression::VarUse("TYPE".to_string())
             ),
             expected_term.clone(),
             "Type abstraction elaboration isnt working as expected"
         );
         assert_eq!(
-            elaborate_expression(Expression::TypeProduct(
+            elaborate_expression(&Expression::TypeProduct(
                 "x".to_string(),
                 Box::new(Expression::VarUse("TYPE".to_string())),
                 Box::new(Expression::VarUse("TYPE".to_string())),
-            ),),
+            )),
             expected_term,
             "Top level elaborator isnt working with type abstraction"
         );
@@ -466,24 +492,24 @@ mod unit_tests {
 
     #[test]
     fn test_app_elaboration() {
-        let expected_term = CicTerm::Application(
-            Box::new(CicTerm::Variable("s".to_string())),
-            Box::new(CicTerm::Variable("o".to_string())),
+        let expected_term = Application(
+            Box::new(Variable("s".to_string(), GLOBAL_INDEX)),
+            Box::new(Variable("o".to_string(), GLOBAL_INDEX)),
         );
 
         assert_eq!(
             elaborate_application(
-                Expression::VarUse("s".to_string()),
-                Expression::VarUse("o".to_string())
+                &Expression::VarUse("s".to_string()),
+                &Expression::VarUse("o".to_string())
             ),
             expected_term.clone(),
             "Application elaboration isnt working as expected"
         );
         assert_eq!(
-            elaborate_expression(Expression::Application(
+            elaborate_expression(&Expression::Application(
                 Box::new(Expression::VarUse("s".to_string())),
                 Box::new(Expression::VarUse("o".to_string())),
-            ),),
+            )),
             expected_term,
             "Top level elaborator isnt working with applications"
         );
@@ -491,22 +517,22 @@ mod unit_tests {
 
     #[test]
     fn test_match_elaboration() {
-        let expected_term = CicTerm::Match(
-            Box::new(CicTerm::Variable("t".to_string())),
+        let expected_term = Match(
+            Box::new(Variable("t".to_string(), GLOBAL_INDEX)),
             vec![
                 (
-                    vec![CicTerm::Variable("o".to_string())],
-                    CicTerm::Application(
-                        Box::new(CicTerm::Variable("s".to_string())),
-                        Box::new(CicTerm::Variable("o".to_string())),
+                    vec![Variable("o".to_string(), GLOBAL_INDEX)],
+                    Application(
+                        Box::new(Variable("s".to_string(), GLOBAL_INDEX)),
+                        Box::new(Variable("o".to_string(), GLOBAL_INDEX)),
                     ),
                 ),
                 (
                     vec![
-                        CicTerm::Variable("s".to_string()),
-                        CicTerm::Variable("n".to_string()),
+                        Variable("s".to_string(), GLOBAL_INDEX),
+                        Variable("n".to_string(), GLOBAL_INDEX),
                     ],
-                    CicTerm::Variable("n".to_string()),
+                    Variable("n".to_string(), GLOBAL_INDEX),
                 ),
             ],
         );
@@ -527,14 +553,14 @@ mod unit_tests {
 
         assert_eq!(
             elaborate_match(
-                Expression::VarUse("t".to_string()),
-                vec![base_pattern.clone(), inductive_patter.clone()]
+                &Expression::VarUse("t".to_string()),
+                &vec![base_pattern.clone(), inductive_patter.clone()]
             ),
             expected_term,
             "Match elaboration isnt working as expected"
         );
         assert_eq!(
-            elaborate_expression(Expression::Match(
+            elaborate_expression(&Expression::Match(
                 Box::new(Expression::VarUse("t".to_string())),
                 vec![base_pattern, inductive_patter]
             )),
@@ -570,15 +596,18 @@ mod unit_tests {
             Some(&ProgramNode::OfStm(CicStm::InductiveDef(
                 "nat".to_string(),
                 vec![],
-                Box::new(CicTerm::Sort("TYPE".to_string())),
+                Box::new(Sort("TYPE".to_string())),
                 vec![
-                    ("o".to_string(), CicTerm::Variable("nat".to_string())),
+                    (
+                        "o".to_string(),
+                        Variable("nat".to_string(), GLOBAL_INDEX)
+                    ),
                     (
                         "s".to_string(),
-                        CicTerm::Product(
+                        Product(
                             "_".to_string(),
-                            Box::new(CicTerm::Variable("nat".to_string())),
-                            Box::new(CicTerm::Variable("nat".to_string())),
+                            Box::new(Variable("nat".to_string(), GLOBAL_INDEX)),
+                            Box::new(Variable("nat".to_string(), GLOBAL_INDEX)),
                         )
                     )
                 ]

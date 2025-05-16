@@ -23,7 +23,7 @@ pub fn one_step_reduction(
     term: &CicTerm,
 ) -> CicTerm {
     match term {
-        Variable(var_name) => reduce_variable(environment, var_name, term),
+        Variable(var_name, _) => reduce_variable(environment, var_name, term),
         Application(left, right) => {
             reduce_application(environment, left, right)
         }
@@ -237,6 +237,7 @@ mod unit_tests {
             cic::{
                 Cic,
                 CicTerm::{Abstraction, Application, Product, Sort, Variable},
+                GLOBAL_INDEX,
             },
             evaluation::{
                 matches_pattern, reduce_application, reduce_match,
@@ -248,29 +249,23 @@ mod unit_tests {
 
     #[test]
     fn test_check_pattern_matching() {
+        let zero = Variable("z".to_string(), GLOBAL_INDEX);
+        let succ = Variable("s".to_string(), GLOBAL_INDEX);
+
         assert!(
-            matches_pattern(
-                &Variable("z".to_string()),
-                &vec![Variable("z".to_string())]
-            ),
+            matches_pattern(&zero, &vec![zero.clone()]),
             "Pattern matching refutes identical constants"
         );
         assert!(
-            !matches_pattern(
-                &Variable("z".to_string()),
-                &vec![Variable("s".to_string())]
-            ),
+            !matches_pattern(&zero, &vec![succ.clone()]),
             "Pattern matching accepts different constants"
         );
         assert!(
             matches_pattern(
-                &Application(
-                    Box::new(Variable("s".to_string())),
-                    Box::new(Variable("z".to_string())),
-                ),
+                &Application(Box::new(succ.clone()), Box::new(zero.clone())),
                 &vec![
-                    Variable("s".to_string()),
-                    Variable("renamed_argument".to_string()),
+                    succ.clone(),
+                    Variable("renamed_argument".to_string(), 0),
                 ]
             ),
             "Pattern matching refutes application with renamed argument"
@@ -279,12 +274,12 @@ mod unit_tests {
             !matches_pattern(
                 &Application(
                     Box::new(Application(
-                        Box::new(Variable("cons".to_string())),
-                        Box::new(Variable("z".to_string())),
+                        Box::new(Variable("cons".to_string(), GLOBAL_INDEX)),
+                        Box::new(zero.clone()),
                     )),
-                    Box::new(Variable("l".to_string()))
+                    Box::new(Variable("l".to_string(), GLOBAL_INDEX))
                 ),
-                &vec![Variable("cons".to_string()), Variable("z".to_string()),]
+                &vec![Variable("cons".to_string(), GLOBAL_INDEX), zero]
             ),
             "Pattern matching accepts only partial pattern"
         );
@@ -295,7 +290,7 @@ mod unit_tests {
         let mut test_env = Cic::default_environment();
         test_env.add_substitution_with_type(
             "test",
-            &Variable("Unit".to_string()),
+            &Variable("Unit".to_string(), GLOBAL_INDEX),
             &Sort("TYPE".to_string()),
         );
 
@@ -303,69 +298,69 @@ mod unit_tests {
             reduce_variable(
                 &test_env,
                 "constant",
-                &Variable("constant".to_string()),
+                &Variable("constant".to_string(), GLOBAL_INDEX),
             ),
-            Variable("constant".to_string()),
+            Variable("constant".to_string(), GLOBAL_INDEX),
             "Constant δ-reduces to something other than itself"
         );
         assert_eq!(
-            reduce_variable(&test_env, "test", &Variable("test".to_string())),
-            Variable("Unit".to_string()),
+            reduce_variable(
+                &test_env,
+                "test",
+                &Variable("test".to_string(), 0)
+            ),
+            Variable("Unit".to_string(), GLOBAL_INDEX),
             "Defined variable doesnt δ-reduce to its body"
         );
     }
 
     #[test]
     fn test_app_reduction() {
+        let nat = Variable("Nat".to_string(), GLOBAL_INDEX);
+        let succ = Variable("s".to_string(), GLOBAL_INDEX);
+        let zero = Variable("z".to_string(), GLOBAL_INDEX);
         let mut test_env = Cic::default_environment();
         test_env.add_to_context("Nat", &Sort("TYPE".to_string()));
-        test_env.add_to_context("z", &Variable("Nat".to_string()));
+        test_env.add_to_context("z", &nat);
         test_env.add_to_context(
             "s",
             &Product(
                 "".to_string(),
-                Box::new(Variable("Nat".to_string())),
-                Box::new(Variable("Nat".to_string())),
+                Box::new(nat.clone()),
+                Box::new(nat.clone()),
             ),
         );
         test_env.add_substitution_with_type(
             "add_one",
             &Abstraction(
                 "n".to_string(),
-                Box::new(Variable("Nat".to_string())),
+                Box::new(nat.clone()),
                 Box::new(Application(
-                    Box::new(Variable("s".to_string())),
-                    Box::new(Variable("n".to_string())),
+                    Box::new(succ.clone()),
+                    Box::new(Variable("n".to_string(), 0)),
                 )),
             ),
             &Product(
                 "n".to_string(),
-                Box::new(Variable("Nat".to_string())),
-                Box::new(Variable("Nat".to_string())),
+                Box::new(nat.clone()),
+                Box::new(nat.clone()),
             ),
         );
 
         assert_eq!(
-            reduce_application(
-                &mut test_env,
-                &Variable("s".to_string()),
-                &Variable("z".to_string())
-            ),
-            Application(
-                Box::new(Variable("s".to_string())),
-                Box::new(Variable("z".to_string())),
-            ),
+            reduce_application(&mut test_env, &succ.clone(), &zero),
+            Application(Box::new(succ.clone()), Box::new(zero)),
             "Function application of normal form returns a different term"
         );
         assert_eq!(
             reduce_application(
                 &mut test_env,
-                &Variable("add_one".to_string()),
-                &Variable("arg".to_string())
+                &Variable("add_one".to_string(), GLOBAL_INDEX),
+                &Variable("arg".to_string(), GLOBAL_INDEX)
             ),
             Application(
-                Box::new(Variable("s".to_string())),
-                Box::new(Variable("arg".to_string())),
+                Box::new(succ.clone()),
+                Box::new(Variable("arg".to_string(), GLOBAL_INDEX)),
             ),
             "Function application doesnt reduce to the function body with substituted variable"
         );
@@ -373,28 +368,25 @@ mod unit_tests {
 
     #[test]
     fn test_match_reduction() {
+        let nat = Variable("Nat".to_string(), GLOBAL_INDEX);
+        let succ = Variable("s".to_string(), GLOBAL_INDEX);
         let mut test_env = Cic::default_environment();
-        let zero = Variable("z".to_string());
-        let succ_pattern =
-            vec![Variable("s".to_string()), Variable("n".to_string())];
-        let true_term = Variable("true".to_string());
-        let false_term = Variable("false".to_string());
+        let zero = Variable("z".to_string(), GLOBAL_INDEX);
+        let succ_pattern = vec![succ.clone(), Variable("n".to_string(), 0)];
+        let true_term = Variable("true".to_string(), GLOBAL_INDEX);
+        let false_term = Variable("false".to_string(), GLOBAL_INDEX);
 
         test_env.add_to_context("Nat", &Sort("TYPE".to_string()));
-        test_env.add_to_context("z", &Variable("Nat".to_string()));
+        test_env.add_to_context("z", &nat.clone());
         test_env.add_to_context(
             "s",
             &Product(
                 "_".to_string(),
-                Box::new(Variable("Nat".to_string())),
-                Box::new(Variable("Nat".to_string())),
+                Box::new(nat.clone()),
+                Box::new(nat.clone()),
             ),
         );
-        test_env.add_substitution_with_type(
-            "x",
-            &zero,
-            &Variable("Nat".to_string()),
-        );
+        test_env.add_substitution_with_type("x", &zero, &nat.clone());
 
         assert_eq!(
             reduce_match(
@@ -411,7 +403,7 @@ mod unit_tests {
         assert_eq!(
             reduce_match(
                 &mut test_env,
-                &Variable("x".to_string()),
+                &Variable("x".to_string(), 0),
                 &vec![
                     (vec![zero.clone()], true_term.clone()),
                     (succ_pattern.clone(), false_term.clone())
@@ -424,8 +416,8 @@ mod unit_tests {
             reduce_match(
                 &mut test_env,
                 &Application(
-                    Box::new(Variable("s".to_string())),
-                    Box::new(Variable("z".to_string()))
+                    Box::new(succ),
+                    Box::new(Variable("z".to_string(), GLOBAL_INDEX))
                 ),
                 &vec![
                     (vec![zero.clone()], true_term.clone()),
