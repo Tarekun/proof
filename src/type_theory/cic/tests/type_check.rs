@@ -6,6 +6,7 @@ mod tests {
             inductive_eliminator, type_check_fun, type_check_inductive,
         },
     };
+    use crate::type_theory::interface::Kernel;
     use crate::type_theory::interface::TypeTheory;
 
     #[test]
