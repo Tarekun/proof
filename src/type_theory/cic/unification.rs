@@ -236,6 +236,7 @@ mod unit_tests {
         },
         unification::{equal_under_substitution, solve_unification},
     };
+    use crate::type_theory::interface::Refiner;
     use crate::type_theory::interface::TypeTheory;
     use std::collections::HashMap;
 

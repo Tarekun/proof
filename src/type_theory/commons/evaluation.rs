@@ -1,7 +1,10 @@
 use crate::{
     misc::Union,
     parser::api::Tactic,
-    type_theory::{environment::Environment, interface::TypeTheory},
+    type_theory::{
+        environment::Environment,
+        interface::{Kernel, TypeTheory},
+    },
 };
 
 pub fn generic_term_normalization<
@@ -37,7 +40,7 @@ pub fn generic_reduce_variable<T: TypeTheory>(
 //########################### TERM βδ-REDUCTION
 
 //########################### STATEMENTS EXECUTION
-pub fn generic_evaluate_let<T: TypeTheory>(
+pub fn generic_evaluate_let<T: TypeTheory + Kernel>(
     environment: &mut Environment<T::Term, T::Type>,
     var_name: &str,
     var_type: &Option<T::Type>,

@@ -1,5 +1,8 @@
 use crate::runtime::program::ProgramNode::{OfStm, OfTerm};
-use crate::type_theory::{environment::Environment, interface::TypeTheory};
+use crate::type_theory::{
+    environment::Environment,
+    interface::{Reducer, TypeTheory},
+};
 use std::collections::VecDeque;
 
 #[derive(Debug, PartialEq)]
@@ -18,7 +21,7 @@ where
 
 impl<T> Program<T>
 where
-    T: TypeTheory,
+    T: TypeTheory + Reducer,
 {
     pub fn new() -> Self {
         Program {

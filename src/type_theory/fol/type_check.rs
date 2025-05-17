@@ -5,7 +5,7 @@ use crate::misc::Union;
 use crate::parser::api::Tactic;
 use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::interface::{Kernel, Refiner};
 
 
 //########################### TERMS TYPE CHECKING
@@ -163,7 +163,7 @@ mod unit_tests {
                 type_check_fun, type_check_let, type_check_var,
             },
         },
-        interface::TypeTheory,
+        interface::{TypeTheory, Kernel},
     };
 
     use super::type_check_axiom;

@@ -15,7 +15,8 @@ use crate::type_theory::commons::evaluation::{
     generic_reduce_variable,
 };
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::interface::Kernel;
+use crate::type_theory::interface::Reducer;
 
 //########################### TERM βδ-REDUCTION
 pub fn one_step_reduction(

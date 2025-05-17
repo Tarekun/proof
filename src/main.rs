@@ -55,7 +55,11 @@ use entrypoints::{
 use logger::init_logger;
 use std::env;
 use tracing::{debug, error, info};
-use type_theory::{cic::cic::Cic, fol::fol::Fol, interface::TypeTheory};
+use type_theory::{
+    cic::cic::Cic,
+    fol::fol::Fol,
+    interface::{Kernel, Reducer, TypeTheory},
+};
 
 fn determine_entrypoint(args: &[String]) -> EntryPoint {
     if args.contains(&"--typecheck".to_string())
@@ -79,7 +83,7 @@ fn determine_entrypoint(args: &[String]) -> EntryPoint {
     }
 }
 
-fn run_with_theory<T: TypeTheory>(
+fn run_with_theory<T: TypeTheory + Kernel + Reducer>(
     config: Config,
     filepath: &str,
     entrypoint: EntryPoint,
