@@ -17,12 +17,16 @@ use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 use tracing::debug;
 
+pub static FIRST_INDEX: i32 = 0;
+pub static GLOBAL_INDEX: i32 = -1;
+pub static PLACEHOLDER_DBI: i32 = -2;
+
 #[derive(PartialEq, Clone)]
 pub enum CicTerm {
     /// (sort name)
     Sort(String),
-    /// (var name)
-    Variable(String),
+    /// (var name, De Bruijn index)
+    Variable(String, i32),
     /// (var name, var type, body)
     Abstraction(String, Box<CicTerm>, Box<CicTerm>), //add bodytype?
     /// (var name, var type, body)
@@ -86,7 +90,7 @@ impl TypeTheory for Cic {
                 };
             }
             LofAst::Exp(exp) => {
-                elaborate_expression(exp);
+                elaborate_expression(&exp);
             }
         }
 
@@ -201,7 +205,7 @@ fn common_type_checking(
 ) -> Result<CicTerm, String> {
     match term {
         CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
-        CicTerm::Variable(var_name) => {
+        CicTerm::Variable(var_name, _) => {
             type_check_variable(environment, var_name)
         }
         CicTerm::Abstraction(var_name, var_type, body) => {
@@ -217,6 +221,7 @@ fn common_type_checking(
             type_check_match(environment, matched_term, branches)
         }
         CicTerm::Meta(index) => {
+            //TODO handle this properly
             // Err(format!("MetaVariables should never appear as type checkable terms. Received ?[{}]", index))
             Ok(CicTerm::Sort("TYPE".to_string()))
         }

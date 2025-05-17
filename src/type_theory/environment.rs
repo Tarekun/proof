@@ -273,6 +273,7 @@ mod unit_tests {
         cic::cic::{
             Cic,
             CicTerm::{Sort, Variable},
+            GLOBAL_INDEX,
         },
         interface::TypeTheory,
     };
@@ -344,13 +345,14 @@ mod unit_tests {
             "Environment signals unbound variable as bound"
         );
 
-        test_env.add_to_context("a", &Variable("a".to_string()));
+        test_env.add_to_context("a", &Variable("a".to_string(), GLOBAL_INDEX));
         assert!(
             test_env.is_var_bound("a"),
             "Environment signals bound variable as unbound"
         );
 
-        test_env.add_substitution("b", &Variable("a".to_string()));
+        test_env
+            .add_substitution("b", &Variable("a".to_string(), GLOBAL_INDEX));
         assert!(
             test_env.is_var_bound("b"),
             "Environment signals bound variable as unbound if it was introduced as a substitution"
@@ -407,7 +409,7 @@ mod unit_tests {
     fn test_with_local_substitution() {
         let mut test_env = Cic::default_environment();
         let var_name = "local_var";
-        let substitution_term = Variable(var_name.to_string());
+        let substitution_term = Variable(var_name.to_string(), GLOBAL_INDEX);
 
         test_env.with_local_substitution(
             var_name,
@@ -432,8 +434,16 @@ mod unit_tests {
     fn test_with_local_substitutions() {
         let mut test_env = Cic::default_environment();
         let var_names_and_terms = vec![
-            ("var1".to_string(), Variable("term1".to_string()), None),
-            ("var2".to_string(), Variable("term2".to_string()), None),
+            (
+                "var1".to_string(),
+                Variable("term1".to_string(), GLOBAL_INDEX),
+                None,
+            ),
+            (
+                "var2".to_string(),
+                Variable("term2".to_string(), GLOBAL_INDEX),
+                None,
+            ),
         ];
 
         test_env.with_local_substitutions(&var_names_and_terms, |env| {

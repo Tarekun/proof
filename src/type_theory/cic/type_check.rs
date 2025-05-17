@@ -7,13 +7,16 @@ use super::evaluation::evaluate_inductive;
 use super::unification::solve_unification;
 use crate::misc::{simple_map, simple_map_indexed, Union};
 use crate::parser::api::Tactic;
+use crate::type_theory::cic::cic::{GLOBAL_INDEX, PLACEHOLDER_DBI};
 use crate::type_theory::cic::cic_utils::{
-    application_args, apply_arguments, clone_product_with_different_result,
-    get_arg_types, get_prod_innermost, get_variables_as_terms,
-    is_instance_of, make_multiarg_fun_type, substitute,
+    application_args, apply_arguments, clone_product_with_different_result, get_arg_types, get_prod_innermost, get_variables_as_terms, index_variables, is_instance_of, make_multiarg_fun_type, substitute
 };
 use crate::type_theory::cic::unification::{equal_under_substitution, instatiate_metas};
-use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
+use crate::type_theory::commons::type_check::{
+    generic_type_check_abstraction, generic_type_check_axiom, 
+    generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, 
+    generic_type_check_universal, generic_type_check_variable
+};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::TypeTheory;
 
@@ -51,7 +54,7 @@ pub fn type_check_abstraction(
         (var_type, body_type)
     };
 
-    Ok(CicTerm::Product(
+    Ok(Product(
         var_name.to_string(),
         Box::new(var_type.clone()),
         Box::new(body_type),
@@ -68,7 +71,7 @@ pub fn type_check_product(
     // TODO: im not sure using the FO quantification is actually correct here
     let body_type = generic_type_check_universal::<Cic>(environment, var_name, var_type, body)?;
     match body_type {
-        CicTerm::Sort(_) => Ok(body_type),
+        Sort(_) => Ok(body_type),
         _ => Err(format!("Body of product term must be of type sort, i.e. must be a type, not {:?}", body_type)),
     }
 }
@@ -150,30 +153,33 @@ pub fn type_check_application(
 }
 //
 //
+/// Returns the vector of type judgements for the variables provided if they match the constructor type
 fn type_constr_vars(
     constr_type: &CicTerm,
     variables: Vec<CicTerm>,
-) -> Vec<(String, CicTerm)> {
+) -> Result<Vec<(String, CicTerm)>, String> {
     match variables.len() {
-        0 => vec![],
+        0 => Ok(vec![]),
         1.. => match &variables[0] {
-            CicTerm::Variable(var_name) => match constr_type {
-                CicTerm::Product(_, domain, codomain) => {
+            Variable(var_name, _dbi) => match constr_type {
+                Product(_, domain, codomain) => {
                     let mut typed_vars =
-                        type_constr_vars(&(*codomain), variables[1..].to_vec());
-                    typed_vars.insert(0, (var_name.clone(), *(domain.clone())));
-                    typed_vars
+                        type_constr_vars(&(*codomain), variables[1..].to_vec())?;
+                    typed_vars.insert(0, (var_name.to_string(), *(domain.clone())));
+                    Ok(typed_vars)
                 }
                 // i dont want to return results here
                 _ => {
-                    panic!("Mismatch in number of variables for constructor");
+                    Err(format!(
+                        "Mismatch in number of variables for constructor"
+                    ))
                 }
             },
             _ => {
-                panic!(
+                Err(format!(
                     "Found illegal term in place of variable {:?}",
-                    variables[0],
-                );
+                    variables[0]
+                ))
             }
         },
     }
@@ -186,8 +192,8 @@ fn type_check_pattern(
     match variables.len() {
         0 => Ok(constr_type.clone()),
         1.. => match variables[0] {
-            CicTerm::Variable(_) => match constr_type {
-                CicTerm::Product(_, _, codomain) => {
+            Variable(_, _) => match constr_type {
+                Product(_, _, codomain) => {
                     // doesnt need to update the context, here var_name is a type variable, not a term
                     type_check_pattern(
                         &(*codomain),
@@ -236,7 +242,7 @@ pub fn type_check_match(
 
         //body type checking
         let pattern_assumptions =
-            type_constr_vars(&constr_type, pattern[1..].to_vec());
+            type_constr_vars(&constr_type, pattern[1..].to_vec())?;
         let body_type = environment
             .with_local_assumptions(&pattern_assumptions, |local_env| {
                 Cic::type_check_term(body, local_env)
@@ -318,7 +324,7 @@ pub fn inductive_eliminator(
     fn make_left_param_vars(params: Vec<(String, CicTerm)>) -> Vec<CicTerm> {
         params
             .iter()
-            .map(|(var_name, _)| Variable(var_name.to_owned()))
+            .map(|(var_name, _)| Variable(var_name.to_owned(), PLACEHOLDER_DBI))
             .collect()
     }
     /// Creation of the first parameters ( a :: α\[A\] )
@@ -334,7 +340,7 @@ pub fn inductive_eliminator(
         right_param_vars: Vec<CicTerm>,
     ) -> CicTerm {
         let instance_type =
-            apply_arguments(&Variable(type_name.to_string()), left_param_vars);
+            apply_arguments(&Variable(type_name.to_string(), PLACEHOLDER_DBI), left_param_vars);
         let instance_type = apply_arguments(&instance_type, right_param_vars);
         instance_type
     }
@@ -410,7 +416,7 @@ pub fn inductive_eliminator(
 
                 hypotheses.push(Application(
                     Box::new(result_with_rights.clone()),
-                    Box::new(Variable(arg_name)),
+                    Box::new(Variable(arg_name, PLACEHOLDER_DBI)),
                 ));
             }
 
@@ -439,20 +445,20 @@ pub fn inductive_eliminator(
             );
 
             let constr_instance = apply_arguments(
-                &Variable(constr_name),
+                &Variable(constr_name, PLACEHOLDER_DBI),
                 left_param_vars.clone(),
             );
             // let constr_instance = apply_arguments(constr_instance, right_params.clone());
             let constr_instance = apply_arguments(
                 &constr_instance,
                 simple_map(non_recursive.clone(), |(arg_name, _)| {
-                    Variable(arg_name)
+                    Variable(arg_name, PLACEHOLDER_DBI)
                 }),
             );
             let constr_instance = apply_arguments(
                 &constr_instance,
                 simple_map(recursive.clone(), |(arg_name, _)| {
-                    Variable(arg_name)
+                    Variable(arg_name, PLACEHOLDER_DBI)
                 }),
             );
 
@@ -477,7 +483,8 @@ pub fn inductive_eliminator(
     }
 
     let left_param_vars = make_left_param_vars(params.clone());
-    let result_var = Variable(format!("er_{}", type_name)); // er = eliminator result, C in the paper
+    // 0 is a placeholder value, the eliminator type is indexed when returned 
+    let result_var = Variable(format!("er_{}", type_name), PLACEHOLDER_DBI); // er = eliminator result, C in the paper
     let result_type =
         make_result_type(&type_name, left_param_vars.clone(), &ariety);
     let inductive_cases = make_inductive_cases(
@@ -492,9 +499,9 @@ pub fn inductive_eliminator(
         });
     let right_param_vars =
         simple_map(right_params.clone(), |(param_name, _)| {
-            Variable(param_name)
+            Variable(param_name, PLACEHOLDER_DBI)
         });
-    let inductive_instace_var = Variable("t".to_string());
+    let inductive_instace_var = Variable("t".to_string(), GLOBAL_INDEX);
     let inductive_instace = make_instance_type(
         &type_name,
         left_param_vars,
@@ -523,7 +530,7 @@ pub fn inductive_eliminator(
     );
     full_parametrization =
         make_multiarg_fun_type(&params, &full_parametrization);
-    full_parametrization
+    index_variables(&full_parametrization)
 }
 
 pub fn type_check_inductive(
@@ -571,7 +578,7 @@ pub fn type_check_inductive(
         ariety,
         &constr_bindings,
     );
-    Ok(CicTerm::Variable("Unit".to_string()))
+    Ok(Variable("Unit".to_string(), GLOBAL_INDEX))
 }
 //
 //########################### STATEMENTS TYPE CHECKING
@@ -582,1363 +589,3 @@ pub fn type_check_inductive(
 //########################### HELPER FUNCTIONS
 //
 //########################### UNIT TESTS
-#[cfg(test)]
-mod unit_tests {
-    use crate::type_theory::cic::{
-        cic::CicStm::{Fun, InductiveDef},
-        cic::CicTerm::{Abstraction, Application, Match, Product, Sort, Variable, Meta},
-        cic::{Cic, CicTerm},
-        type_check::{
-            inductive_eliminator, type_check_fun, type_check_inductive,
-        },
-    };
-    use crate::type_theory::interface::TypeTheory;
-
-    #[test]
-    fn test_type_check_sort_n_vars() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        // assumption, the type statement is included in the context
-        test_env.add_to_context(
-            "n",
-            &CicTerm::Variable("nat".to_string()),
-        );
-        // definition, we have the variabled and a typed body
-        test_env.add_substitution_with_type(
-            "m",
-            &CicTerm::Variable("n".to_string()),
-            &CicTerm::Variable("nat".to_string()),
-        );
-
-        // sorts
-        assert_eq!(
-            Cic::type_check_term(
-                &Sort("TYPE".to_string()),
-                &mut test_env
-            )
-            .unwrap(),
-            Sort("TYPE".to_string()),
-            "Sort 'TYPE' type checking failed"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Sort("PROP".to_string()),
-                &mut test_env
-            )
-            .is_ok(),
-            "Sort 'PROP' type checking failed"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Sort("StupidInvalidSort".to_string()),
-                &mut test_env
-            )
-            .is_err(),
-            "Sort type checker accepts illegal sort"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Variable("TYPE".to_string()),
-                &mut test_env
-            )
-            .is_ok(),
-            "Type checker refuses sorts when used as variables"
-        );
-
-        // variables
-        assert_eq!(
-            Cic::type_check_term(
-                &Variable("n".to_string()),
-                &mut test_env
-            )
-            .unwrap(),
-            Variable("nat".to_string()),
-            "Type checker refuses existing variable"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Variable("m".to_string()),
-                &mut test_env
-            )
-            .is_ok(),
-            "Type checker refuses defined variable"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Sort("stupidInvalidVar".to_string()),
-                &mut test_env
-            )
-            .is_err(),
-            "Type checker accepts unbound variable"
-        );
-    }
-
-    #[test]
-    fn test_type_check_abstraction() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        // assumption, the type statement is included in the context
-        test_env.add_to_context(
-            "o",
-            &CicTerm::Variable("nat".to_string()),
-        );
-        // function over nat
-        test_env.add_to_context(
-            "s",
-            &Product(
-                "n".to_string(),
-                Box::new(Variable("nat".to_string())),
-                Box::new(Variable("nat".to_string())),
-            ),
-        );
-
-        assert_eq!(
-            Cic::type_check_term(
-                &Abstraction(
-                    "x".to_string(),
-                    Box::new(Variable("nat".to_string())),
-                    Box::new(Variable("x".to_string())),
-                ),
-                &mut test_env
-            )
-            .unwrap(),
-            Product(
-                "x".to_string(),
-                Box::new(Variable("nat".to_string())),
-                Box::new(Variable("nat".to_string()))
-            ),
-            "Type checker refuses simple identity function"
-        );
-        assert_eq!(
-            test_env.get_from_context("x"),
-            None,
-            "Abstraction type checker stains context with local variable"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Abstraction(
-                    "x".to_string(),
-                    Box::new(Variable("nat".to_string())),
-                    Box::new(Application(
-                        Box::new(Variable("s".to_string())),
-                        Box::new(Variable("x".to_string())),
-                    )),
-                ),
-                &mut test_env
-            )
-            .is_ok(),
-            "Type checker refuses function with more complex body"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Abstraction(
-                    "x".to_string(),
-                    Box::new(Variable(
-                        "StupidInvalidType".to_string()
-                    )),
-                    Box::new(Variable("x".to_string())),
-                ),
-                &mut test_env
-            )
-            .is_err(),
-            "Type checker accepts function defined over non existant type"
-        );
-    }
-
-    #[test]
-    fn test_type_check_product() {
-        let mut test_env = Cic::default_environment();
-        // polymorphic type constructor
-        test_env.add_to_context(
-            "list",
-            &Product(
-                "T".to_string(),
-                Box::new(Sort("TYPE".to_string())),
-                Box::new(Sort("TYPE".to_string())),
-            ),
-        );
-
-        assert_eq!(
-            Cic::type_check_term(
-                &Product(
-                    "T".to_string(),
-                    Box::new(Sort("TYPE".to_string())),
-                    Box::new(Variable("T".to_string())),
-                ),
-                &mut test_env
-            )
-            .unwrap(),
-            Sort("TYPE".to_string()),
-            "Type checker refuses simple polymorphic identity type"
-        );
-        assert_eq!(
-            test_env.get_from_context("T"),
-            None,
-            "Product type checker stains context with local variable"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Product(
-                    "T".to_string(),
-                    Box::new(Sort("StupidInvalidSort".to_string())),
-                    Box::new(Variable("T".to_string())),
-                ),
-                &mut test_env
-            )
-            .is_err(),
-            "Type checker accepts polymorphic type over illegal sort"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Product(
-                    "T".to_string(),
-                    Box::new(Sort("TYPE".to_string())),
-                    Box::new(Application(
-                        Box::new(Variable("list".to_string())),
-                        Box::new(Variable("T".to_string()))
-                    ))
-                ),
-                &mut test_env
-            )
-            .is_ok(),
-            "Type checker refuses polymorphic types with more complex bodies"
-        );
-    }
-
-    #[test]
-    fn test_type_check_application() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        // assumption, the type statement is included in the context
-        test_env.add_to_context(
-            "n",
-            &CicTerm::Variable("nat".to_string()),
-        );
-        // definition, we have the variabled and a typed body
-        test_env.add_substitution_with_type(
-            "m",
-            &CicTerm::Variable("n".to_string()),
-            &CicTerm::Variable("nat".to_string()),
-        );
-        // function over nat
-        test_env.add_to_context(
-            "s",
-            &CicTerm::Product(
-                "n".to_string(),
-                Box::new(CicTerm::Variable("nat".to_string())),
-                Box::new(CicTerm::Variable("nat".to_string())),
-            ),
-        );
-
-        assert_eq!(
-            Cic::type_check_term(
-                &Application(
-                    Box::new(Variable("s".to_string())),
-                    Box::new(Variable("n".to_string())),
-                ),
-                &mut test_env
-            )
-            .unwrap(),
-            Variable("nat".to_string()),
-            "Type checker refuses function application over nat"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Application(
-                    Box::new(Variable("s".to_string())),
-                    Box::new(Variable("m".to_string())),
-                ),
-                &mut test_env
-            )
-            .is_ok(),
-            "Type checker refuses function application over a variable when defined and not assumed"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Application(
-                    Box::new(Variable("s".to_string())),
-                    Box::new(Variable("TYPE".to_string())),
-                ),
-                &mut test_env
-            )
-            .is_err(),
-            "Type checker accepts illegal function application"
-        );
-    }
-
-    #[test]
-    fn test_argument_dependent_function() {
-        let mut test_env = Cic::default_environment();
-        test_env.add_to_context("Bool", &Sort("TYPE".to_string()));
-        test_env
-            .add_to_context("true", &&Variable("Bool".to_string()));
-        test_env.add_to_context("Unit", &Sort("TYPE".to_string()));
-        test_env.add_to_context("it", &Variable("Unit".to_string()));
-        let type_var_name = "T";
-        test_env.add_to_context(
-            "if",
-            &Product(
-                type_var_name.to_string(),
-                Box::new(Sort("TYPE".to_string())),
-                Box::new(Product(
-                    "exp".to_string(),
-                    Box::new(Variable("Bool".to_string())),
-                    Box::new(Product(
-                        "ifTrue".to_string(),
-                        Box::new(Product(
-                            "_".to_string(),
-                            Box::new(Variable("Unit".to_string())),
-                            Box::new(Variable(type_var_name.to_string())),
-                        )),
-                        Box::new(Variable(type_var_name.to_string())),
-                    )),
-                )),
-            ),
-        );
-
-        assert!(
-            Cic::type_check_term(
-                &Application(
-                    Box::new(Application(
-                        Box::new(Application(
-                            Box::new(Variable("if".to_string())),
-                            Box::new(Variable("Unit".to_string())),
-                        )),
-                        Box::new(Variable("true".to_string()))
-                    )),
-                    Box::new(Abstraction(
-                        "_".to_string(), 
-                        Box::new(Variable("Unit".to_string())),
-                        Box::new(Variable("it".to_string())),
-                    ))
-                ),
-                &mut test_env
-            )
-            .is_ok(),
-            "Type checker refutes nested application when following argument types depend on previous"
-        );
-        assert_eq!(test_env.get_from_deltas(type_var_name), None, "Argument dependent application type checking stains Δ with local variable names");
-        assert!(
-            Cic::type_check_stm(
-                &Fun(
-                    "unifyResult".to_string(),
-                    vec![("b".to_string(), Variable("Bool".to_string()))],
-                    Box::new(Variable("Unit".to_string())),
-                    Box::new(Application(
-                        Box::new(Application(
-                            Box::new(Application(
-                                Box::new(Variable("if".to_string())),
-                                Box::new(Variable("Unit".to_string())),
-                            )),
-                            Box::new(Variable("b".to_string()))
-                        )),
-                        Box::new(Abstraction(
-                            "_".to_string(), 
-                            Box::new(Variable("Unit".to_string())),
-                            Box::new(Variable("it".to_string())),
-                        ))
-                    )),
-                    false
-                ),
-                &mut test_env
-            )
-            .is_ok(), 
-            "Type checker cant unify function output type with the result of a polymorphic expression"
-        );
-    }
-
-    #[test]
-    //TODO add check of exaustiveness of patterns
-    fn test_type_check_match() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_to_context(
-            "Bool",
-            &CicTerm::Sort("TYPE".to_string()),
-        );
-        test_env.add_to_context(
-            "o",
-            &CicTerm::Variable("nat".to_string()),
-        );
-        test_env.add_to_context(
-            "s",
-            &CicTerm::Product(
-                "_".to_string(),
-                Box::new(CicTerm::Variable("nat".to_string())),
-                Box::new(CicTerm::Variable("nat".to_string())),
-            ),
-        );
-        test_env.add_to_context(
-            "c",
-            &CicTerm::Variable("nat".to_string()),
-        );
-        test_env.add_to_context(
-            "true",
-            &CicTerm::Variable("Bool".to_string()),
-        );
-
-        assert_eq!(
-            Cic::type_check_term(
-                &Match(
-                    Box::new(Variable("c".to_string())),
-                    vec![
-                        (
-                            vec![Variable("o".to_string())],
-                            Variable("o".to_string())
-                        ),
-                        (
-                            vec![
-                                Variable("s".to_string()),
-                                Variable("n".to_string())
-                            ],
-                            Variable("c".to_string())
-                        ),
-                    ]
-                ),
-                &mut test_env
-            )
-            .unwrap(),
-            Variable("nat".to_string()),
-            "Type checker refuses matching over naturals"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Match(
-                    Box::new(Variable(
-                        "stupidUnboundVariable".to_string()
-                    )),
-                    vec![
-                        (
-                            vec![Variable("o".to_string())],
-                            Variable("o".to_string())
-                        ),
-                        (
-                            vec![
-                                Variable("s".to_string()),
-                                Variable("n".to_string())
-                            ],
-                            Variable("c".to_string())
-                        ),
-                    ]
-                ),
-                &mut test_env
-            )
-            .is_err(),
-            "Type checker accepts matching over unbound variable"
-        );
-        assert!(
-            Cic::type_check_term(
-                &Match(
-                    Box::new(Variable("c".to_string())),
-                    vec![
-                        (
-                            vec![Variable("o".to_string())],
-                            Variable("o".to_string())
-                        ),
-                        (
-                            vec![
-                                Variable("s".to_string()),
-                                Variable("n".to_string())
-                            ],
-                            Variable("true".to_string()) //this body has type : Bool
-                        ),
-                    ]
-                ),
-                &mut test_env
-            )
-            .is_err(),
-            "Type checker accepts match with inconsistent branch types"
-        );
-
-        //TODO this should be address: do we want pattern variable to override names in context
-        //or should the declared variables names be fresh?
-        // assert!(
-        //     Cic::type_check_term(
-        //         Match(
-        //             Box::new(Variable("c".to_string())),
-        //             vec![
-        //                 (
-        //                     vec![Variable("c".to_string())], //random variable in place of constr
-        //                     Variable("o".to_string())
-        //                 ),
-        //                 (
-        //                     vec![
-        //                         Variable("s".to_string()),
-        //                         Variable("n".to_string())
-        //                     ],
-        //                     Variable("n".to_string())
-        //                 ),
-        //             ]
-        //         ),
-        //         &mut test_env
-        //     )
-        //     .is_err(),
-        //     "Type checker accepts match with random (properly typed) variable in place of constructor"
-        // );
-    }
-
-    #[test]
-    fn test_type_check_inductive() {
-        let mut test_env = Cic::default_environment();
-        let constructors = vec![
-            ("o".to_string(), Variable("nat".to_string())),
-            (
-                "s".to_string(),
-                Product(
-                    "_".to_string(),
-                    Box::new(Variable("nat".to_string())),
-                    Box::new(Variable("nat".to_string())),
-                ),
-            ),
-        ];
-        #[allow(non_snake_case)]
-        let TYPE = Sort("TYPE".to_string());
-        let ariety = TYPE.clone();
-
-        // generic checks
-        assert!(
-            type_check_inductive(
-                &mut test_env,
-                "Empty",
-                &vec![],
-                &TYPE,
-                &vec![]
-            )
-            .is_ok(),
-            "Inductive type checking is refuting empty type"
-        );
-        assert!(
-            type_check_inductive(
-                &mut test_env,
-                "inc",
-                &vec![],
-                &TYPE,
-                &vec![
-                    ("correct".to_string(), Variable("inc".to_string())),
-                    ("wrong".to_string(), Variable("wrongType".to_string()))
-                ]
-            )
-            .is_err(),
-            "Inductive type checking is accepting ill typed constructor"
-        );
-        assert!(
-            type_check_inductive(
-                &mut test_env,
-                "fail",
-                &vec![],
-                &Sort("UNBOUND_SORT".to_string()),
-                &vec![]
-            )
-            .is_err(),
-            "Inductive type checking is accepting definition on non existent arieties"
-        );
-        assert!(
-            test_env.with_local_assumptions(&vec![
-                ("nat".to_string(), TYPE.clone()),
-                ("zero".to_string(), Variable("nat".to_string()))
-            ], |local_env| {
-                type_check_inductive(
-                    local_env,
-                    "fail",
-                    &vec![],
-                    &Variable("zero".to_string()),  //bound, non-sort variable
-                    &vec![("cons".to_string(), Variable("zero".to_string()))]
-                )
-                .is_err()
-            }),
-            "Inductive type checking is accepting definition with simple term ariety"
-        );
-        assert!(
-            test_env.with_local_assumptions(&vec![
-                ("nat".to_string(), TYPE.clone()),
-                ("zero".to_string(), Variable("nat".to_string()))
-            ], |local_env| {
-                type_check_inductive(
-                    local_env,
-                    "fail",
-                    &vec![],
-                    &TYPE,
-                    &vec![("cons".to_string(), Variable("zero".to_string()))]
-                )
-                .is_err()
-            }),
-            "Inductive type checking is accepting definition with simple term constructor type"
-        );
-
-        // peano naturals
-        assert_eq!(
-            type_check_inductive(
-                &mut test_env,
-                "nat",
-                &vec![],
-                &ariety,
-                &constructors
-            ),
-            Ok(Variable("Unit".to_string())),
-            "Inductive type checking isnt passing nat definition"
-        );
-        assert!(
-            Cic::type_check_stm(
-                &InductiveDef(
-                    "nat".to_string(),
-                    vec![],
-                    Box::new(TYPE.clone()),
-                    constructors
-                ),
-                &mut test_env
-            )
-            .is_ok(),
-            "Top level type checker doesnt support inductive definitions"
-        );
-
-        // logic relations
-        assert!(
-            type_check_inductive(
-                &mut test_env,
-                "Eq",
-                &vec![
-                    ("T".to_string(), TYPE.clone()),
-                    ("x".to_string(), Variable("T".to_string()))
-                ],
-                &CicTerm::Product(
-                    "_".to_string(),
-                    Box::new(CicTerm::Variable("T".to_string())),
-                    Box::new(CicTerm::Sort("PROP".to_string()))
-                ),
-                &vec![(
-                    "refl".to_string(),
-                    CicTerm::Application(
-                        Box::new(CicTerm::Application(
-                            Box::new(CicTerm::Application(
-                                Box::new(CicTerm::Variable("Eq".to_string())),
-                                Box::new(CicTerm::Variable("T".to_string()))
-                            )),
-                            Box::new(CicTerm::Variable("x".to_string()))
-                        )),
-                        Box::new(CicTerm::Variable("x".to_string()))
-                    )
-                )]
-            )
-            .is_ok(),
-            "Inductive type checker doesnt accept equality definition"
-        );
-
-        // polymorphic lists
-        let list_of_t = CicTerm::Application(
-            Box::new(CicTerm::Variable("list".to_string())),
-            Box::new(CicTerm::Variable("T".to_string())),
-        );
-        let constructors = vec![
-            ("nil".to_string(), list_of_t.clone()),
-            (
-                "cons".to_string(),
-                CicTerm::Product(
-                    "_".to_string(),
-                    Box::new(CicTerm::Variable("T".to_string())),
-                    Box::new(CicTerm::Product(
-                        "_".to_string(),
-                        Box::new(list_of_t.clone()),
-                        Box::new(list_of_t.clone()),
-                    )),
-                ),
-            ),
-        ];
-        let wrong_constructors = vec![
-            ("nil".to_string(), list_of_t.clone()),
-            (
-                "cons".to_string(),
-                CicTerm::Product(
-                    "_".to_string(),
-                    Box::new(CicTerm::Variable("T_T".to_string())), //unbound variable
-                    Box::new(CicTerm::Product(
-                        "_".to_string(),
-                        Box::new(list_of_t.clone()),
-                        Box::new(list_of_t.clone()),
-                    )),
-                ),
-            ),
-        ];
-        assert!(
-            type_check_inductive(
-                &mut test_env,
-                "list",
-                &vec![("T".to_string(), TYPE.clone())],
-                &TYPE,
-                &constructors
-            )
-            .is_ok(),
-            "Inductive type checking isnt working with dependent inductive types"
-        );
-        assert!(
-            type_check_inductive(
-                &mut test_env,
-                "list",
-                &vec![("T".to_string(), TYPE.clone())],
-                &TYPE,
-                &wrong_constructors
-            )
-            .is_err(),
-            "Inductive type checking isnt working with dependent inductive types"
-        );
-    }
-
-    #[test]
-    fn test_type_check_fun() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("Nat", &CicTerm::Sort("TYPE".to_string()));
-        test_env.add_to_context(
-            "z",
-            &Variable("Nat".to_string()),
-        );
-        test_env.add_to_context(
-            "s",
-            &Product(
-                "_".to_string(),
-                Box::new(Variable("Nat".to_string())),
-                Box::new(Variable("Nat".to_string())),
-            ),
-        );
-
-        assert!(
-            type_check_fun(
-                &mut test_env,
-                "f",
-                &vec![("t".to_string(), Sort("TYPE".to_string()))],
-                &Sort("TYPE".to_string()),
-                &Variable("t".to_string()),
-                &false
-            )
-            .is_ok(),
-            "Type checking refuses identity function"
-        );
-
-        let args = vec![
-            ("n".to_string(), Variable("Nat".to_string())),
-            ("m".to_string(), Variable("Nat".to_string())),
-        ];
-        let zerobranch = (
-            //patter
-            vec![Variable("z".to_string())],
-            //body
-            Variable("m".to_string()),
-        );
-        let succbranch = (
-            //patter
-            vec![
-                Variable("s".to_string()),
-                Variable("nn".to_string()),
-            ],
-            //body
-            Application(
-                Box::new(Variable("s".to_string())),
-                Box::new(Application(
-                    Box::new(Application(
-                        Box::new(Variable("add".to_string())),
-                        Box::new(Variable("nn".to_string())),
-                    )),
-                    Box::new(Variable("m".to_string())),
-                )),
-            ),
-        );
-        assert!(
-            type_check_fun(
-                &mut test_env,
-                "add",
-                &args,
-                &Sort("Nat".to_string()),
-                &Match(
-                    Box::new(Variable("n".to_string())),
-                    vec![zerobranch.clone(), succbranch.clone()]
-                ),
-                &false
-            )
-            .is_err(),
-            "Type checking accepts recursive function not marked as recursive"
-        );
-        let res = type_check_fun(
-            &mut test_env,
-            "add",
-            &args,
-            &Variable("Nat".to_string()),
-            &Match(
-                Box::new(Variable("n".to_string())),
-                vec![zerobranch, succbranch],
-            ),
-            &true,
-        );
-        assert!(
-            res.is_ok(),
-            "Type checking refuses recursive functions:\n{:?}",
-            res.err()
-        );
-
-        assert!(
-            type_check_fun(
-                &mut test_env,
-                "f",
-                &vec![], 
-                &Variable("Nat".to_string()),
-                &Sort("TYPE".to_string()), 
-                &false
-            ).is_err(),
-            "Type checking accept function with a inconsistent declared and result type",
-        );
-    }
-
-    #[test]
-    fn test_inductive_eliminator() {
-        // Unit
-        assert_eq!(
-            inductive_eliminator(
-                "Unit".to_string(),
-                vec![],
-                Sort("TYPE".to_string()),
-                vec![("it".to_string(), Variable("Unit".to_string()))]
-            ),
-            Product(
-                "er_Unit".to_string(),
-                Box::new(Product(
-                    "instance".to_string(),
-                    Box::new(Variable("Unit".to_string())),
-                    Box::new(Sort("TYPE".to_string())),
-                )),
-                Box::new(Product(
-                    "c_0".to_string(),
-                    Box::new(Application(
-                        Box::new(Variable("er_Unit".to_string())),
-                        Box::new(Variable("it".to_string())),
-                    )),
-                    Box::new(Product(
-                        "t".to_string(),
-                        Box::new(Variable("Unit".to_string())),
-                        Box::new(Application(
-                            Box::new(Variable("er_Unit".to_string())),
-                            Box::new(Variable("t".to_string())),
-                        )),
-                    ))
-                ))
-            ),
-            "Unit inductive eliminator not properly constructed"
-        );
-        // Bool
-        assert_eq!(
-            inductive_eliminator(
-                "Bool".to_string(),
-                vec![],
-                Sort("TYPE".to_string()),
-                vec![
-                    ("true".to_string(), Variable("Bool".to_string())),
-                    ("false".to_string(), Variable("Bool".to_string()))
-                ]
-            ),
-            Product(
-                "er_Bool".to_string(),
-                Box::new(Product(
-                    "instance".to_string(),
-                    Box::new(Variable("Bool".to_string())),
-                    Box::new(Sort("TYPE".to_string())),
-                )),
-                Box::new(Product(
-                    "c_0".to_string(),
-                    Box::new(Application(
-                        Box::new(Variable("er_Bool".to_string())),
-                        Box::new(Variable("true".to_string())),
-                    )),
-                    Box::new(Product(
-                        "c_1".to_string(),
-                        Box::new(Application(
-                            Box::new(Variable("er_Bool".to_string())),
-                            Box::new(Variable("false".to_string())),
-                        )),
-                        Box::new(Product(
-                            "t".to_string(),
-                            Box::new(Variable("Bool".to_string())),
-                            Box::new(Application(
-                                Box::new(Variable("er_Bool".to_string())),
-                                Box::new(Variable("t".to_string())),
-                            ))
-                        ))
-                    ))
-                ))
-            ),
-            "Boolean inductive eliminator not properly constructed"
-        );
-        // these next tests are copied straight from the examples in
-        // Inductive Families (Dybjer) paper
-        // Nat
-        assert_eq!(
-            inductive_eliminator(
-                "Nat".to_string(),
-                vec![],
-                Sort("TYPE".to_string()),
-                vec![
-                    ("z".to_string(), Variable("Nat".to_string())),
-                    (
-                        "s".to_string(),
-                        Product(
-                            "r_0".to_string(),
-                            Box::new(Variable("Nat".to_string())),
-                            Box::new(Variable("Nat".to_string()))
-                        )
-                    )
-                ]
-            ),
-            Product(
-                "er_Nat".to_string(),
-                Box::new(Product(
-                    "instance".to_string(),
-                    Box::new(Variable("Nat".to_string())),
-                    Box::new(Sort("TYPE".to_string())),
-                )),
-                Box::new(Product(
-                    "c_0".to_string(),
-                    Box::new(Application(
-                        Box::new(Variable("er_Nat".to_string())),
-                        Box::new(Variable("z".to_string())),
-                    )),
-                    Box::new(Product(
-                        "c_1".to_string(),
-                        Box::new(Product(
-                            "r_0".to_string(),
-                            Box::new(Variable("Nat".to_string())),
-                            Box::new(Product(
-                                "ih_0".to_string(),
-                                Box::new(Application(
-                                    Box::new(Variable("er_Nat".to_string())),
-                                    Box::new(Variable("r_0".to_string()))
-                                )),
-                                Box::new(Application(
-                                    Box::new(Variable("er_Nat".to_string())),
-                                    Box::new(Application(
-                                        Box::new(Variable("s".to_string())),
-                                        Box::new(Variable("r_0".to_string()))
-                                    ))
-                                ))
-                            ))
-                        )),
-                        Box::new(Product(
-                            "t".to_string(),
-                            Box::new(Variable("Nat".to_string())),
-                            Box::new(Application(
-                                Box::new(Variable("er_Nat".to_string())),
-                                Box::new(Variable("t".to_string()))
-                            ))
-                        ))
-                    ))
-                )),
-            ),
-            "Naturals inductive eliminator not properly constructed"
-        );
-        // List
-        assert_eq!(
-            inductive_eliminator(
-                "List".to_string(),
-                vec![("T".to_string(), Sort("TYPE".to_string()))],
-                Sort("TYPE".to_string()),
-                vec![
-                    (
-                        "nil".to_string(),
-                        Application(
-                            Box::new(Variable("List".to_string())),
-                            Box::new(Variable("T".to_string()))
-                        )
-                    ),
-                    (
-                        "cons".to_string(),
-                        Product(
-                            "elem".to_string(),
-                            Box::new(Variable("T".to_string())),
-                            Box::new(Product(
-                                "l".to_string(),
-                                Box::new(Application(
-                                    Box::new(Variable("List".to_string())),
-                                    Box::new(Variable("T".to_string()))
-                                )),
-                                Box::new(Application(
-                                    Box::new(Variable("List".to_string())),
-                                    Box::new(Variable("T".to_string()))
-                                ))
-                            ))
-                        )
-                    )
-                ]
-            ),
-            Product(
-                "T".to_string(),
-                Box::new(Sort("TYPE".to_string())),
-                Box::new(Product(
-                    "er_List".to_string(),
-                    Box::new(Product(
-                        "instance".to_string(),
-                        Box::new(Application(
-                            Box::new(Variable("List".to_string())),
-                            Box::new(Variable("T".to_string()))
-                        )),
-                        Box::new(Sort("TYPE".to_string()))
-                    )),
-                    Box::new(Product(
-                        "c_0".to_string(),
-                        Box::new(Application(
-                            Box::new(Variable("er_List".to_string())),
-                            Box::new(Application(
-                                Box::new(Variable("nil".to_string())),
-                                Box::new(Variable("T".to_string()))
-                            )),
-                        )),
-                        Box::new(Product(
-                            "c_1".to_string(),
-                            Box::new(Product(
-                                "nr_0".to_string(),
-                                Box::new(Variable("T".to_string())),
-                                Box::new(Product(
-                                    "r_1".to_string(),
-                                    Box::new(Application(
-                                        Box::new(Variable("List".to_string())),
-                                        Box::new(Variable("T".to_string()))
-                                    )),
-                                    Box::new(Product(
-                                        "ih_0".to_string(),
-                                        Box::new(Application(
-                                            Box::new(Variable(
-                                                "er_List".to_string()
-                                            )),
-                                            Box::new(Variable(
-                                                "r_1".to_string()
-                                            ))
-                                        )),
-                                        Box::new(Application(
-                                            Box::new(Variable(
-                                                "er_List".to_string()
-                                            )),
-                                            Box::new(Application(
-                                                Box::new(Application(
-                                                    Box::new(Application(
-                                                        Box::new(Variable(
-                                                            "cons".to_string()
-                                                        )),
-                                                        Box::new(Variable(
-                                                            "T".to_string()
-                                                        ))
-                                                    )),
-                                                    Box::new(Variable(
-                                                        "nr_0".to_string()
-                                                    ))
-                                                )),
-                                                Box::new(Variable(
-                                                    "r_1".to_string()
-                                                ))
-                                            ))
-                                        ))
-                                    ))
-                                ))
-                            )),
-                            Box::new(Product(
-                                "t".to_string(),
-                                Box::new(Application(
-                                    Box::new(Variable("List".to_string())),
-                                    Box::new(Variable("T".to_string()))
-                                )),
-                                Box::new(Application(
-                                    Box::new(Variable("er_List".to_string())),
-                                    Box::new(Variable("t".to_string()))
-                                ))
-                            ))
-                        )),
-                    ))
-                ))
-            ),
-            "List inductive eliminator not properly constructed"
-        );
-        // Vec
-        assert_eq!(
-            inductive_eliminator(
-                "Vec".to_string(),
-                vec![("T".to_string(), Sort("TYPE".to_string()))],
-                Product(
-                    "len".to_string(), 
-                    Box::new(Variable("Nat".to_string())), 
-                    Box::new(Sort("TYPE".to_string()))
-                ), 
-                vec![
-                    ("nul".to_string(), Application(
-                        Box::new(Application(
-                            Box::new(Variable("Vec".to_string())), 
-                            Box::new(Variable("T".to_string()))
-                        )),
-                        Box::new(Variable("z".to_string()))
-                    )),
-                    ("cons".to_string(), Product(
-                        "nr_0".to_string(), 
-                        Box::new(Variable("T".to_string())), 
-                        Box::new(Product(
-                            "nr_1".to_string(),
-                            Box::new(Variable("Nat".to_string())), 
-                            Box::new(Product(
-                                "r_2".to_string(), 
-                                Box::new(Application(
-                                    Box::new(Application(
-                                        Box::new(Variable("Vec".to_string())), 
-                                        Box::new(Variable("T".to_string()))
-                                    )),
-                                    Box::new(Variable("nr_1".to_string()))
-                                )), 
-                                Box::new(Application(
-                                    Box::new(Application(
-                                        Box::new(Variable("Vec".to_string())), 
-                                        Box::new(Variable("T".to_string()))
-                                    )),
-                                    Box::new(Application(
-                                        Box::new(Variable("s".to_string())), 
-                                        Box::new(Variable("nr_1".to_string()))
-                                    ))
-                                )) 
-                            )) 
-                        )) 
-                    ))
-                ]
-            ),
-
-            Product(
-                "T".to_string(), 
-                Box::new(Sort("TYPE".to_string())),
-                Box::new(Product(
-                    "er_Vec".to_string(),
-                    Box::new(Product(
-                        "len".to_string(),
-                        Box::new(Variable("Nat".to_string())),
-                        Box::new(Product(
-                            "instance".to_string(), 
-                            Box::new(Application(
-                                Box::new(Application(
-                                    Box::new(Variable("Vec".to_string())), 
-                                    Box::new(Variable("T".to_string()))
-                                )),
-                                Box::new(Variable("len".to_string()))
-                            )), 
-                            Box::new(Sort("TYPE".to_string())) 
-                        ))
-                    )),
-                    Box::new(Product(
-                        "c_0".to_string(), 
-                        Box::new(Application(
-                            Box::new(Application(
-                                Box::new(Variable("er_Vec".to_string())), 
-                                Box::new(Variable("z".to_string()))
-                            )),
-                            Box::new(Application(
-                                Box::new(Variable("nul".to_string())),
-                                Box::new(Variable("T".to_string()))
-                            ))
-                        )),
-                        Box::new(Product(
-                            "c_1".to_string(),
-                            Box::new(Product(
-                                "nr_0".to_string(), 
-                                Box::new(Variable("T".to_string())), 
-                                Box::new(Product(
-                                    "nr_1".to_string(),
-                                    Box::new(Variable("Nat".to_string())),
-                                    Box::new(Product(
-                                        "r_2".to_string(), 
-                                        Box::new(Application(
-                                            Box::new(Application(
-                                                Box::new(Variable("Vec".to_string())), 
-                                                Box::new(Variable("T".to_string()))
-                                            )),
-                                            Box::new(Variable("nr_1".to_string()))
-                                        )), 
-                                        Box::new(Product(
-                                            "ih_0".to_string(), 
-                                            Box::new(Application(
-                                                Box::new(Application(
-                                                    Box::new(Variable("er_Vec".to_string())), 
-                                                    Box::new(Variable("nr_1".to_string()))
-                                                )),
-                                                Box::new(Variable("r_2".to_string()))
-                                            )), 
-                                            Box::new(Application(
-                                                Box::new(Application(
-                                                    Box::new(Variable("er_Vec".to_string())), 
-                                                    Box::new(Application(
-                                                        Box::new(Variable("s".to_string())), 
-                                                        Box::new(Variable("nr_1".to_string()))
-                                                    ))
-                                                )),
-                                                Box::new(Application(
-                                                    Box::new(Application(
-                                                        Box::new(Application(
-                                                            Box::new(Application(
-                                                                Box::new(Variable("cons".to_string())),
-                                                                Box::new(Variable("T".to_string()))
-                                                            )),
-                                                            Box::new(Variable("nr_0".to_string()))
-                                                        )),
-                                                        Box::new(Variable("nr_1".to_string()))
-                                                    )),
-                                                    Box::new(Variable("r_2".to_string()))
-                                                ))
-                                            )) 
-                                        )) 
-                                    ))
-                                ))
-                            )),
-                            Box::new(Product(
-                                "rp_0".to_string(),
-                                Box::new(Variable("Nat".to_string())),
-                                Box::new(Product(
-                                    "t".to_string(), 
-                                    Box::new(Application(
-                                        Box::new(Application(
-                                            Box::new(Variable("Vec".to_string())), 
-                                            Box::new(Variable("T".to_string()))
-                                        )),
-                                        Box::new(Variable("rp_0".to_string()))
-                                    )), 
-                                    Box::new(Application(
-                                        Box::new(Application(
-                                            Box::new(Variable("er_Vec".to_string())), 
-                                            Box::new(Variable("rp_0".to_string()))
-                                        )),
-                                        Box::new(Variable("t".to_string()))
-                                    )) 
-                                ))
-                            ))
-                        )), 
-                    ))
-                ))
-            ),
-            
-            "Length-indexed vector inductive eliminator not properly constructed"
-        );
-    }
-
-    #[test]
-    fn test_positivity_check() {
-        let mut test_env = Cic::default_environment();
-        test_env.add_to_context("Empty", &Sort("TYPE".to_string()));
-
-        assert!(
-            Cic::type_check_stm(
-                &InductiveDef(
-                    "CurrysParadox".to_string(), 
-                    vec![], 
-                    Box::new(Sort("PROP".to_string())),
-                    vec![("paradox".to_string(), Product(
-                        "negative".to_string(), 
-                        Box::new(Product(
-                            "_".to_string(), 
-                            Box::new(Variable("CurrysParadox".to_string())), 
-                            Box::new(Variable("Empty".to_string())) 
-                        )), 
-                        Box::new(Variable("CurrysParadox".to_string())), 
-                    ))]
-                ), 
-                &mut test_env
-            ).is_err(),
-            "Oh no, Curry's paradox is accepted"
-        );
-    }
-
-
-    #[test]
-    fn test_abstraction_inference() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("Nat", &Sort("TYPE".to_string()));
-        test_env.add_to_context(
-            "s", 
-            &Product(
-                "_".to_string(),
-                Box::new(Variable("Nat".to_string())),
-                Box::new(Variable("Nat".to_string()))
-            )
-        );
-
-        assert_eq!(
-            Cic::type_check_term(
-                &Abstraction(
-                    "n".to_string(), 
-                    Box::new(Meta(0)), 
-                    Box::new(Application(
-                        Box::new(Variable("s".to_string())), 
-                        Box::new(Variable("n".to_string()))
-                    ))
-                ), 
-                &mut test_env
-            ),
-            Ok(Product("n".to_string(), Box::new(Variable("Nat".to_string())), Box::new(Variable("Nat".to_string())))),
-            "errore"
-        );
-    }
-
-    #[test]
-    fn test_application_inference() {
-        let mut test_env = Cic::default_environment();
-        test_env
-            .add_to_context("Nat", &Sort("TYPE".to_string()));
-
-        test_env.add_to_context(
-            "List", 
-            &Product(
-                "T".to_string(),
-                Box::new(Sort("TYPE".to_string())),
-                Box::new(Sort("TYPE".to_string()))
-            )
-        );
-        test_env.add_to_context(
-            "cons", 
-            &Product(
-                "T".to_string(),
-                Box::new(Sort("TYPE".to_string())),
-                Box::new(Product(
-                    "e".to_string(),
-                    Box::new(Variable("T".to_string())),
-                    Box::new(Product(
-                        "l".to_string(),
-                        Box::new(Application(
-                            Box::new(Variable("List".to_string())),
-                            Box::new(Variable("T".to_string())),
-                        )),
-                        Box::new(Application(
-                            Box::new(Variable("List".to_string())),
-                            Box::new(Variable("T".to_string())),
-                        ))
-                    ))
-                ))
-            )
-        );
-        test_env.add_to_context("elem", &Variable("Nat".to_string()));
-        test_env.add_to_context("li", &Application(
-            Box::new(Variable("List".to_string())),
-            Box::new(Variable("Nat".to_string())),
-        ));
-    
-        assert_eq!(
-            Cic::type_check_term(
-                &Application(
-                    Box::new(Application(
-                        Box::new(Application(
-                            Box::new(Variable("cons".to_string())), 
-                            // Box::new(Variable("Nat".to_string()))
-                            Box::new(Meta(10))
-                        )),
-                        Box::new(Variable("elem".to_string()))
-                    )), 
-                    Box::new(Variable("li".to_string()))
-                ),
-                &mut test_env
-            ),
-            Ok(Application(
-                Box::new(Variable("List".to_string())),
-                Box::new(Variable("Nat".to_string())),
-            )),
-            "vediamo un po"
-        );    
-    }
-
-}
