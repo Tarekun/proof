@@ -2,7 +2,7 @@ use super::cic::CicTerm;
 use super::cic::CicTerm::{
     Abstraction, Application, Match, Meta, Product, Sort, Variable,
 };
-use crate::type_theory::cic::cic::{GLOBAL_INDEX, PLACEHOLDER_DBI};
+use crate::type_theory::cic::cic::GLOBAL_INDEX;
 use crate::type_theory::cic::cic_utils::substitute_meta;
 use crate::type_theory::environment::Environment;
 use std::collections::{HashMap, VecDeque};
@@ -15,12 +15,6 @@ pub fn cic_unification(
     let mut constraints = environment.get_constraints();
     constraints.push((term1.clone(), term2.clone()));
     Ok(solve_unification(constraints).is_ok())
-
-    // let are_alpha_equivalent = alpha_equivalent(environment, term1, term2)?;
-    // let are_equal_under_substitutions =
-    //     equal_under_substitution(environment, term1, term2);
-
-    // Ok(are_alpha_equivalent || are_equal_under_substitutions)
 }
 
 pub fn instatiate_metas(
@@ -126,8 +120,6 @@ pub fn solve_unification(
                     ) => {
                         if (left_dbi != right_dbi)
                             || (left_dbi == GLOBAL_INDEX
-                                && left_name != right_name)
-                            || (left_dbi == PLACEHOLDER_DBI
                                 && left_name != right_name)
                         {
                             return error_obj;
@@ -239,12 +231,10 @@ mod unit_tests {
     use crate::type_theory::cic::{
         cic::{
             Cic,
-            CicTerm::{Abstraction, Meta, Product, Sort, Variable},
+            CicTerm::{Meta, Product, Sort, Variable},
             GLOBAL_INDEX,
         },
-        unification::{
-            cic_unification, equal_under_substitution, solve_unification,
-        },
+        unification::{equal_under_substitution, solve_unification},
     };
     use crate::type_theory::interface::TypeTheory;
     use std::collections::HashMap;
