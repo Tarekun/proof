@@ -14,7 +14,7 @@ use crate::type_theory::cic::elaboration::{
 };
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::interface::{Kernel, Reducer, Refiner, TypeTheory};
 use tracing::debug;
 
 pub static FIRST_INDEX: i32 = 0;
@@ -77,7 +77,9 @@ impl TypeTheory for Cic {
 
         Environment::with_defaults(axioms, Vec::default(), vec![])
     }
+}
 
+impl Kernel for Cic {
     fn elaborate_ast(ast: LofAst) -> Program<Cic> {
         let mut program = Program::new();
 
@@ -153,7 +155,9 @@ impl TypeTheory for Cic {
             }
         }
     }
+}
 
+impl Refiner for Cic {
     fn terms_unify(
         environment: &mut Environment<CicTerm, CicTerm>,
         term1: &CicTerm,
@@ -177,7 +181,9 @@ impl TypeTheory for Cic {
             Err(message) => panic!("{}", message),
         }
     }
+}
 
+impl Reducer for Cic {
     fn normalize_term(
         environment: &mut Environment<CicTerm, CicTerm>,
         term: &CicTerm,
