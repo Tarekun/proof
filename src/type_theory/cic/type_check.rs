@@ -1,11 +1,11 @@
 use tracing::error;
 use std::collections::HashMap;
-use super::cic::CicTerm::{Application, Product, Sort, Variable, Meta};
+use super::cic::CicTerm::{Application, Abstraction, Product, Sort, Variable, Meta};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::{check_positivity, substitute_meta};
-use super::evaluation::{evaluate_fun, evaluate_inductive};
+use super::evaluation::{evaluate_inductive};
 use super::unification::solve_unification;
-use crate::misc::{simple_map, simple_map_indexed, Union, Union::{L, R}};
+use crate::misc::{simple_map, simple_map_indexed, Union};
 use crate::parser::api::Tactic;
 use crate::type_theory::cic::cic::{GLOBAL_INDEX, PLACEHOLDER_DBI};
 use crate::type_theory::cic::cic_utils::{
@@ -301,7 +301,7 @@ pub fn type_check_theorem(
     formula: &CicTerm,
     proof: &Union<CicTerm, Vec<Tactic<CicTerm>>>
 ) -> Result<CicTerm, String> {
-    generic_type_check_theorem::<Cic>(environment, theorem_name, formula, proof)
+    generic_type_check_theorem::<Cic, CicTerm>(environment, theorem_name, formula, proof)
 }
 //
 //
@@ -583,6 +583,44 @@ pub fn type_check_inductive(
 }
 //
 //########################### STATEMENTS TYPE CHECKING
+//
+//########################### TACTICS TYPE CHECKING
+//
+fn type_check_suppose(ass_name: String, ass_type: &CicTerm, target: &CicTerm) -> Result<(CicTerm, CicTerm), String> {
+    // fn get_prod_outermost(term: &CicTerm) -> Result<CicTerm, String> {
+    //     match term {
+    //         Product(_, domain, _) => Ok((**domain).clone()),
+    //         _ => Err(format!("{:?} is not a dependent product term", term))
+    //     }
+    // }
+
+    // match target {
+    //     Product(_, domain, codomain) => {
+    //         if Cic::terms_unify(environment, ass_type, domain) {
+    //             let partial_proof = Abstraction(
+    //                 ass_name.to_string(),
+    //                 Box::new(ass_type.to_owned()),
+    //                 Box::new(Meta(0))
+    //             );
+    //             Ok((partial_proof, **codomain))
+    //         } else {
+    //             Err(format!(
+    //                 "{} has inconsistent type: expected {:?}, found {:?}", 
+    //                 ass_name, domain, ass_type
+    //             ))
+    //         }
+    //     },
+    //     _ => {
+    //         Err(format!(
+    //             "Suppose tactic not allowed: current proof target {:?} is not a dependent product",
+    //             target
+    //         ))
+    //     }
+    // }
+    Err("TODO".to_string())
+}
+//
+//########################### TACTICS TYPE CHECKING
 //
 //########################### HELPER FUNCTIONS
 //

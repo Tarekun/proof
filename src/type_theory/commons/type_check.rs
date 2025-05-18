@@ -208,11 +208,11 @@ pub fn generic_type_check_axiom<T: TypeTheory + Kernel>(
 
 /// Generic theorem type checking. If `proof` is a term style proof it type checks
 /// the body and checks unification with the theorem `formula`;
-pub fn generic_type_check_theorem<T: TypeTheory + Kernel>(
+pub fn generic_type_check_theorem<T: TypeTheory + Kernel, E>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,
     formula: &T::Type,
-    proof: &Union<T::Term, Vec<Tactic<T::Term>>>,
+    proof: &Union<T::Term, Vec<Tactic<E>>>,
 ) -> Result<T::Type, String> {
     let _ = T::type_check_type(formula, environment)?;
     match proof {
@@ -224,7 +224,7 @@ pub fn generic_type_check_theorem<T: TypeTheory + Kernel>(
                     formula, proof_type
                 ));
             }
-            generic_evaluate_theorem::<T>(
+            generic_evaluate_theorem::<T, E>(
                 environment,
                 theorem_name,
                 formula,
@@ -235,6 +235,22 @@ pub fn generic_type_check_theorem<T: TypeTheory + Kernel>(
         R(interactive_proof) => {
             //TODO
             Ok(formula.to_owned())
+        }
+    }
+}
+
+fn type_check_interactive_proof<E>(
+    interactive_proof: &[Tactic<E>],
+    target: E,
+) -> E {
+    match interactive_proof {
+        [] => target,
+        [head, rest @ ..] => {
+            // type_check_tactic(head)
+            // update target and context
+            // run recursively on rest
+
+            target
         }
     }
 }

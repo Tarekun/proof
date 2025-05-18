@@ -2,9 +2,7 @@ use super::fol::FolType::{Arrow, ForAll};
 use super::fol::{Fol, FolTerm, FolType};
 use super::fol_utils::make_multiarg_fun_type;
 use crate::misc::Union;
-use crate::misc::Union::{L, R};
 use crate::parser::api::Tactic;
-use crate::type_theory::commons::evaluation::generic_evaluate_theorem;
 use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::{Kernel, Refiner};
@@ -120,31 +118,7 @@ pub fn type_check_theorem(
     formula: &FolType,
     proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>>
 ) -> Result<FolType, String> {
-    //TODO fix this mess
-    // generic_type_check_theorem::<Fol>(environment, theorem_name, formula, proof)
-    let _ = Fol::type_check_type(formula, environment)?;
-    match proof {
-        L(proof_term) => {
-            let proof_type = Fol::type_check_term(proof_term, environment)?;
-            if !Fol::types_unify(environment, &formula, &proof_type) {
-                return Err(format!(
-                    "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
-                    formula, proof_type
-                ));
-            }
-            // generic_evaluate_theorem::<Fol>(
-            //     environment,
-            //     theorem_name,
-            //     formula,
-            //     proof,
-            // );
-            Ok(formula.to_owned())
-        }
-        R(interactive_proof) => {
-            //TODO
-            Ok(formula.to_owned())
-        }
-    }
+    generic_type_check_theorem::<Fol, Union<FolTerm, FolType>>(environment, theorem_name, formula, proof)
 }
 //
 //
