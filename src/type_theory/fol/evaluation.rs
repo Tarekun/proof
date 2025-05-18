@@ -88,8 +88,12 @@ pub fn evaluate_theorem(
     formula: &FolType,
     proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>>,
 ) -> () {
-    ()
-    // generic_evaluate_theorem::<Fol>(environment, theorem_name, formula, proof);
+    generic_evaluate_theorem::<Fol, Union<FolTerm, FolType>>(
+        environment,
+        theorem_name,
+        formula,
+        proof,
+    );
 }
 //
 //
