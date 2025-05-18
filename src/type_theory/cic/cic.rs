@@ -5,7 +5,7 @@ use super::type_check::{
     type_check_product, type_check_sort, type_check_theorem,
     type_check_variable,
 };
-use super::unification::cic_unification;
+use super::unification::{cic_unification, solve_unification};
 use crate::misc::Union;
 use crate::parser::api::{LofAst, Tactic};
 use crate::runtime::program::Program;
@@ -76,6 +76,21 @@ impl TypeTheory for Cic {
             vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
 
         Environment::with_defaults(axioms, Vec::default(), vec![])
+    }
+
+    // uses unification, implementing structural equality under some
+    // metavariable substitution
+    fn base_term_equality(
+        term1: &CicTerm,
+        term2: &CicTerm,
+    ) -> Result<(), String> {
+        common_unification_check(term1, term2)
+    }
+    fn base_type_equality(
+        type1: &CicTerm,
+        type2: &CicTerm,
+    ) -> Result<(), String> {
+        common_unification_check(type1, type2)
     }
 }
 
@@ -231,5 +246,16 @@ fn common_type_checking(
             // Err(format!("MetaVariables should never appear as type checkable terms. Received ?[{}]", index))
             Ok(CicTerm::Sort("TYPE".to_string()))
         }
+    }
+}
+
+fn common_unification_check(
+    term1: &CicTerm,
+    term2: &CicTerm,
+) -> Result<(), String> {
+    if solve_unification(vec![(term1.to_owned(), term2.to_owned())]).is_ok() {
+        Ok(())
+    } else {
+        Err(format!("{:?} and {:?} do not unifiy", term1, term2))
     }
 }
