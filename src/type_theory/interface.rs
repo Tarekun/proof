@@ -17,6 +17,22 @@ pub trait TypeTheory {
 
     /// Create the default environment
     fn default_environment() -> Environment<Self::Term, Self::Type>;
+
+    /// Computes default system equality. Returns Ok(()) if the check is
+    /// successfull, an error message otherwise.
+    /// This is the equality checked used by the commons library for consistency
+    fn base_term_equality(
+        term1: Self::Term,
+        term2: Self::Term,
+    ) -> Result<(), String>;
+
+    /// Computes default system equality. Returns Ok(()) if the check is
+    /// successfull, an error message otherwise.
+    /// This is the equality checked used by the commons library for consistency
+    fn base_type_equality(
+        type1: Self::Type,
+        type2: Self::Type,
+    ) -> Result<(), String>;
 }
 
 /// Kernel module, implements the type checking algorithms
