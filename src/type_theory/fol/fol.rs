@@ -140,20 +140,20 @@ impl TypeTheory for Fol {
 
     // TODO only supports identical expressions
     fn base_term_equality(
-        term1: Self::Term,
-        term2: Self::Term,
+        term1: &Self::Term,
+        term2: &Self::Term,
     ) -> Result<(), String> {
-        if term1 == term2 {
+        if *term1 == *term2 {
             Ok(())
         } else {
             Err(format!("{:?} and {:?} are not equal", term1, term2))
         }
     }
     fn base_type_equality(
-        type1: Self::Type,
-        type2: Self::Type,
+        type1: &Self::Type,
+        type2: &Self::Type,
     ) -> Result<(), String> {
-        if type1 == type2 {
+        if *type1 == *type2 {
             Ok(())
         } else {
             Err(format!("{:?} and {:?} are not equal", type1, type2))

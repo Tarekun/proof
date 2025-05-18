@@ -22,16 +22,16 @@ pub trait TypeTheory {
     /// successfull, an error message otherwise.
     /// This is the equality checked used by the commons library for consistency
     fn base_term_equality(
-        term1: Self::Term,
-        term2: Self::Term,
+        term1: &Self::Term,
+        term2: &Self::Term,
     ) -> Result<(), String>;
 
     /// Computes default system equality. Returns Ok(()) if the check is
     /// successfull, an error message otherwise.
     /// This is the equality checked used by the commons library for consistency
     fn base_type_equality(
-        type1: Self::Type,
-        type2: Self::Type,
+        type1: &Self::Type,
+        type2: &Self::Type,
     ) -> Result<(), String>;
 }
 

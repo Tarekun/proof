@@ -81,14 +81,14 @@ impl TypeTheory for Cic {
     // uses unification, implementing structural equality under some
     // metavariable substitution
     fn base_term_equality(
-        term1: Self::Term,
-        term2: Self::Term,
+        term1: &CicTerm,
+        term2: &CicTerm,
     ) -> Result<(), String> {
         common_unification_check(term1, term2)
     }
     fn base_type_equality(
-        type1: Self::Type,
-        type2: Self::Type,
+        type1: &CicTerm,
+        type2: &CicTerm,
     ) -> Result<(), String> {
         common_unification_check(type1, type2)
     }
@@ -250,13 +250,12 @@ fn common_type_checking(
 }
 
 fn common_unification_check(
-    term1: CicTerm,
-    term2: CicTerm,
+    term1: &CicTerm,
+    term2: &CicTerm,
 ) -> Result<(), String> {
-    let error_message = format!("{:?} and {:?} do not unifiy", term1, term2);
-    if solve_unification(vec![(term1, term2)]).is_ok() {
+    if solve_unification(vec![(term1.to_owned(), term2.to_owned())]).is_ok() {
         Ok(())
     } else {
-        Err(error_message)
+        Err(format!("{:?} and {:?} do not unifiy", term1, term2))
     }
 }

@@ -4,7 +4,7 @@ use crate::{
     parser::api::Tactic,
     type_theory::{
         environment::Environment,
-        interface::{Kernel, Refiner, TypeTheory},
+        interface::{Kernel, TypeTheory},
     },
 };
 
@@ -80,7 +80,7 @@ pub fn generic_type_check_universal<T: TypeTheory + Kernel>(
 
 //                 match function_type.clone() {
 //                     T::Term::Function(var_name, domain, codomain) => {
-//                         if T::types_unify(local_env, domain, &arg_type) {
+//                         if T::base_type_equality(&domain, &arg_type) {
 //                             local_env.add_variable_definition(&var_name, &right, &arg_type);
 //                             // δ-reduce the body type in case its dependent on var_name
 //                             match delta_reduce(local_env, *codomain.clone()) {
@@ -122,7 +122,7 @@ pub fn generic_type_check_universal<T: TypeTheory + Kernel>(
 //########################### STATEMENTS TYPE CHECKING
 //
 /// Generic let definition type checking. Uses `T::type_check_type` on the variable type
-pub fn generic_type_check_let<T: TypeTheory + Kernel + Refiner>(
+pub fn generic_type_check_let<T: TypeTheory + Kernel>(
     environment: &mut Environment<T::Term, T::Type>,
     var_name: &str,
     opt_type: &Option<T::Type>,
@@ -136,7 +136,7 @@ pub fn generic_type_check_let<T: TypeTheory + Kernel + Refiner>(
     };
     let _ = T::type_check_type(&var_type, environment)?;
 
-    if T::types_unify(environment, &var_type, &body_type) {
+    if T::base_type_equality(&var_type, &body_type).is_ok() {
         generic_evaluate_let::<T>(environment, var_name, &Some(var_type), body);
         Ok(body_type)
     } else {
@@ -151,7 +151,7 @@ pub fn generic_type_check_let<T: TypeTheory + Kernel + Refiner>(
 
 /// Generic function definition type checking
 pub fn generic_type_check_fun<
-    T: TypeTheory + Kernel + Refiner,
+    T: TypeTheory + Kernel,
     F: Fn(&[(String, T::Type)], &T::Type) -> T::Type,
 >(
     environment: &mut Environment<T::Term, T::Type>,
@@ -174,7 +174,7 @@ pub fn generic_type_check_fun<
         .with_local_assumptions(&assumptions, |local_env| {
             T::type_check_term(&body, local_env)
         })?;
-    if !T::types_unify(environment, out_type, &body_type) {
+    if T::base_type_equality(out_type, &body_type).is_err() {
         return Err(format!(
             "In {} definition, function type {:?} and body result {:?} are inconsistent",
             fun_name, out_type, body_type
@@ -208,7 +208,7 @@ pub fn generic_type_check_axiom<T: TypeTheory + Kernel>(
 
 /// Generic theorem type checking. If `proof` is a term style proof it type checks
 /// the body and checks unification with the theorem `formula`;
-pub fn generic_type_check_theorem<T: TypeTheory + Kernel + Refiner>(
+pub fn generic_type_check_theorem<T: TypeTheory + Kernel>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,
     formula: &T::Type,
@@ -218,7 +218,7 @@ pub fn generic_type_check_theorem<T: TypeTheory + Kernel + Refiner>(
     match proof {
         L(proof_term) => {
             let proof_type = T::type_check_term(proof_term, environment)?;
-            if !T::types_unify(environment, &formula, &proof_type) {
+            if T::base_type_equality(&formula, &proof_type).is_err() {
                 return Err(format!(
                     "Proof term's type doesn't unify with the theorem statement. Expected {:?} but found {:?}",
                     formula, proof_type
