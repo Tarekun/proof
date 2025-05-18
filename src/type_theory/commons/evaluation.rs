@@ -89,11 +89,11 @@ pub fn generic_evaluate_axiom<T: TypeTheory>(
 }
 //
 //
-pub fn generic_evaluate_theorem<T: TypeTheory>(
+pub fn generic_evaluate_theorem<T: TypeTheory, E>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,
     formula: &T::Type,
-    _proof: &Union<T::Term, Vec<Tactic>>,
+    _proof: &Union<T::Term, Vec<Tactic<E>>>,
 ) -> () {
     environment.add_to_context(&theorem_name, &formula);
 }

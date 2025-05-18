@@ -5,6 +5,16 @@ pub enum Union<L, R> {
     L(L),
     R(R),
 }
+impl<L, R> Union<L, R> {
+    pub fn left_or_panic(self) -> L {
+        match self {
+            Union::L(left) => left,
+            Union::R(_) => {
+                panic!("left expected but union is right-constructed")
+            }
+        }
+    }
+}
 
 // im like fr?
 pub fn simple_map<T, R>(

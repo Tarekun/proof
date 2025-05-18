@@ -8,33 +8,48 @@ use nom::{
 };
 
 use super::api::Tactic::{Begin, Qed, Suppose};
-use super::api::{LofParser, Tactic};
+use super::api::{Expression, LofParser, Tactic};
 
 //########################### TACTICS PARSER
 impl LofParser {
-    fn begin<'a>(&'a self, input: &'a str) -> IResult<&'a str, Tactic> {
+    fn begin<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("begin"))(input)?;
         Ok((input, Begin()))
     }
 
-    fn qed<'a>(&'a self, input: &'a str) -> IResult<&'a str, Tactic> {
+    fn qed<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("qed."))(input)?;
         Ok((input, Qed()))
     }
 
-    fn suppose<'a>(&'a self, input: &'a str) -> IResult<&'a str, Tactic> {
+    fn suppose<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("suppose"))(input)?;
         let (input, (var_name, opt_type)) = preceded(multispace1, |input| {
             self.parse_optionally_typed_identifier(input)
         })(input)?;
 
-        Ok((input, Suppose(var_name.to_string(), opt_type)))
+        Ok((
+            input,
+            Suppose(
+                var_name.to_string(),
+                opt_type.unwrap_or(Expression::Inferator()),
+            ),
+        ))
     }
 
     pub fn parse_tactic<'a>(
         &'a self,
         input: &'a str,
-    ) -> IResult<&'a str, Tactic> {
+    ) -> IResult<&'a str, Tactic<Expression>> {
         alt((
             |input| self.begin(input),
             |input| self.qed(input),
@@ -45,7 +60,7 @@ impl LofParser {
     pub fn parse_interactive_proof<'a>(
         &'a self,
         input: &'a str,
-    ) -> IResult<&'a str, Vec<Tactic>> {
+    ) -> IResult<&'a str, Vec<Tactic<Expression>>> {
         let (input, partial_proof) =
             many0(|input| self.parse_tactic(input))(input)?;
 
@@ -95,10 +110,7 @@ mod unit_tests {
 
         assert_eq!(
             parser.suppose("suppose n:Nat"),
-            Ok((
-                "",
-                Suppose("n".to_string(), Some(VarUse("Nat".to_string())))
-            )),
+            Ok(("", Suppose("n".to_string(), VarUse("Nat".to_string())))),
             "Suppose parser doesnt construct the proper node"
         );
         assert!(

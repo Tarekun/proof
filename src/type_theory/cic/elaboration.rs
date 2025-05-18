@@ -5,11 +5,13 @@ use super::cic::{
     CicTerm::{Abstraction, Application, Match, Meta, Product, Sort, Variable},
 };
 use super::cic_utils::index_variables;
+use crate::misc::simple_map;
 use crate::misc::Union;
 use crate::misc::Union::{L, R};
 use crate::parser::api::{Expression, LofAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::cic::cic::Cic;
+use crate::type_theory::commons::elaboration::elaborate_tactic;
 
 fn map_typed_variables(
     variables: &Vec<(String, Expression)>,
@@ -76,7 +78,7 @@ pub fn elaborate_expression(ast: &Expression) -> CicTerm {
         Expression::Arrow(domain, codomain) => {
             elaborate_arrow(&*domain, &*codomain)
         }
-        Expression::Meta() => elaborate_meta(),
+        Expression::Inferator() => elaborate_meta(),
     };
 
     index_variables(&elaborated)
@@ -86,6 +88,8 @@ pub fn elaborate_expression(ast: &Expression) -> CicTerm {
 #[allow(non_upper_case_globals)]
 static mut next_index: i32 = 0;
 fn elaborate_meta() -> CicTerm {
+    //TODO well... this causes issues with tests
+    //'twas unsafe indeed...
     //unsafe my ass stupid crab
     unsafe {
         let index = next_index;
@@ -350,24 +354,33 @@ fn elaborate_theorem(
     program: &mut Program<Cic>,
     theorem_name: String,
     formula: Expression,
-    proof: Union<Expression, Vec<Tactic>>,
+    proof: Union<Expression, Vec<Tactic<Expression>>>,
 ) -> Result<(), String> {
     let cic_formula = elaborate_expression(&formula);
-    match proof {
+    let proof = match proof {
         L(proof_term) => {
             let cic_proof_term = elaborate_expression(&proof_term);
-            program.push_statement(&Theorem(
-                theorem_name,
-                Box::new(cic_formula),
-                L(cic_proof_term),
-            ));
-            Ok(())
+            L(cic_proof_term)
         }
         R(interactive_proof) => {
-            //TODO suckaaa
-            Ok(())
+            let cic_interactive_proof: Vec<Tactic<CicTerm>> =
+                simple_map(interactive_proof, |tactic| {
+                    elaborate_tactic::<CicTerm, _>(tactic, |exp| {
+                        elaborate_expression(&exp)
+                    })
+                    //TODO this is a temporary solution, doesnt handle errors gracefully
+                    .unwrap()
+                });
+            R(cic_interactive_proof)
         }
-    }
+    };
+
+    program.push_statement(&Theorem(
+        theorem_name,
+        Box::new(cic_formula),
+        proof,
+    ));
+    Ok(())
 }
 //
 //

@@ -116,9 +116,9 @@ pub fn type_check_theorem(
     environment: &mut Environment<FolTerm, FolType>,
     theorem_name: &str,
     formula: &FolType,
-    proof: &Union<FolTerm, Vec<Tactic>>
+    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>>
 ) -> Result<FolType, String> {
-    generic_type_check_theorem::<Fol>(environment, theorem_name, formula, proof)
+    generic_type_check_theorem::<Fol, Union<FolTerm, FolType>>(environment, theorem_name, formula, proof)
 }
 //
 //

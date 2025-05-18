@@ -17,8 +17,8 @@ pub enum Expression {
     Application(Box<Expression>, Box<Expression>),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
-    // metavariable for inferable types
-    Meta(),
+    // Infer operator to be elaborated to metavariables
+    Inferator(),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
@@ -28,7 +28,11 @@ pub enum Statement {
     EmptyRoot(Vec<LofAst>),
     Axiom(String, Box<Expression>),
     /// (theorem_name, formula, proof)
-    Theorem(String, Expression, Union<Expression, Vec<Tactic>>),
+    Theorem(
+        String,
+        Expression,
+        Union<Expression, Vec<Tactic<Expression>>>,
+    ),
     /// (var_name, var_type, definition_body)
     Let(String, Option<Expression>, Box<Expression>),
     /// (fun_name, args, out_type, body, is_rec)
@@ -48,10 +52,10 @@ pub enum Statement {
     ),
 }
 #[derive(Debug, PartialEq, Clone)]
-pub enum Tactic {
+pub enum Tactic<E> {
     Begin(),
     Qed(),
-    Suppose(String, Option<Expression>),
+    Suppose(String, E),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum LofAst {

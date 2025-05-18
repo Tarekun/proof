@@ -194,7 +194,7 @@ impl LofParser {
     ) -> IResult<&'a str, Expression> {
         let (input, _) = preceded(multispace0, char('?'))(input)?;
 
-        Ok((input, Expression::Meta()))
+        Ok((input, Expression::Inferator()))
     }
 
     pub fn parse_expression<'a>(
@@ -225,7 +225,7 @@ mod unit_tests {
         config::Config,
         parser::api::{
             Expression,
-            Expression::{Application, Meta, VarUse},
+            Expression::{Application, Inferator, VarUse},
             LofParser,
         },
     };
@@ -498,7 +498,7 @@ mod unit_tests {
                     Box::new(Application(
                         Box::new(Application(
                             Box::new(VarUse("cons".to_string())),
-                            Box::new(Meta()),
+                            Box::new(Inferator()),
                         )),
                         Box::new(VarUse("z".to_string()))
                     )),
