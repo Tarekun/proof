@@ -99,6 +99,56 @@ impl Reducer for Cic {
 }
 ```
 
+### Evaluation Utilities
+
+The `evaluation.rs` module provides common utility functions that can be used across different type theories to implement evaluation capabilities. These utilities abstract away some of the boilerplate code needed for normalization and statement execution.
+
+Key functions include:
+
+- `generic_term_normalization`: Implements βδ-reduction by repeatedly applying one-step reduction until a fixed point is reached
+- `generic_reduce_variable`: Handles variable substitution during evaluation, supporting both direct δ-reduction (for defined variables) and identity reduction (for constants)
+- Statement evaluation utilities like `generic_evaluate_let`, `generic_evaluate_fun`, etc. that handle common statement types
+
+Example usage:
+
+```rust
+pub fn normalize_term(
+    environment: &mut Environment<CicTerm, CicTerm>,
+    term: &CicTerm,
+) -> CicTerm {
+    debug!("Normalizing term: {:?}", term);
+    generic_term_normalization::<Cic, _>(
+        environment,
+        term,
+        one_step_reduction,
+    )
+}
+```
+
+### Utility Functions
+
+The `utils.rs` module provides helper functions that can be used across different type theories to implement common functionality. These utilities abstract away some of the boilerplate code needed for multi-argument function types.
+
+Key functions include:
+
+- `generic_multiarg_fun_type`: Constructs a multi-argument function type by recursively building up from binary function applications
+- The function takes an aggregator that combines two types into a new function type
+
+Example usage:
+
+```rust
+pub fn make_multiarg_fun_type(
+    arg_types: &[(String, CicTerm)],
+    base: &CicTerm,
+) -> CicTerm {
+    generic_multiarg_fun_type::<_, _, _>(
+        arg_types,
+        base,
+        |_, t1, t2| CicTerm::Application(Box::new(t1), Box::new(t2)),
+    )
+}
+```
+
 ### Possible Pitfalls
 
 - When implementing `TypeTheory`, ensure that the default environment contains all necessary base types and axioms.
@@ -140,6 +190,50 @@ type2: &Self::Type) -> bool`: Checks if two types can be unified
    - Methods: - `normalize_term(environment: &mut Environment<Self::Term, Self::Type>, term: &Self::Term) 
 -> Self::Term`: Reduces terms to normal form - `evaluate_statement(environment: &mut Environment<Self::Term, Self::Type>, stm: &Self::Stm) 
 -> ()`: Evaluates complete statements
+
+### Evaluation Utilities
+
+1. **generic_term_normalization**
+
+   - Function that repeatedly applies one-step reduction until a fixed point is reached
+   - Signature: `pub fn generic_term_normalization<T: TypeTheory, F: Fn(&mut Environment<T::Term, T::Type>, &T::Term) -> T::Term>(environment: &mut Environment<T::Term, T::Type>, term: &T::Term, one_step_reduction: F) -> T::Term`
+   - Behavior: Continues reduction until no further changes occur
+
+2. **generic_reduce_variable**
+
+   - Function that handles variable substitution during evaluation
+   - Signature: `pub fn generic_reduce_variable<T: TypeTheory>(environment: &Environment<T::Term, T::Type>, var_name: &str, og_term: &T::Term) -> T::Term`
+   - Behavior: Returns the definition if a substitution exists, otherwise returns the original term
+
+3. **generic_evaluate_let**
+
+   - Function that evaluates let bindings
+   - Signature: `pub fn generic_evaluate_let<T: TypeTheory + Kernel>(environment: &mut Environment<T::Term, T::Type>, var_name: &str, var_type: &Option<T::Type>, body: &T::Term) -> ()`
+   - Behavior: Adds the let binding to the environment with proper type annotation
+
+4. **generic_evaluate_fun**
+
+   - Function that evaluates function definitions
+   - Signature: `pub fn generic_evaluate_fun<T: TypeTheory, F: Fn(&[(String, T::Type)], &T::Term) -> T::Term>(environment: &mut Environment<T::Term, T::Type>, fun_name: &str, args: &Vec<(String, T::Type)>, out_type: &T::Term, body: &T::Term, _is_rec: &bool, make_fun_type: F) -> ()`
+   - Behavior: Adds the function definition to the environment with proper type annotation
+
+5. **generic_evaluate_axiom**
+
+   - Function that evaluates axiom declarations
+   - Signature: `pub fn generic_evaluate_axiom<T: TypeTheory>(environment: &mut Environment<T::Term, T::Type>, axiom_name: &str, formula: &T::Type) -> ()`
+   - Behavior: Adds the axiom to the environment's context
+
+6. **generic_evaluate_theorem**
+   - Function that evaluates theorem declarations
+   - Signature: `pub fn generic_evaluate_theorem<T: TypeTheory>(environment: &mut Environment<T::Term, T::Type>, theorem_name: &str, formula: &T::Type, _proof: &Union<T::Term, Vec<Tactic>>) -> ()`
+   - Behavior: Adds the theorem to the environment's context
+
+### Utility Functions
+
+1. **generic_multiarg_fun_type**
+   - Function that constructs a multi-argument function type
+   - Signature: `pub fn generic_multiarg_fun_type<T, F>(arg_types: &[(String, T::Type)], base: &T::Type, aggregator: F) -> T::Type where T: TypeTheory, F: Fn(String, T::Type, T::Type) -> T::Type + Copy`
+   - Behavior: Recursively builds up from binary function applications using the provided aggregator
 
 ## Test Coverage
 

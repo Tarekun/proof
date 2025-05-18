@@ -1,9 +1,0 @@
-
-### Kernel Trait
-This trait defines the core type checking functionality:
-- `elaborate_ast`: Converts AST nodes into a program structure
-- `type_check_term`: Type checks individual terms
-- `type_check_type`: Type checks types themselves (ensuring they are well-formed)
-- `type_check_stm`: Type checks complete statements
-
-Example implementation from CIC:
