@@ -1,5 +1,4 @@
-use crate::misc::Union;
-use crate::parser::api::LofAst;
+use crate::parser::api::{LofAst, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
 use std::fmt::Debug;
@@ -94,4 +93,22 @@ pub trait Reducer: TypeTheory {
         environment: &mut Environment<Self::Term, Self::Type>,
         stm: &Self::Stm,
     ) -> ();
+}
+
+/// Interactive module, implements tactic checking for interactive theorem proving
+pub trait Interactive: TypeTheory {
+    type Exp;
+
+    /// Canonical proof hole term for partial proofs
+    fn proof_hole() -> Self::Term;
+    /// Canonical empty  target signaling the completeness of the proof
+    fn empty_target() -> Self::Type;
+
+    /// Proof checking for the current `tactic` given a `target` and a `partial_proof`.
+    /// Returns an updated (target, partial_proof) pair
+    fn type_check_tactic(
+        tactic: &Tactic<Self::Exp>,
+        target: &Self::Type,
+        partial_proof: &Self::Term,
+    ) -> Result<(Self::Type, Self::Term), String>;
 }
