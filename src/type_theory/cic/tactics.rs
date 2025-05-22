@@ -1,12 +1,8 @@
+use super::cic::CicTerm;
 use super::cic::CicTerm::{Abstraction, Application, Product, Sort, Variable};
-use super::cic::{CicStm, CicTerm};
-use crate::parser::api::Tactic::{self, Begin, Suppose};
+use crate::parser::api::Tactic::{self, Suppose};
 use crate::type_theory::cic::cic::Cic;
-use crate::type_theory::interface::TypeTheory;
-
-fn partial_proof_hole() -> CicTerm {
-    Sort("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
-}
+use crate::type_theory::interface::{Interactive, TypeTheory};
 
 pub fn type_check_tactic(
     tactic: &Tactic<CicTerm>,
@@ -50,7 +46,7 @@ fn type_check_suppose(
                 let partial_proof = swap_body(partial_proof, Abstraction(
                     ass_name.to_string(),
                     Box::new(ass_type.to_owned()),
-                    Box::new(partial_proof_hole())
+                    Box::new(Cic::proof_hole())
                 ));
 
                 Ok((partial_proof, (**codomain).clone()))
@@ -153,6 +149,12 @@ mod unit_tests {
             )
             .is_ok(),
             "Top-level tactic checker doesnt support suppose"
+        );
+
+        assert!(
+            type_check_suppose("ass", &nat.clone(), &nat, &Cic::proof_hole())
+                .is_err(),
+            "Suppose tactic checking accepts tactic with unassumable target"
         );
     }
 }
