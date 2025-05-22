@@ -1,3 +1,5 @@
+use nom::Err;
+
 use super::elaboration::{
     elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_expression,
     elaborate_file_root, elaborate_fun, elaborate_let, elaborate_theorem,
@@ -19,7 +21,9 @@ use crate::type_theory::fol::fol::FolTerm::{
 };
 use crate::type_theory::fol::fol::FolType::{Arrow, Atomic, ForAll};
 use crate::type_theory::fol::type_check::type_check_atomic;
-use crate::type_theory::interface::{Kernel, Reducer, Refiner, TypeTheory};
+use crate::type_theory::interface::{
+    Interactive, Kernel, Reducer, Refiner, TypeTheory,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FolTerm {
@@ -238,5 +242,24 @@ impl Reducer for Fol {
         stm: &FolStm,
     ) -> () {
         evaluate_statement(environment, stm)
+    }
+}
+
+impl Interactive for Fol {
+    type Exp = Union<FolTerm, FolType>;
+
+    fn proof_hole() -> Self::Term {
+        FolTerm::Variable("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
+    }
+    fn empty_target() -> Self::Type {
+        FolType::Atomic("THIS_IS_AN_EMPTY_TERMINATION_PROOF_TARGET".to_string())
+    }
+
+    fn type_check_tactic(
+        tactic: &Tactic<Self::Exp>,
+        target: &Self::Type,
+        partial_proof: &Self::Term,
+    ) -> Result<(Self::Type, Self::Term), String> {
+        Err("not implemented".to_string())
     }
 }

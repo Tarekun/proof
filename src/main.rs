@@ -29,6 +29,7 @@ mod type_theory {
         pub mod cic_utils;
         pub mod elaboration;
         pub mod evaluation;
+        pub mod tactics;
         pub mod type_check;
         pub mod unification;
         pub mod tests {

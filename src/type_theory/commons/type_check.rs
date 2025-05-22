@@ -1,10 +1,9 @@
 use crate::{
-    misc::Union,
-    misc::Union::{L, R},
+    misc::Union::{self, L, R},
     parser::api::Tactic,
     type_theory::{
         environment::Environment,
-        interface::{Kernel, TypeTheory},
+        interface::{Interactive, Kernel, TypeTheory},
     },
 };
 
@@ -208,11 +207,11 @@ pub fn generic_type_check_axiom<T: TypeTheory + Kernel>(
 
 /// Generic theorem type checking. If `proof` is a term style proof it type checks
 /// the body and checks unification with the theorem `formula`;
-pub fn generic_type_check_theorem<T: TypeTheory + Kernel, E>(
+pub fn generic_type_check_theorem<T: TypeTheory + Kernel + Interactive, E>(
     environment: &mut Environment<T::Term, T::Type>,
     theorem_name: &str,
     formula: &T::Type,
-    proof: &Union<T::Term, Vec<Tactic<E>>>,
+    proof: &Union<T::Term, Vec<Tactic<T::Exp>>>,
 ) -> Result<T::Type, String> {
     let _ = T::type_check_type(formula, environment)?;
     match proof {
@@ -224,33 +223,48 @@ pub fn generic_type_check_theorem<T: TypeTheory + Kernel, E>(
                     formula, proof_type
                 ));
             }
-            generic_evaluate_theorem::<T, E>(
+            generic_evaluate_theorem::<T, T::Exp>(
                 environment,
                 theorem_name,
                 formula,
                 proof,
             );
-            Ok(formula.to_owned())
         }
         R(interactive_proof) => {
-            //TODO
-            Ok(formula.to_owned())
+            let (target, proof) = type_check_interactive_proof::<T>(
+                interactive_proof,
+                formula,
+                &T::proof_hole(),
+            )?;
+            // check that the proof proves the statement
+            if target == T::empty_target() {
+                let proof_type = T::type_check_term(&proof, environment)?;
+                if T::base_type_equality(&proof_type, formula).is_err() {
+                    return Err(format!(
+                        "Theorem checking failed. Proof has type {:?} while stated type is {:?}",
+                        proof_type, formula
+                    ));
+                }
+            }
         }
     }
+    Ok(formula.to_owned())
 }
 
-fn type_check_interactive_proof<E>(
-    interactive_proof: &[Tactic<E>],
-    target: E,
-) -> E {
+fn type_check_interactive_proof<T: TypeTheory + Interactive>(
+    interactive_proof: &[Tactic<T::Exp>],
+    target: &T::Type,
+    partial_proof: &T::Term,
+) -> Result<(T::Type, T::Term), String> {
     match interactive_proof {
-        [] => target,
-        [head, rest @ ..] => {
-            // type_check_tactic(head)
-            // update target and context
+        [] => Ok((target.to_owned(), partial_proof.to_owned())),
+        [proof_step, rest @ ..] => {
+            // type_check_tactic(proof_step)
+            let (new_target, new_proof) =
+                T::type_check_tactic(proof_step, &target, &partial_proof)?;
+            // TODO update target and context
             // run recursively on rest
-
-            target
+            type_check_interactive_proof::<T>(rest, &new_target, &new_proof)
         }
     }
 }

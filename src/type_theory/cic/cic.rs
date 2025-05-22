@@ -1,4 +1,5 @@
 use super::evaluation::{evaluate_statement, one_step_reduction};
+use super::tactics::type_check_tactic;
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_axiom,
     type_check_fun, type_check_inductive, type_check_let, type_check_match,
@@ -14,7 +15,9 @@ use crate::type_theory::cic::elaboration::{
 };
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::{Kernel, Reducer, Refiner, TypeTheory};
+use crate::type_theory::interface::{
+    Interactive, Kernel, Reducer, Refiner, TypeTheory,
+};
 use tracing::debug;
 
 pub static FIRST_INDEX: i32 = 0;
@@ -217,6 +220,25 @@ impl Reducer for Cic {
     ) -> () {
         debug!("Evaluating statement: {:?}", stm);
         evaluate_statement(environment, stm)
+    }
+}
+
+impl Interactive for Cic {
+    type Exp = CicTerm;
+
+    fn proof_hole() -> Self::Term {
+        CicTerm::Sort("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
+    }
+    fn empty_target() -> Self::Type {
+        CicTerm::Sort("THIS_IS_AN_EMPTY_TERMINATION_PROOF_TARGET".to_string())
+    }
+
+    fn type_check_tactic(
+        tactic: &Tactic<Self::Exp>,
+        target: &Self::Type,
+        partial_proof: &Self::Term,
+    ) -> Result<(Self::Type, Self::Term), String> {
+        type_check_tactic(tactic, target, partial_proof)
     }
 }
 

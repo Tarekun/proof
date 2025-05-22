@@ -18,7 +18,7 @@ use crate::type_theory::commons::type_check::{
     generic_type_check_universal, generic_type_check_variable
 };
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::Kernel;
+use crate::type_theory::interface::{Kernel, TypeTheory};
 use crate::type_theory::interface::Refiner;
 
 //########################### EXPRESSIONS TYPE CHECKING
@@ -583,44 +583,6 @@ pub fn type_check_inductive(
 }
 //
 //########################### STATEMENTS TYPE CHECKING
-//
-//########################### TACTICS TYPE CHECKING
-//
-fn type_check_suppose(ass_name: String, ass_type: &CicTerm, target: &CicTerm) -> Result<(CicTerm, CicTerm), String> {
-    // fn get_prod_outermost(term: &CicTerm) -> Result<CicTerm, String> {
-    //     match term {
-    //         Product(_, domain, _) => Ok((**domain).clone()),
-    //         _ => Err(format!("{:?} is not a dependent product term", term))
-    //     }
-    // }
-
-    // match target {
-    //     Product(_, domain, codomain) => {
-    //         if Cic::terms_unify(environment, ass_type, domain) {
-    //             let partial_proof = Abstraction(
-    //                 ass_name.to_string(),
-    //                 Box::new(ass_type.to_owned()),
-    //                 Box::new(Meta(0))
-    //             );
-    //             Ok((partial_proof, **codomain))
-    //         } else {
-    //             Err(format!(
-    //                 "{} has inconsistent type: expected {:?}, found {:?}", 
-    //                 ass_name, domain, ass_type
-    //             ))
-    //         }
-    //     },
-    //     _ => {
-    //         Err(format!(
-    //             "Suppose tactic not allowed: current proof target {:?} is not a dependent product",
-    //             target
-    //         ))
-    //     }
-    // }
-    Err("TODO".to_string())
-}
-//
-//########################### TACTICS TYPE CHECKING
 //
 //########################### HELPER FUNCTIONS
 //
