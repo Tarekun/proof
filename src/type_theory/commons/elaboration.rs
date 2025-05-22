@@ -16,6 +16,9 @@ pub fn elaborate_tactic<E, F: Fn(Expression) -> E>(
             formula,
             elaborate_expression,
         ),
+        _ => {
+            Err("WIP: tactic {:?} is not yet supported. too bad :(".to_string())
+        }
     }
 }
 //

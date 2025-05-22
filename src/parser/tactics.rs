@@ -7,7 +7,7 @@ use nom::{
     IResult,
 };
 
-use super::api::Tactic::{Begin, Qed, Suppose};
+use super::api::Tactic::{Begin, By, Qed, Suppose};
 use super::api::{Expression, LofParser, Tactic};
 
 //########################### TACTICS PARSER
@@ -46,6 +46,17 @@ impl LofParser {
         ))
     }
 
+    fn by<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Tactic<Expression>> {
+        let (input, _) = preceded(multispace0, tag("by"))(input)?;
+        let (input, proof_term) =
+            preceded(multispace1, |input| self.parse_expression(input))(input)?;
+
+        Ok((input, By(proof_term)))
+    }
+
     pub fn parse_tactic<'a>(
         &'a self,
         input: &'a str,
@@ -54,6 +65,7 @@ impl LofParser {
             |input| self.begin(input),
             |input| self.qed(input),
             |input| self.suppose(input),
+            |input| self.by(input),
         ))(input)
     }
 
@@ -82,7 +94,7 @@ mod unit_tests {
         config::Config,
         parser::api::Expression::VarUse,
         parser::api::LofParser,
-        parser::api::Tactic::{Begin, Qed, Suppose},
+        parser::api::Tactic::{Begin, By, Qed, Suppose},
     };
 
     #[test]
@@ -130,6 +142,31 @@ mod unit_tests {
         assert!(
             parser.parse_tactic("suppose n:Nat").is_ok(),
             "Top level tactic parser doesnt support suppose tactic"
+        );
+    }
+
+    #[test]
+    fn test_by() {
+        let parser = LofParser::new(Config::default());
+
+        assert_eq!(
+            parser.by("by p"),
+            Ok(("", By(VarUse("p".to_string())))),
+            "By parser doesnt construct the proper node"
+        );
+        assert_eq!(
+            parser.parse_tactic("by p"),
+            Ok(("", By(VarUse("p".to_string())))),
+            "Top level tactic parser doesnt support By tactic"
+        );
+
+        assert!(
+            parser.by("\n\t      \r\n \t by  \t p").is_ok(),
+            "By parser cant cope with whitespaces"
+        );
+        assert!(
+            parser.by("by λn:Nat.n").is_ok(),
+            "By parser cant cope with composite terms"
         );
     }
 }
