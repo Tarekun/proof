@@ -234,11 +234,12 @@ impl Interactive for Cic {
     }
 
     fn type_check_tactic(
+        environment: &mut Environment<CicTerm, CicTerm>,
         tactic: &Tactic<Self::Exp>,
         target: &Self::Type,
         partial_proof: &Self::Term,
     ) -> Result<(Self::Type, Self::Term), String> {
-        type_check_tactic(tactic, target, partial_proof)
+        type_check_tactic(environment, tactic, target, partial_proof)
     }
 }
 
