@@ -107,6 +107,7 @@ pub trait Interactive: TypeTheory {
     /// Proof checking for the current `tactic` given a `target` and a `partial_proof`.
     /// Returns an updated (target, partial_proof) pair
     fn type_check_tactic(
+        environment: &mut Environment<Self::Term, Self::Type>,
         tactic: &Tactic<Self::Exp>,
         target: &Self::Type,
         partial_proof: &Self::Term,

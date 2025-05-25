@@ -256,6 +256,7 @@ impl Interactive for Fol {
     }
 
     fn type_check_tactic(
+        environment: &mut Environment<Self::Term, Self::Type>,
         tactic: &Tactic<Self::Exp>,
         target: &Self::Type,
         partial_proof: &Self::Term,
