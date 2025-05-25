@@ -2,7 +2,8 @@ use super::{
     saturation::saturate,
     type_check::{
         type_check_application, type_check_atomic, type_check_clause,
-        type_check_forall, type_check_not, type_check_variable,
+        type_check_equality, type_check_forall, type_check_not,
+        type_check_variable,
     },
 };
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
         environment::Environment,
         interface::{Automatic, Kernel, TypeTheory},
         sup::sup::{
-            SupFormula::{Atom, Clause, ForAll, Not},
+            SupFormula::{Atom, Clause, Equality, ForAll, Not},
             SupTerm::{Application, Variable},
         },
     },
@@ -29,7 +30,7 @@ pub enum SupTerm {
 pub enum SupFormula {
     /// pred_name, [args]
     Atom(String, Vec<SupTerm>),
-    Equality(Box<SupFormula>, Box<SupFormula>),
+    Equality(SupTerm, SupTerm),
     Not(Box<SupFormula>),
     /// literals
     Clause(Vec<SupFormula>),
@@ -112,6 +113,7 @@ impl Kernel for Sup {
             Atom(predicate, args) => {
                 type_check_atomic(environment, predicate, args)
             }
+            Equality(t1, t2) => type_check_equality(environment, t1, t2),
             Not(ψ) => type_check_not(environment, ψ),
             ForAll(var_name, var_type, ψ) => {
                 type_check_forall(environment, var_name, var_type, ψ)

@@ -1,7 +1,5 @@
-use super::sup::{
-    SupFormula::{self, Atom, Clause, Equality, Not},
-    SupTerm::{self, Application, Variable},
-};
+use super::sup::SupFormula::{self, Clause};
+use super::sup_utils::subsumes;
 use crate::type_theory::interface::TypeTheory;
 use crate::type_theory::sup::{sup::Sup, sup_utils::is_tautology};
 
@@ -25,20 +23,6 @@ fn pick_clause(clauses: &mut Vec<SupFormula>) -> Result<SupFormula, String> {
 #[allow(non_snake_case)]
 /// Decides if the clause is redundant
 fn is_redundant(C: &SupFormula, kept: &Vec<SupFormula>) -> bool {
-    /// Check wheter clause `C` subsumes `D`
-    fn subsumes(C: &SupFormula, D: &SupFormula) -> bool {
-        let Clause(c_lits) = C else { return false };
-        let Clause(d_lits) = D else { return false };
-
-        // TODO if i implement Eq and Hash for SupFormula in a way that supports
-        // alpha equivalence this time complexity can be reduced from O(nm) to O(n+m)
-        c_lits.iter().all(|c_lit| {
-            d_lits
-                .iter()
-                .any(|d_lit| Sup::base_type_equality(c_lit, d_lit).is_ok())
-        })
-    }
-
     is_tautology(C) || kept.iter().any(|D| subsumes(C, D))
 }
 

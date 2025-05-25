@@ -42,18 +42,11 @@ fn are_complements(l1: &SupFormula, l2: &SupFormula) -> bool {
 pub fn is_tautology(φ: &SupFormula) -> bool {
     //body...
     match φ {
+        //TODO look for axioms/sorts?
         Clause(literals) => {
             for (idx, lit) in literals.iter().enumerate() {
-                //TODO look for axioms/sorts?
-
-                // identity of equals
-                match lit {
-                    Equality(left, right) => {
-                        if Sup::base_type_equality(left, &right).is_ok() {
-                            return true;
-                        }
-                    }
-                    _ => {}
+                if is_tautology(lit) {
+                    return true;
                 }
 
                 // excluded middle
@@ -66,8 +59,25 @@ pub fn is_tautology(φ: &SupFormula) -> bool {
 
             false
         }
+        // identity of equals
+        Equality(left, right) => Sup::base_term_equality(left, right).is_ok(),
 
         // TODO review
         _ => false,
     }
+}
+
+#[allow(non_snake_case)]
+/// Checks wheter clause `C` subsumes `D`
+pub fn subsumes(C: &SupFormula, D: &SupFormula) -> bool {
+    let Clause(c_lits) = C else { return false };
+    let Clause(d_lits) = D else { return false };
+
+    // TODO if i implement Eq and Hash for SupFormula in a way that supports
+    // alpha equivalence this time complexity can be reduced from O(nm) to O(n+m)
+    c_lits.iter().all(|c_lit| {
+        d_lits
+            .iter()
+            .any(|d_lit| Sup::base_type_equality(c_lit, d_lit).is_ok())
+    })
 }
