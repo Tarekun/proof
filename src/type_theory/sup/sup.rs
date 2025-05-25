@@ -29,10 +29,11 @@ pub enum SupTerm {
 pub enum SupFormula {
     /// pred_name, [args]
     Atom(String, Vec<SupTerm>),
-    // Equality(Box<SupFormula>, Box<SupFormula>), //special case of Atomic?
+    Equality(Box<SupFormula>, Box<SupFormula>),
     Not(Box<SupFormula>),
-    //composites
+    /// literals
     Clause(Vec<SupFormula>),
+    /// var_name, var_type, formula
     ForAll(String, Box<SupFormula>, Box<SupFormula>),
     // Exists(String, Box<SupFormula>),
 }
