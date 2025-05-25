@@ -1,0 +1,168 @@
+use super::{
+    saturation::saturate,
+    type_check::{
+        type_check_application, type_check_atomic, type_check_clause,
+        type_check_forall, type_check_not, type_check_variable,
+    },
+};
+use crate::{
+    runtime::program::Program,
+    type_theory::{
+        environment::Environment,
+        interface::{Automatic, Kernel, TypeTheory},
+        sup::sup::{
+            SupFormula::{Atom, Clause, ForAll, Not},
+            SupTerm::{Application, Variable},
+        },
+    },
+};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SupTerm {
+    /// var_name
+    Variable(String),
+    /// fun_name, [args]
+    Application(String, Vec<SupTerm>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SupFormula {
+    /// pred_name, [args]
+    Atom(String, Vec<SupTerm>),
+    // Equality(Box<SupFormula>, Box<SupFormula>), //special case of Atomic?
+    Not(Box<SupFormula>),
+    //composites
+    Clause(Vec<SupFormula>),
+    ForAll(String, Box<SupFormula>, Box<SupFormula>),
+    // Exists(String, Box<SupFormula>),
+}
+
+pub struct Sup;
+impl TypeTheory for Sup {
+    type Term = SupTerm;
+    type Type = SupFormula;
+    type Stm = ();
+
+    fn default_environment() -> Environment<SupTerm, SupFormula> {
+        Environment::with_defaults(vec![], vec![], vec![])
+    }
+
+    fn base_term_equality(
+        term1: &SupTerm,
+        term2: &SupTerm,
+    ) -> Result<(), String> {
+        if term1 == term2 {
+            Ok(())
+        } else {
+            Err(format!("{:?} and {:?} are not equal", term1, term2))
+        }
+    }
+    fn base_type_equality(
+        type1: &SupFormula,
+        type2: &SupFormula,
+    ) -> Result<(), String> {
+        if type1 == type2 {
+            Ok(())
+        } else {
+            Err(format!("{:?} and {:?} are not equal", type1, type2))
+        }
+    }
+
+    fn elaborate_ast(
+        _ast: crate::parser::api::LofAst,
+    ) -> Result<Program<Self>, String>
+    where
+        Self: Sized,
+    {
+        Err(
+            "TODO: superposition calculus doesnt support elaboration currently"
+                .to_string(),
+        )
+    }
+}
+
+impl Kernel for Sup {
+    /// Terms are variables x or f(t₁,…,tₙ).  Well‐formed iff
+    /// 1) each variable is well-scoped (we allow any fresh variable here),
+    /// 2) each function symbol is in the signature with the correct arity,
+    /// 3) recursively its arguments are well‐formed.
+    fn type_check_term(
+        term: &Self::Term,
+        env: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String> {
+        match term {
+            Variable(var_name) => type_check_variable(env, var_name),
+            Application(fun_name, args) => {
+                type_check_application(env, fun_name, args)
+            }
+        }
+    }
+
+    /// Formulas (our `SupType`) are well-formed iff:
+    /// - `Atom(p, ts)`: `p` in predicate signature with correct arity, each `t` is a well-formed term;
+    /// - `Neg(φ)`: φ is well-formed;
+    /// - `ForAll(x, φ)` / `Exists(x, φ)`: φ is well-formed under `x` added to the bound-var set;
+    /// - `Clause(lits)`: each literal is either an atomic formula or a negated atomic formula.
+    fn type_check_type(
+        φ: &Self::Type,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String> {
+        match φ {
+            Atom(predicate, args) => {
+                type_check_atomic(environment, predicate, args)
+            }
+            Not(ψ) => type_check_not(environment, ψ),
+            ForAll(var_name, var_type, ψ) => {
+                type_check_forall(environment, var_name, var_type, ψ)
+            }
+            Clause(literals) => type_check_clause(environment, literals),
+        }
+    }
+
+    fn type_check_stm(
+        stm: &Self::Stm,
+        env: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String> {
+        //TODO find something better
+        Ok(Atom("Unit".to_string(), vec![]))
+    }
+}
+
+impl Automatic for Sup {
+    //TODO
+    fn compare_terms(term1: &Self::Term, term2: &Self::Term) -> i32 {
+        0
+    }
+    //TODO
+    fn compare_types(type1: &Self::Type, type2: &Self::Type) -> i32 {
+        0
+    }
+
+    fn select(clause: &Self::Type) -> Result<Self::Type, String> {
+        match clause {
+            Clause(formulas) => {
+                if formulas.len() == 0 {
+                    Err(format!(
+                        "Empty clause does not allow for selection of literals"
+                    ))
+                } else {
+                    // TODO implement better selection other than pick the first
+                    Ok(formulas[0].to_owned())
+                }
+            }
+            _ => Err(format!(
+                "Selection is defined on clause formulas only, not {:?}",
+                clause
+            )),
+        }
+    }
+
+    fn proove(
+        premises: Vec<SupFormula>,
+        goal: SupFormula,
+    ) -> Result<(), String> {
+        let mut copy = premises.clone();
+        copy.push(Not(Box::new(goal)));
+        saturate(&copy)
+    }
+}
