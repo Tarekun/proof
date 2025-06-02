@@ -147,6 +147,20 @@ pub fn clone_product_with_different_result(
     }
 }
 
+/// Clones the given abstraction, swapping the body with the given one
+pub fn swap_body(abstraction: &CicTerm, new_body: &CicTerm) -> CicTerm {
+    match abstraction {
+        Abstraction(var_name, var_type, body) => {
+            let new_body = swap_body(body, new_body);
+            Product(var_name.to_owned(), var_type.clone(), Box::new(new_body))
+        }
+        Sort(_) => new_body.to_owned(),
+        Variable(_, _) => new_body.to_owned(),
+        Application(_, _) => new_body.to_owned(),
+        _ => panic!("TODO: handle better"),
+    }
+}
+
 /// Returns the innermost body term of a serie of concatenated Products
 /// (ie the return type of a function)
 pub fn get_prod_innermost(term: &CicTerm) -> &CicTerm {

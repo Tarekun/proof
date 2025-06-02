@@ -232,6 +232,7 @@ pub fn generic_type_check_theorem<T: TypeTheory + Kernel + Interactive, E>(
         }
         R(interactive_proof) => {
             let (target, proof) = type_check_interactive_proof::<T>(
+                environment,
                 interactive_proof,
                 formula,
                 &T::proof_hole(),
@@ -252,6 +253,7 @@ pub fn generic_type_check_theorem<T: TypeTheory + Kernel + Interactive, E>(
 }
 
 fn type_check_interactive_proof<T: TypeTheory + Interactive>(
+    environment: &mut Environment<T::Term, T::Type>,
     interactive_proof: &[Tactic<T::Exp>],
     target: &T::Type,
     partial_proof: &T::Term,
@@ -260,11 +262,20 @@ fn type_check_interactive_proof<T: TypeTheory + Interactive>(
         [] => Ok((target.to_owned(), partial_proof.to_owned())),
         [proof_step, rest @ ..] => {
             // type_check_tactic(proof_step)
-            let (new_target, new_proof) =
-                T::type_check_tactic(proof_step, &target, &partial_proof)?;
+            let (new_target, new_proof) = T::type_check_tactic(
+                environment,
+                proof_step,
+                &target,
+                &partial_proof,
+            )?;
             // TODO update target and context
             // run recursively on rest
-            type_check_interactive_proof::<T>(rest, &new_target, &new_proof)
+            type_check_interactive_proof::<T>(
+                environment,
+                rest,
+                &new_target,
+                &new_proof,
+            )
         }
     }
 }

@@ -56,6 +56,7 @@ pub enum Tactic<E> {
     Begin(),
     Qed(),
     Suppose(String, E),
+    By(E),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum LofAst {

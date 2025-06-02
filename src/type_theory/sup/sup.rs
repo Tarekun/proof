@@ -100,7 +100,7 @@ impl Kernel for Sup {
         }
     }
 
-    /// Formulas (our `SupType`) are well-formed iff:
+    /// Formulas are well-formed iff:
     /// - `Atom(p, ts)`: `p` in predicate signature with correct arity, each `t` is a well-formed term;
     /// - `Neg(φ)`: φ is well-formed;
     /// - `ForAll(x, φ)` / `Exists(x, φ)`: φ is well-formed under `x` added to the bound-var set;

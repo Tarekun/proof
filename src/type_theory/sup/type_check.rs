@@ -126,12 +126,7 @@ fn type_check_nary(
     applied: &str,
     args: &Vec<SupTerm>,
 ) -> Result<(), String> {
-    let applied_type = environment.get_from_context(applied);
-    if applied_type == None {
-        //TODO predicate/function
-        return Err(format!("Unbound predicate: {}", applied));
-    }
-    let (_, applied_type) = applied_type.unwrap();
+    let applied_type = type_check_variable(environment, applied)?;
 
     // check actual arguments are well typed
     let actual_types_res =
