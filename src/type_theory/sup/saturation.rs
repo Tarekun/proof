@@ -23,7 +23,7 @@ fn pick_clause(clauses: &mut Vec<SupFormula>) -> Result<SupFormula, String> {
 #[allow(non_snake_case)]
 /// Decides if the clause is redundant
 fn is_redundant(C: &SupFormula, kept: &Vec<SupFormula>) -> bool {
-    is_tautology(C) || kept.iter().any(|D| subsumes(C, D))
+    is_tautology(C) || kept.iter().any(|D| subsumes(D, C))
 }
 
 /// termination checks for clause processing:

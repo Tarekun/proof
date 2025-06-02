@@ -68,7 +68,8 @@ pub fn is_tautology(φ: &SupFormula) -> bool {
 }
 
 #[allow(non_snake_case)]
-/// Checks wheter clause `C` subsumes `D`
+/// Checks wheter clause `C` subsumes `D`, ie if `C`≐`E` where `E` is a subset
+/// of literals of `D`
 pub fn subsumes(C: &SupFormula, D: &SupFormula) -> bool {
     let Clause(c_lits) = C else { return false };
     let Clause(d_lits) = D else { return false };
@@ -80,4 +81,67 @@ pub fn subsumes(C: &SupFormula, D: &SupFormula) -> bool {
             .iter()
             .any(|d_lit| Sup::base_type_equality(c_lit, d_lit).is_ok())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::type_theory::sup::{
+        sup::{
+            SupFormula::{Atom, Clause, Equality, Not},
+            SupTerm::Variable,
+        },
+        sup_utils::{is_tautology, subsumes},
+    };
+
+    #[test]
+    fn test_tautology_detection() {
+        let variable = Variable("x".to_string());
+        let p = Atom("P".to_string(), vec![variable.clone()]);
+        let q = Atom("Q".to_string(), vec![variable.clone()]);
+        let taut = Equality(variable.clone(), variable.clone());
+
+        assert!(
+            is_tautology(&taut),
+            "Tautology detection couldnt notice simple equality of identicals"
+        );
+        assert!(
+            !is_tautology(&Clause(vec![])),
+            "Tautology detection accepts the empty clause"
+        );
+
+        assert!(
+            is_tautology(&Clause(vec![taut.clone()])),
+            "Tautology detection couldnt notice clause containing a tautology"
+        );
+
+        assert!(
+            is_tautology(&Clause(vec![
+                p.clone(), q.clone(), Not(Box::new(p))
+            ])),
+            "Tautology detection couldnt notice clause with contradicting literals"
+        );
+    }
+
+    #[test]
+    // TODO add check for unification
+    fn test_subsumption() {
+        let variable = Variable("x".to_string());
+        let p = Atom("P".to_string(), vec![variable.clone()]);
+        let q = Atom("Q".to_string(), vec![variable.clone()]);
+
+        assert!(
+            subsumes(&Clause(vec![]), &Clause(vec![p.clone()])),
+            "subsumption check doesnt work with emtpy clause"
+        );
+
+        assert!(
+            subsumes(&Clause(vec![p.clone()]), &Clause(vec![p.clone()])),
+            "subsumption check doesnt work with identical clauses"
+        );
+
+        assert!(
+            subsumes(&Clause(vec![p.clone()]), &Clause(vec![q.clone(), p.clone()])),
+            "subsumption check doesnt work with emtpy clause that extend the first one"
+        );
+    }
 }
