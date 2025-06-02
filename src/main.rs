@@ -26,12 +26,12 @@ mod type_theory {
     }
     pub mod cic {
         pub mod cic;
-        pub mod cic_utils;
+        mod cic_utils;
         pub mod elaboration;
-        pub mod evaluation;
-        pub mod tactics;
-        pub mod type_check;
-        pub mod unification;
+        mod evaluation;
+        mod tactics;
+        mod type_check;
+        mod unification;
         pub mod tests {
             pub mod type_check;
         }
@@ -41,11 +41,17 @@ mod type_theory {
     //     pub mod stlc;
     // }
     pub mod fol {
-        pub mod elaboration;
-        pub mod evaluation;
+        mod elaboration;
+        mod evaluation;
         pub mod fol;
-        pub mod fol_utils;
-        pub mod type_check;
+        mod fol_utils;
+        mod type_check;
+    }
+    pub mod sup {
+        mod saturation;
+        pub mod sup;
+        mod sup_utils;
+        mod type_check;
     }
 }
 

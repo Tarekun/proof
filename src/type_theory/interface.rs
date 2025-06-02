@@ -33,15 +33,15 @@ pub trait TypeTheory {
         type1: &Self::Type,
         type2: &Self::Type,
     ) -> Result<(), String>;
+
+    /// Elaborate a full AST into a program.
+    fn elaborate_ast(ast: LofAst) -> Result<Program<Self>, String>
+    where
+        Self: Sized;
 }
 
 /// Kernel module, implements the type checking algorithms
 pub trait Kernel: TypeTheory {
-    /// Elaborate a full AST into an environment.
-    fn elaborate_ast(ast: LofAst) -> Program<Self>
-    where
-        Self: Sized;
-
     /// Type checks the term and returns its type.
     fn type_check_term(
         term: &Self::Term,
@@ -112,4 +112,26 @@ pub trait Interactive: TypeTheory {
         target: &Self::Type,
         partial_proof: &Self::Term,
     ) -> Result<(Self::Type, Self::Term), String>;
+}
+
+/// Automatic module, implements automatic theorem proving via satisfaction
+/// of a set of formulas. Inspired by saturation algorithms on Sup
+pub trait Automatic: TypeTheory {
+    /// Selection function to select a non-empty set of *literals* from a `clause`
+    fn select(clause: &Self::Type) -> Result<Self::Type, String>;
+
+    /// Simplification ordering over terms. Returns < 0 if t1 < t2,
+    /// returns > 0 if t2 < t1, 0 otherwise
+    fn compare_terms(term1: &Self::Term, term2: &Self::Term) -> i32;
+    #[allow(non_snake_case)]
+    /// Simplification ordering over terms. Returns < 0 if T1 < T2,
+    /// returns > 0 if T2 < T1, 0 otherwise
+    fn compare_types(type1: &Self::Type, type2: &Self::Type) -> i32;
+
+    /// Check if the given set of `premises` prooves a `goal`. If a proof
+    /// is found returns Ok(()), otherwise fails with details on the problem
+    fn proove(
+        premises: Vec<Self::Type>,
+        goal: Self::Type,
+    ) -> Result<(), String>;
 }

@@ -131,10 +131,8 @@ impl TypeTheory for Fol {
             Err(format!("{:?} and {:?} are not equal", type1, type2))
         }
     }
-}
 
-impl Kernel for Fol {
-    fn elaborate_ast(ast: LofAst) -> Program<Fol> {
+    fn elaborate_ast(ast: LofAst) -> Result<Program<Fol>, String> {
         let mut program = Program::new();
 
         match ast {
@@ -146,9 +144,11 @@ impl Kernel for Fol {
             }
         }
 
-        program
+        Ok(program)
     }
+}
 
+impl Kernel for Fol {
     fn type_check_term(
         term: &FolTerm,
         environment: &mut Environment<FolTerm, FolType>,

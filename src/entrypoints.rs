@@ -31,7 +31,7 @@ pub fn parse_and_elaborate<T: TypeTheory + Kernel>(
 ) -> Result<Program<T>, String> {
     let ast = parse_only(config, workspace)?;
     debug!("Elaboration of the AST into a program...");
-    let program = T::elaborate_ast(ast);
+    let program = T::elaborate_ast(ast)?;
     debug!("Elaboration done.");
     Ok(program)
 }

@@ -95,10 +95,8 @@ impl TypeTheory for Cic {
     ) -> Result<(), String> {
         common_unification_check(type1, type2)
     }
-}
 
-impl Kernel for Cic {
-    fn elaborate_ast(ast: LofAst) -> Program<Cic> {
+    fn elaborate_ast(ast: LofAst) -> Result<Program<Cic>, String> {
         let mut program = Program::new();
 
         debug!("Elaboration of ast node {:?}", ast);
@@ -114,9 +112,11 @@ impl Kernel for Cic {
             }
         }
 
-        program
+        Ok(program)
     }
+}
 
+impl Kernel for Cic {
     fn type_check_term(
         term: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
