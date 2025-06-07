@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::{
     saturation::saturate,
     type_check::{
@@ -11,9 +13,12 @@ use crate::{
     type_theory::{
         environment::Environment,
         interface::{Automatic, Kernel, TypeTheory},
-        sup::sup::{
-            SupFormula::{Atom, Clause, Equality, ForAll, Not},
-            SupTerm::{Application, Variable},
+        sup::{
+            sup::{
+                SupFormula::{Atom, Clause, Equality, ForAll, Not},
+                SupTerm::{Application, Variable},
+            },
+            sup_utils::{kbo_terms, kbo_types},
         },
     },
 };
@@ -133,12 +138,12 @@ impl Kernel for Sup {
 
 impl Automatic for Sup {
     //TODO
-    fn compare_terms(term1: &Self::Term, term2: &Self::Term) -> i32 {
-        0
+    fn compare_terms(term1: &Self::Term, term2: &Self::Term) -> Ordering {
+        kbo_terms(term1, term2)
     }
     //TODO
-    fn compare_types(type1: &Self::Type, type2: &Self::Type) -> i32 {
-        0
+    fn compare_types(type1: &Self::Type, type2: &Self::Type) -> Ordering {
+        kbo_types(type1, type2)
     }
 
     fn select(clause: &Self::Type) -> Result<Self::Type, String> {
