@@ -1,5 +1,5 @@
-use super::fol::FolType::{Arrow, ForAll};
-use super::fol::{Fol, FolTerm, FolType};
+use super::fol::FolFormula::{Arrow, ForAll, Conjunction, Disjunction, Not};
+use super::fol::{Fol, FolTerm, FolFormula};
 use super::fol_utils::make_multiarg_fun_type;
 use crate::misc::Union;
 use crate::parser::api::Tactic;
@@ -10,19 +10,19 @@ use crate::type_theory::interface::{Kernel, Refiner};
 
 //########################### TERMS TYPE CHECKING
 pub fn type_check_var(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     var_name: &str,
-) -> Result<FolType, String> {
+) -> Result<FolFormula, String> {
     generic_type_check_variable::<Fol>(environment, var_name)
 }
 //
 //
 pub fn type_check_abstraction(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     var_name: &str,
-    var_type: &FolType,
+    var_type: &FolFormula,
     body: &FolTerm,
-) -> Result<FolType, String> {
+) -> Result<FolFormula, String> {
     let body_type = generic_type_check_abstraction::<Fol>(
         environment,
         &var_name,
@@ -34,10 +34,10 @@ pub fn type_check_abstraction(
 //
 //
 pub fn type_check_application(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     left: &FolTerm,
     right: &FolTerm,
-) -> Result<FolType, String> {
+) -> Result<FolFormula, String> {
     let function_type = Fol::type_check_term(left, environment)?;
     let arg_type = Fol::type_check_term(right, environment)?;
 
@@ -64,9 +64,9 @@ pub fn type_check_application(
 //
 //########################### TYPES TYPE CHECKING
 pub fn type_check_atomic(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     type_name: &str,
-) -> Result<FolType, String> {
+) -> Result<FolFormula, String> {
     match environment.get_atomic_type(type_name) {
         Some(type_obj) => Ok(type_obj.to_owned()),
         _ => Err(format!("Unbound type {}", type_name)),
@@ -75,10 +75,10 @@ pub fn type_check_atomic(
 //
 //
 pub fn type_check_arrow(
-    environment: &mut Environment<FolTerm, FolType>,
-    domain: &FolType,
-    codomain: &FolType,
-) -> Result<FolType, String> {
+    environment: &mut Environment<FolTerm, FolFormula>,
+    domain: &FolFormula,
+    codomain: &FolFormula,
+) -> Result<FolFormula, String> {
     let _ = Fol::type_check_type(domain, environment)?;
     let _ = Fol::type_check_type(codomain, environment)?;
 
@@ -87,11 +87,11 @@ pub fn type_check_arrow(
 //
 //
 pub fn type_check_forall(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     var_name: &str,
-    var_type: &FolType,
-    predicate: &FolType,
-) -> Result<FolType, String> {
+    var_type: &FolFormula,
+    predicate: &FolFormula,
+) -> Result<FolFormula, String> {
     let _body_type = generic_type_check_universal::<Fol>(environment, var_name, var_type, predicate)?;
     Ok(ForAll(
         var_name.to_string(), 
@@ -99,47 +99,80 @@ pub fn type_check_forall(
         Box::new(predicate.to_owned()))
     )
 }
+//
+//
+pub fn type_check_not(
+    environment: &mut Environment<FolTerm, FolFormula>,
+    φ: &FolFormula
+) -> Result<FolFormula, String> {
+    let φ = Fol::type_check_type(φ, environment)?;
+    Ok(Not(Box::new(φ)))
+}
+//
+//
+pub fn type_check_conjunction(
+    environment: &mut Environment<FolTerm, FolFormula>,
+    sub_formulas: &Vec<FolFormula>,
+) -> Result<FolFormula, String> {
+    for φ in sub_formulas {
+        Fol::type_check_type(φ, environment)?;
+    }
+    Ok(Conjunction(sub_formulas.to_owned()))
+}
+//
+//
+pub fn type_check_disjunction(
+    environment: &mut Environment<FolTerm, FolFormula>,
+    sub_formulas: &Vec<FolFormula>,
+) -> Result<FolFormula, String> {
+    // equal to the conjuction one; this checks well formedness of the type
+    // not correctes of a proof for φ ∨ ψ
+    for φ in sub_formulas {
+        Fol::type_check_type(φ, environment)?;
+    }
+    Ok(Disjunction(sub_formulas.to_owned()))
+}
 //########################### TYPES TYPE CHECKING
 //
 //########################### STATEMENTS TYPE CHECKING
 //
 pub fn type_check_axiom(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     axiom_name: &str,
-    predicate: &FolType,
-) -> Result<FolType, String> {
+    predicate: &FolFormula,
+) -> Result<FolFormula, String> {
     generic_type_check_axiom::<Fol>(environment, axiom_name, predicate)
 }
 //
 //
 pub fn type_check_theorem(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     theorem_name: &str,
-    formula: &FolType,
-    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>>
-) -> Result<FolType, String> {
-    generic_type_check_theorem::<Fol, Union<FolTerm, FolType>>(environment, theorem_name, formula, proof)
+    formula: &FolFormula,
+    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolFormula>>>>
+) -> Result<FolFormula, String> {
+    generic_type_check_theorem::<Fol, Union<FolTerm, FolFormula>>(environment, theorem_name, formula, proof)
 }
 //
 //
 pub fn type_check_let(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     var_name: &str,
-    opt_type: &Option<FolType>,
+    opt_type: &Option<FolFormula>,
     body: &FolTerm,
-) -> Result<FolType, String> {
+) -> Result<FolFormula, String> {
     generic_type_check_let::<Fol>(environment, var_name, opt_type, body)
 }
 //
 //
 pub fn type_check_fun(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     fun_name: &str,
-    args: &Vec<(String, FolType)>,
-    out_type: &FolType,
+    args: &Vec<(String, FolFormula)>,
+    out_type: &FolFormula,
     body: &FolTerm,
     is_rec: &bool,
-) -> Result<FolType, String> {
+) -> Result<FolFormula, String> {
     generic_type_check_fun::<Fol, _>(environment, fun_name, args, out_type, body, is_rec, make_multiarg_fun_type)
 }
 //
@@ -155,7 +188,7 @@ mod unit_tests {
                 Fol,
                 FolStm::{Axiom, Fun, Let},
                 FolTerm::{self, Abstraction, Application, Variable},
-                FolType::{self, Arrow, Atomic, ForAll},
+                FolFormula::{self, Arrow, Atomic, ForAll},
             },
             type_check::{
                 type_check_abstraction, type_check_application,
@@ -247,7 +280,7 @@ mod unit_tests {
 
     #[test]
     fn test_app_type_check() {
-        let mut test_env: Environment<FolTerm, FolType> =
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
@@ -319,7 +352,7 @@ mod unit_tests {
     #[test]
     fn test_atomic_type_check() {
         let unit = "Unit";
-        let mut test_env: Environment<FolTerm, FolType> =
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
@@ -345,7 +378,7 @@ mod unit_tests {
     #[test]
     fn test_arrow_type_check() {
         let nat = Atomic("Nat".to_string());
-        let mut test_env: Environment<FolTerm, FolType> =
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
@@ -386,9 +419,9 @@ mod unit_tests {
 
     #[test]
     fn test_forall_type_check() {
-        let top: FolType = Atomic("Top".to_string());
+        let top: FolFormula = Atomic("Top".to_string());
         let nat = Atomic("Nat".to_string());
-        let mut test_env: Environment<FolTerm, FolType> =
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
@@ -441,8 +474,8 @@ mod unit_tests {
 
     #[test]
     fn test_axiom_type_check() {
-        let top: FolType = Atomic("Top".to_string());
-        let mut test_env: Environment<FolTerm, FolType> =
+        let top: FolFormula = Atomic("Top".to_string());
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
@@ -478,7 +511,7 @@ mod unit_tests {
     fn test_let_type_check() {
         let nat = Atomic("Nat".to_string());
         let zero = Variable("zero".to_string());
-        let mut test_env: Environment<FolTerm, FolType> =
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![("zero", &nat)],
                 vec![],
@@ -542,7 +575,7 @@ mod unit_tests {
     fn test_fun_type_check() {
         let nat = Atomic("Nat".to_string());
         // let zero = Variable("zero".to_string());
-        let mut test_env: Environment<FolTerm, FolType> =
+        let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],

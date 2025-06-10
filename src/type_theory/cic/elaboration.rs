@@ -79,6 +79,7 @@ pub fn elaborate_expression(ast: &Expression) -> CicTerm {
             elaborate_arrow(&*domain, &*codomain)
         }
         Expression::Inferator() => elaborate_meta(),
+        _ => panic!("Expression primitive {:?} is not supported in CIC", ast),
     };
 
     index_variables(&elaborated)

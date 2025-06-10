@@ -7,6 +7,8 @@ use crate::{
     },
 };
 
+/// Computes the normal form of `term` by iteratively calling `one_step_reduction`
+/// on its result.
 pub fn generic_term_normalization<
     T: TypeTheory,
     F: Fn(&mut Environment<T::Term, T::Type>, &T::Term) -> T::Term,
