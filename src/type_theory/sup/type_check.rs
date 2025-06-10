@@ -1,7 +1,7 @@
 use super::{
     sup::{
         Sup,
-        SupFormula::{self, Atom, Clause, ForAll, Not},
+        SupFormula::{self, Atom, Clause, Equality, ForAll, Not},
         SupTerm,
     },
     sup_utils::{get_arg_types, get_forall_innermost},
@@ -46,6 +46,16 @@ pub fn type_check_atomic(
 ) -> Result<SupFormula, String> {
     type_check_nary(environment, pred_name, args)?;
     Ok(Atom(pred_name.to_string(), args.clone()))
+}
+//
+//
+pub fn type_check_equality(
+    _: &mut Environment<SupTerm, SupFormula>,
+    t1: &SupTerm,
+    t2: &SupTerm,
+) -> Result<SupFormula, String> {
+    Sup::base_term_equality(t1, t2)?;
+    Ok(Equality(t1.clone(), t2.clone()))
 }
 //
 //

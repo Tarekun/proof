@@ -1,20 +1,7 @@
-use super::sup::{
-    SupFormula::{self, Atom, Clause, Not},
-    SupTerm::{self, Application, Variable},
-};
-
-/// Check if two literals are (syntactically) complementary (like p vs ¬p or Eq vs NotEq).
-fn are_complements(l1: &SupFormula, l2: &SupFormula) -> bool {
-    match (l1, l2) {
-        (Atom(p, args1), Not(q)) => {
-            **q == Atom(p.to_string(), args1.to_owned())
-        }
-        (Not(p), Atom(q, args2)) => {
-            **p == Atom(q.to_string(), args2.to_owned())
-        }
-        _ => false,
-    }
-}
+use super::sup::SupFormula::{self, Clause};
+use super::sup_utils::subsumes;
+use crate::type_theory::interface::TypeTheory;
+use crate::type_theory::sup::{sup::Sup, sup_utils::is_tautology};
 
 /// Checks if a formula φ is the empty clause
 fn is_bottom(φ: &SupFormula) -> bool {
@@ -35,19 +22,20 @@ fn pick_clause(clauses: &mut Vec<SupFormula>) -> Result<SupFormula, String> {
 
 #[allow(non_snake_case)]
 /// Decides if the clause is redundant
-fn retention_test(C: &SupFormula) -> bool {
-    true
+fn is_redundant(C: &SupFormula, kept: &Vec<SupFormula>) -> bool {
+    is_tautology(C) || kept.iter().any(|D| subsumes(D, C))
 }
 
 /// termination checks for clause processing:
 /// * it's empty: the set is unsatisfiable
 /// * it's redundant: move to the next one
 macro_rules! termination {
-    ($clause:expr) => {
+    // dry like a mf
+    ($clause:expr, $kept:expr) => {
         if is_bottom(&$clause) {
             return Ok(());
         }
-        if !retention_test(&$clause) {
+        if is_redundant(&$clause, &$kept) {
             continue;
         }
     };
@@ -74,10 +62,10 @@ pub fn saturate(clauses: &Vec<SupFormula>) -> Result<(), String> {
     loop {
         while !unprocessed.is_empty() {
             let clause = pick_clause(&mut unprocessed)?;
-            termination!(clause);
+            termination!(clause, kept);
 
             let clause = forward_simplification(&kept, clause);
-            termination!(clause);
+            termination!(clause, kept);
 
             kept = backward_simplification(kept, &clause);
             kept.push(clause);
