@@ -25,15 +25,11 @@ pub fn get_forall_innermost(forall: &SupFormula) -> SupFormula {
     }
 }
 
-/// Check if two literals are (syntactically) complementary (like p vs ¬p or Eq vs NotEq).
+/// Check if two literals are (syntactically) complements
 fn are_complements(l1: &SupFormula, l2: &SupFormula) -> bool {
     match (l1, l2) {
-        (Atom(p, args1), Not(q)) => {
-            **q == Atom(p.to_string(), args1.to_owned())
-        }
-        (Not(p), Atom(q, args2)) => {
-            **p == Atom(q.to_string(), args2.to_owned())
-        }
+        (Atom(_, _), Not(q)) => **q == *l1,
+        (Not(p), Atom(_, _)) => **p == *l2,
         _ => false,
     }
 }
