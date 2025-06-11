@@ -1,7 +1,4 @@
-use super::elaboration::{
-    elaborate_axiom, elaborate_dir_root, elaborate_empty, elaborate_expression,
-    elaborate_file_root, elaborate_fun, elaborate_let, elaborate_theorem,
-};
+use super::elaboration::{elaborate_expression, elaborate_statement};
 use super::evaluation::{evaluate_statement, one_step_reduction};
 use super::type_check::{
     type_check_abstraction, type_check_application, type_check_arrow,
@@ -9,21 +6,20 @@ use super::type_check::{
     type_check_theorem, type_check_var,
 };
 use crate::misc::Union;
-use crate::parser::api::{LofAst, Statement, Tactic};
+use crate::parser::api::{LofAst, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
-use crate::type_theory::fol::elaboration::elaborate_statement;
 use crate::type_theory::fol::fol::FolFormula::{
     Arrow, Atomic, Conjunction, Disjunction, ForAll, Not,
 };
 use crate::type_theory::fol::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use crate::type_theory::fol::fol::FolTerm::{
-    Abstraction, Application, Variable,
+    Abstraction, Application, Tuple, Variable,
 };
 use crate::type_theory::fol::type_check::{
     type_check_atomic, type_check_conjunction, type_check_disjunction,
-    type_check_not,
+    type_check_not, type_check_tuple,
 };
 use crate::type_theory::interface::{
     Interactive, Kernel, Reducer, Refiner, TypeTheory,
@@ -34,7 +30,7 @@ pub enum FolTerm {
     Variable(String),
     Abstraction(String, Box<FolFormula>, Box<FolTerm>),
     Application(Box<FolTerm>, Box<FolTerm>),
-    // Tuple(Vec<FolTerm>),
+    Tuple(Vec<FolTerm>),
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum FolFormula {
@@ -136,6 +132,7 @@ impl Kernel for Fol {
             Application(left, right) => {
                 type_check_application(environment, left, right)
             }
+            Tuple(terms) => type_check_tuple(environment, terms),
         }
     }
 

@@ -59,6 +59,20 @@ pub fn type_check_application(
         )),
     }
 }
+//
+//
+pub fn type_check_tuple(
+    environment: &mut Environment<FolTerm, FolFormula>,
+    terms: &Vec<FolTerm>,
+) -> Result<FolFormula, String> {
+    let mut types = vec![];
+    for term in terms {
+        let term_type = Fol::type_check_term(term, environment)?;
+        types.push(term_type);
+    }
+
+    Ok(Conjunction(types))
+}
 //########################### TERMS TYPE CHECKING
 //
 //

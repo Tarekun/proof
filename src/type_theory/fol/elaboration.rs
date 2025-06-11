@@ -1,6 +1,6 @@
-use super::fol::FolFormula::{Arrow, Atomic, Conjunction, Disjunction, ForAll};
+use super::fol::FolFormula::{Arrow, Atomic, Disjunction, ForAll};
 use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
-use super::fol::FolTerm::{Abstraction, Variable};
+use super::fol::FolTerm::{Abstraction, Tuple, Variable};
 use super::fol::{Fol, FolFormula, FolTerm};
 use crate::misc::simple_map;
 use crate::parser::api::{Statement, Tactic};
@@ -88,7 +88,7 @@ pub fn elaborate_expression(
         Expression::TypeProduct(var_name, var_type, body) => {
             wrap_type::<Fol>(elaborate_forall(var_name, *var_type, *body))
         }
-        // Expression::Tuple(terms) => wrap_term::<Fol>(elaborate_tuple(terms)),
+        Expression::Tuple(terms) => wrap_term::<Fol>(elaborate_tuple(terms)),
         Expression::Pipe(types) => wrap_type::<Fol>(elaborate_pipe(types)),
         _ => panic!("Expression {:?} is not supported in FOL", ast),
     }
@@ -201,14 +201,14 @@ pub fn elaborate_forall(
 }
 //
 //
-// pub fn elaborate_tuple(terms: Vec<Expression>) -> Result<FolFormula, String> {
-//     let mut elaborated_terms = vec![];
-//     for term in terms {
-//         elaborated_terms.push(expect_term(elaborate_expression(term)?)?);
-//     }
+pub fn elaborate_tuple(terms: Vec<Expression>) -> Result<FolTerm, String> {
+    let mut elaborated_terms = vec![];
+    for term in terms {
+        elaborated_terms.push(expect_term(elaborate_expression(term)?)?);
+    }
 
-//     Ok(Tuple(elaborated_terms))
-// }
+    Ok(Tuple(elaborated_terms))
+}
 //
 //
 pub fn elaborate_pipe(types: Vec<Expression>) -> Result<FolFormula, String> {
