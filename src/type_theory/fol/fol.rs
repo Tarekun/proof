@@ -13,6 +13,7 @@ use crate::parser::api::{LofAst, Statement, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
+use crate::type_theory::fol::elaboration::elaborate_statement;
 use crate::type_theory::fol::fol::FolFormula::{
     Arrow, Atomic, Conjunction, Disjunction, ForAll, Not,
 };
@@ -67,39 +68,6 @@ pub enum FolStm {
 }
 
 pub struct Fol;
-impl Fol {
-    pub fn elaborate_statement(
-        ast: Statement,
-        program: &mut Program<Fol>,
-    ) -> Result<(), String> {
-        match ast {
-            Statement::Comment() => Ok(()),
-            Statement::FileRoot(file_path, asts) => {
-                elaborate_file_root(program, file_path, asts)
-            }
-            Statement::DirRoot(dirpath, asts) => {
-                elaborate_dir_root(program, dirpath, asts)
-            }
-            Statement::Axiom(axiom_name, formula) => {
-                elaborate_axiom(program, axiom_name, *formula)
-            }
-            Statement::Let(var_name, var_type, body) => {
-                elaborate_let(program, var_name, var_type, *body)
-            }
-            Statement::Fun(fun_name, args, out_type, body, is_rec) => {
-                elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
-            }
-            Statement::EmptyRoot(nodes) => elaborate_empty(program, nodes),
-            Statement::Theorem(theorem_name, formula, proof) => {
-                elaborate_theorem(program, theorem_name, formula, proof)
-            }
-            _ => Err(format!(
-                "Language construct {:?} not supported in FOL",
-                ast
-            )),
-        }
-    }
-}
 
 impl TypeTheory for Fol {
     type Term = FolTerm;
@@ -144,7 +112,7 @@ impl TypeTheory for Fol {
 
         match ast {
             LofAst::Stm(stm) => {
-                let _ = Fol::elaborate_statement(stm, &mut program);
+                let _ = elaborate_statement(stm, &mut program);
             }
             LofAst::Exp(exp) => {
                 let _ = elaborate_expression(exp);

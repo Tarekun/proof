@@ -1,6 +1,4 @@
-use super::fol::FolFormula::{
-    Arrow, Atomic, Conjunction, Disjunction, ForAll, Not,
-};
+use super::fol::FolFormula::{Arrow, Atomic, Conjunction, Disjunction, ForAll};
 use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use super::fol::FolTerm::{Abstraction, Variable};
 use super::fol::{Fol, FolFormula, FolTerm};
@@ -224,6 +222,35 @@ pub fn elaborate_pipe(types: Vec<Expression>) -> Result<FolFormula, String> {
 //########################### EXPRESSIONS ELABORATION
 //
 //########################### STATEMENTS ELABORATION
+pub fn elaborate_statement(
+    ast: Statement,
+    program: &mut Program<Fol>,
+) -> Result<(), String> {
+    match ast {
+        Statement::Comment() => Ok(()),
+        Statement::FileRoot(file_path, asts) => {
+            elaborate_file_root(program, file_path, asts)
+        }
+        Statement::DirRoot(dirpath, asts) => {
+            elaborate_dir_root(program, dirpath, asts)
+        }
+        Statement::Axiom(axiom_name, formula) => {
+            elaborate_axiom(program, axiom_name, *formula)
+        }
+        Statement::Let(var_name, var_type, body) => {
+            elaborate_let(program, var_name, var_type, *body)
+        }
+        Statement::Fun(fun_name, args, out_type, body, is_rec) => {
+            elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
+        }
+        Statement::EmptyRoot(nodes) => elaborate_empty(program, nodes),
+        Statement::Theorem(theorem_name, formula, proof) => {
+            elaborate_theorem(program, theorem_name, formula, proof)
+        }
+        _ => Err(format!("Language construct {:?} not supported in FOL", ast)),
+    }
+}
+//
 //
 fn elaborate_ast_vector(
     program: &mut Program<Fol>,
@@ -235,7 +262,7 @@ fn elaborate_ast_vector(
     for sub_ast in asts {
         match sub_ast {
             LofAst::Stm(stm) => {
-                match Fol::elaborate_statement(stm.clone(), program) {
+                match elaborate_statement(stm.clone(), program) {
                     Err(message) => errors.push(message),
                     Ok(_) => {}
                 }
@@ -460,10 +487,9 @@ mod unit_tests {
             elaboration::{
                 elaborate_abstraction, elaborate_application, elaborate_arrow,
                 elaborate_expression, elaborate_forall, elaborate_let,
-                elaborate_var_use,
+                elaborate_statement, elaborate_var_use,
             },
             fol::{
-                Fol,
                 FolFormula::{Arrow, Atomic, ForAll},
                 FolStm::Let,
                 FolTerm::{Abstraction, Application, Variable},
@@ -643,7 +669,7 @@ mod unit_tests {
         );
 
         let mut program = Program::new();
-        let res = Fol::elaborate_statement(
+        let res = elaborate_statement(
             Statement::Let(
                 "n".to_string(),
                 Some(Expression::VarUse("Nat".to_string())),
