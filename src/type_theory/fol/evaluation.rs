@@ -14,11 +14,11 @@ use crate::{
     },
 };
 
-use super::fol::{Fol, FolStm, FolTerm, FolType};
+use super::fol::{Fol, FolFormula, FolStm, FolTerm};
 
 //########################### TERM βδ-REDUCTION
 pub fn one_step_reduction(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     term: &FolTerm,
 ) -> FolTerm {
     match term {
@@ -32,7 +32,7 @@ pub fn one_step_reduction(
 //
 //
 fn reduce_variable(
-    environment: &Environment<FolTerm, FolType>,
+    environment: &Environment<FolTerm, FolFormula>,
     var_name: &str,
     og_term: &FolTerm,
 ) -> FolTerm {
@@ -43,7 +43,7 @@ fn reduce_variable(
 
 //########################### STATEMENTS EXECUTION
 pub fn evaluate_statement(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     stm: &FolStm,
 ) -> () {
     match stm {
@@ -64,9 +64,9 @@ pub fn evaluate_statement(
 //
 //
 pub fn evaluate_let(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     var_name: &str,
-    var_type: &Option<FolType>,
+    var_type: &Option<FolFormula>,
     body: &FolTerm,
 ) -> () {
     generic_evaluate_let::<Fol>(environment, var_name, var_type, body);
@@ -74,21 +74,21 @@ pub fn evaluate_let(
 //
 //
 pub fn evaluate_axiom(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     axiom_name: &str,
-    formula: &FolType,
+    formula: &FolFormula,
 ) -> () {
     generic_evaluate_axiom::<Fol>(environment, axiom_name, formula);
 }
 //
 //
 pub fn evaluate_theorem(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     theorem_name: &str,
-    formula: &FolType,
-    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolType>>>>,
+    formula: &FolFormula,
+    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolFormula>>>>,
 ) -> () {
-    generic_evaluate_theorem::<Fol, Union<FolTerm, FolType>>(
+    generic_evaluate_theorem::<Fol, Union<FolTerm, FolFormula>>(
         environment,
         theorem_name,
         formula,
@@ -98,10 +98,10 @@ pub fn evaluate_theorem(
 //
 //
 pub fn evaluate_fun(
-    environment: &mut Environment<FolTerm, FolType>,
+    environment: &mut Environment<FolTerm, FolFormula>,
     fun_name: &str,
-    args: &Vec<(String, FolType)>,
-    out_type: &FolType,
+    args: &Vec<(String, FolFormula)>,
+    out_type: &FolFormula,
     body: &FolTerm,
     is_rec: &bool,
 ) -> () {

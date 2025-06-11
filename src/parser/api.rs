@@ -19,6 +19,10 @@ pub enum Expression {
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
     // Infer operator to be elaborated to metavariables
     Inferator(),
+    /// [conjunted terms]
+    Tuple(Vec<Expression>),
+    /// [disjunted types]
+    Pipe(Vec<Expression>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
