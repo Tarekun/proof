@@ -212,7 +212,7 @@ impl LofParser {
             )?;
 
         // parse zero or more additional types separated by '|'
-        let (input, other_types) = many0(preceded(
+        let (input, other_types) = many1(preceded(
             multispace1,
             preceded(
                 tag("|"),
@@ -240,10 +240,10 @@ impl LofParser {
             // otherwise the function will be parsed as normal variable
             // and the rest of the string is not properly parsed
             |input| self.parse_app(input),
+            |input| self.parse_pipe(input),
             |input| self.parse_var(input),
             |input| self.parse_parens(input),
             |input| self.parse_pattern_match(input),
-            |input| self.parse_pipe(input), // Add pipe expression parser
         ))(input)
     }
 }
@@ -509,6 +509,18 @@ mod unit_tests {
                 Pipe(vec![VarUse("A".to_string()), VarUse("B".to_string())])
             ),
             "Pipe expression for union type isnt working"
+        );
+        assert_eq!(
+            parser.parse_expression("A | B").unwrap(),
+            (
+                "",
+                Pipe(vec![VarUse("A".to_string()), VarUse("B".to_string())])
+            ),
+            "Top level expression parser doesnt support pipes"
+        );
+        assert!(
+            parser.parse_pipe(" Variable ").is_err(),
+            "Pipe parser shouldnt accept single variable use as type unions"
         );
 
         assert_eq!(
