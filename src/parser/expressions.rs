@@ -1,4 +1,10 @@
-use super::api::{Expression, LofParser};
+use super::api::{
+    Expression::{
+        self, Abstraction, Application, Arrow, Inferator, Match, Pipe,
+        TypeProduct, VarUse,
+    },
+    LofParser,
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -29,7 +35,7 @@ impl LofParser {
     ) -> IResult<&'a str, Expression> {
         map(
             |input| self.parse_identifier(input),
-            |s: &str| Expression::VarUse(s.to_string()),
+            |s: &str| VarUse(s.to_string()),
         )(input)
     }
     //
@@ -54,7 +60,7 @@ impl LofParser {
 
         Ok((
             input,
-            Expression::Abstraction(
+            Abstraction(
                 var_name.to_string(),
                 Box::new(type_var),
                 Box::new(body),
@@ -85,7 +91,7 @@ impl LofParser {
 
         Ok((
             input,
-            Expression::TypeProduct(
+            TypeProduct(
                 var_name.to_string(),
                 Box::new(type_var),
                 Box::new(body),
@@ -106,10 +112,7 @@ impl LofParser {
         let (input, _) = preceded(multispace0, tag("->"))(input)?;
         let (input, codomain) = self.parse_type_expression(input)?;
 
-        Ok((
-            input,
-            Expression::Arrow(Box::new(domain), Box::new(codomain)),
-        ))
+        Ok((input, Arrow(Box::new(domain), Box::new(codomain))))
     }
     //
     //
@@ -150,7 +153,7 @@ impl LofParser {
         Ok((
             input,
             args.into_iter().fold(left, |acc, arg| {
-                Expression::Application(Box::new(acc), Box::new(arg))
+                Application(Box::new(acc), Box::new(arg))
             }),
         ))
     }
@@ -185,7 +188,7 @@ impl LofParser {
         let (input, branches) =
             many1(|input| self.parse_match_branch(input))(input)?;
 
-        Ok((input, Expression::Match(Box::new(term), branches)))
+        Ok((input, Match(Box::new(term), branches)))
     }
 
     pub fn parse_meta<'a>(
@@ -194,7 +197,34 @@ impl LofParser {
     ) -> IResult<&'a str, Expression> {
         let (input, _) = preceded(multispace0, char('?'))(input)?;
 
-        Ok((input, Expression::Inferator()))
+        Ok((input, Inferator()))
+    }
+
+    pub fn parse_pipe<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Expression> {
+        // TODO should i avoid returning here if there's no '|' ?
+        // so this doesnt conflict with other parsers
+        let (input, first_type) =
+            preceded(multispace0, |input| self.parse_type_expression(input))(
+                input,
+            )?;
+
+        // parse zero or more additional types separated by '|'
+        let (input, other_types) = many1(preceded(
+            multispace1,
+            preceded(
+                tag("|"),
+                preceded(multispace0, |input| {
+                    self.parse_type_expression(input)
+                }),
+            ),
+        ))(input)?;
+
+        let mut all_types = vec![first_type];
+        all_types.extend(other_types);
+        Ok((input, Pipe(all_types)))
     }
 
     pub fn parse_expression<'a>(
@@ -210,6 +240,7 @@ impl LofParser {
             // otherwise the function will be parsed as normal variable
             // and the rest of the string is not properly parsed
             |input| self.parse_app(input),
+            |input| self.parse_pipe(input),
             |input| self.parse_var(input),
             |input| self.parse_parens(input),
             |input| self.parse_pattern_match(input),
@@ -224,8 +255,10 @@ mod unit_tests {
     use crate::{
         config::Config,
         parser::api::{
-            Expression,
-            Expression::{Application, Inferator, VarUse},
+            Expression::{
+                Abstraction, Application, Arrow, Inferator, Match, Pipe,
+                TypeProduct, VarUse,
+            },
             LofParser,
         },
     };
@@ -251,7 +284,7 @@ mod unit_tests {
         );
         assert_eq!(
             parser.parse_parens("(x)").unwrap(),
-            ("", Expression::VarUse("x".to_string())),
+            ("", VarUse("x".to_string())),
             "Parenthesis parser doesnt produce subterm properly"
         );
     }
@@ -266,7 +299,7 @@ mod unit_tests {
         );
         assert_eq!(
             parser.parse_var("  test\n").unwrap(),
-            ("\n", Expression::VarUse("test".to_string())),
+            ("\n", VarUse("test".to_string())),
             "Variable parser cant cope with whitespaces"
         );
 
@@ -287,10 +320,10 @@ mod unit_tests {
             parser.parse_abs("λn:nat.n").unwrap(),
             (
                 "",
-                Expression::Abstraction(
+                Abstraction(
                     "n".to_string(),
-                    Box::new(Expression::VarUse("nat".to_string())),
-                    Box::new(Expression::VarUse("n".to_string()))
+                    Box::new(VarUse("nat".to_string())),
+                    Box::new(VarUse("n".to_string()))
                 )
             ),
             "Abstraction struct isnt properly built"
@@ -315,10 +348,10 @@ mod unit_tests {
             parser.parse_type_abs("ΠT:TYPE.T").unwrap(),
             (
                 "",
-                Expression::TypeProduct(
+                TypeProduct(
                     "T".to_string(),
-                    Box::new(Expression::VarUse("TYPE".to_string())),
-                    Box::new(Expression::VarUse("T".to_string()))
+                    Box::new(VarUse("TYPE".to_string())),
+                    Box::new(VarUse("T".to_string()))
                 )
             ),
             "Abstraction struct isnt properly built"
@@ -332,9 +365,9 @@ mod unit_tests {
             parser.parse_app("f x").unwrap(),
             (
                 "",
-                Expression::Application(
-                    Box::new(Expression::VarUse("f".to_string())),
-                    Box::new(Expression::VarUse("x".to_string()))
+                Application(
+                    Box::new(VarUse("f".to_string())),
+                    Box::new(VarUse("x".to_string()))
                 )
             ),
             "Parser cant read function application"
@@ -343,9 +376,9 @@ mod unit_tests {
             parser.parse_expression("f x").unwrap(),
             (
                 "",
-                Expression::Application(
-                    Box::new(Expression::VarUse("f".to_string())),
-                    Box::new(Expression::VarUse("x".to_string()))
+                Application(
+                    Box::new(VarUse("f".to_string())),
+                    Box::new(VarUse("x".to_string()))
                 )
             ),
             "Expression parser doesnt recognize application"
@@ -355,15 +388,15 @@ mod unit_tests {
             parser.parse_app("f x y z").unwrap(),
             (
                 "",
-                Expression::Application(
-                    Box::new(Expression::Application(
-                        Box::new(Expression::Application(
-                            Box::new(Expression::VarUse("f".to_string())),
-                            Box::new(Expression::VarUse("x".to_string()))
+                Application(
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(VarUse("f".to_string())),
+                            Box::new(VarUse("x".to_string()))
                         )),
-                        Box::new(Expression::VarUse("y".to_string()))
+                        Box::new(VarUse("y".to_string()))
                     )),
-                    Box::new(Expression::VarUse("z".to_string()))
+                    Box::new(VarUse("z".to_string()))
                 )
             ),
             "Parser should implement left-associative application"
@@ -373,15 +406,15 @@ mod unit_tests {
             parser.parse_app("f (x y) z").unwrap(),
             (
                 "",
-                Expression::Application(
-                    Box::new(Expression::Application(
-                        Box::new(Expression::VarUse("f".to_string())),
-                        Box::new(Expression::Application(
-                            Box::new(Expression::VarUse("x".to_string())),
-                            Box::new(Expression::VarUse("y".to_string()))
+                Application(
+                    Box::new(Application(
+                        Box::new(VarUse("f".to_string())),
+                        Box::new(Application(
+                            Box::new(VarUse("x".to_string())),
+                            Box::new(VarUse("y".to_string()))
                         ))
                     )),
-                    Box::new(Expression::VarUse("z".to_string()))
+                    Box::new(VarUse("z".to_string()))
                 )
             ),
             "Application parser messes up associativity with parenthesis"
@@ -395,9 +428,9 @@ mod unit_tests {
             parser.parse_arrow_type("A -> B").unwrap(),
             (
                 "",
-                Expression::Arrow(
-                    Box::new(Expression::VarUse("A".to_string())),
-                    Box::new(Expression::VarUse("B".to_string()))
+                Arrow(
+                    Box::new(VarUse("A".to_string())),
+                    Box::new(VarUse("B".to_string()))
                 )
             ),
             "Parser cant read type arrow expressions"
@@ -425,13 +458,7 @@ mod unit_tests {
         );
         assert_eq!(
             parser.parse_match_branch("| O => x,").unwrap(),
-            (
-                "",
-                (
-                    vec![Expression::VarUse("O".to_string())],
-                    Expression::VarUse("x".to_string())
-                )
-            ),
+            ("", (vec![VarUse("O".to_string())], VarUse("x".to_string()))),
             "Pattern match branch isnt properly constructed"
         );
         assert!(
@@ -445,11 +472,11 @@ mod unit_tests {
                 .unwrap(),
             (
                 "",
-                Expression::Match(
-                    Box::new(Expression::VarUse("x".to_string())),
+                Match(
+                    Box::new(VarUse("x".to_string())),
                     vec![(
-                        vec![Expression::VarUse("O".to_string())],
-                        Expression::VarUse("x".to_string())
+                        vec![VarUse("O".to_string())],
+                        VarUse("x".to_string())
                     )]
                 )
             ),
@@ -468,6 +495,55 @@ mod unit_tests {
         assert!(
             parser.parse_pattern_match("match xwith | O => x,").is_err(),
             "Pattern match parser doesnt split keywords"
+        );
+    }
+
+    #[test]
+    fn test_pipe_expression() {
+        let parser = LofParser::new(Config::default());
+
+        assert_eq!(
+            parser.parse_pipe("A | B").unwrap(),
+            (
+                "",
+                Pipe(vec![VarUse("A".to_string()), VarUse("B".to_string())])
+            ),
+            "Pipe expression for union type isnt working"
+        );
+        assert_eq!(
+            parser.parse_expression("A | B").unwrap(),
+            (
+                "",
+                Pipe(vec![VarUse("A".to_string()), VarUse("B".to_string())])
+            ),
+            "Top level expression parser doesnt support pipes"
+        );
+        assert!(
+            parser.parse_pipe(" Variable ").is_err(),
+            "Pipe parser shouldnt accept single variable use as type unions"
+        );
+
+        assert_eq!(
+            parser.parse_pipe("A | B | C | D").unwrap(),
+            (
+                "",
+                Pipe(vec![
+                    VarUse("A".to_string()),
+                    VarUse("B".to_string()),
+                    VarUse("C".to_string()),
+                    VarUse("D".to_string()),
+                ])
+            ),
+            "Pipe expression doesnt support n-ary unions"
+        );
+
+        assert_eq!(
+            parser.parse_pipe("A \n\t \r   |  \n \r\tB").unwrap(),
+            (
+                "",
+                Pipe(vec![VarUse("A".to_string()), VarUse("B".to_string())])
+            ),
+            "Pipe expression cant cope with whitespaces"
         );
     }
 
