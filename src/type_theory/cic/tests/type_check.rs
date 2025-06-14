@@ -506,22 +506,9 @@ mod tests {
     fn test_type_check_inductive() {
         let nat = Variable("nat".to_string(), GLOBAL_INDEX);
         let mut test_env = Cic::default_environment();
-        let constructors = vec![
-            ("o".to_string(), nat.clone()),
-            (
-                "s".to_string(),
-                Product(
-                    "_".to_string(),
-                    Box::new(nat.clone()),
-                    Box::new(nat.clone()),
-                ),
-            ),
-        ];
         #[allow(non_snake_case)]
         let TYPE = Sort("TYPE".to_string());
-        let ariety = TYPE.clone();
 
-        // generic checks
         assert!(
             type_check_inductive(
                 &mut test_env,
@@ -572,7 +559,7 @@ mod tests {
                 )
                 .is_err()
             }),
-            "Inductive type checking is accepting definition with simple term ariety"
+            "Inductive type checking is accepting definition with simple term (non-type) ariety"
         );
         assert!(
             test_env.with_local_assumptions(&vec![
@@ -588,36 +575,29 @@ mod tests {
                 )
                 .is_err()
             }),
-            "Inductive type checking is accepting definition with simple term constructor type"
-        );
-
-        // peano naturals
-        assert_eq!(
-            type_check_inductive(
-                &mut test_env,
-                "nat",
-                &vec![],
-                &ariety,
-                &constructors
-            ),
-            Ok(Variable("Unit".to_string(), GLOBAL_INDEX)),
-            "Inductive type checking isnt passing nat definition"
+            "Inductive type checking is accepting definition with simple term (non-type) constructor type"
         );
         assert!(
             Cic::type_check_stm(
                 &InductiveDef(
-                    "nat".to_string(),
+                    "Empty".to_string(),
                     vec![],
                     Box::new(TYPE.clone()),
-                    constructors
+                    vec![]
                 ),
                 &mut test_env
             )
             .is_ok(),
             "Top level type checker doesnt support inductive definitions"
         );
+    }
 
-        // logic relations
+    #[test]
+    fn test_inductive_equality() {
+        let mut test_env = Cic::default_environment();
+        #[allow(non_snake_case)]
+        let TYPE = Sort("TYPE".to_string());
+
         assert!(
             type_check_inductive(
                 &mut test_env,
@@ -649,7 +629,135 @@ mod tests {
             "Inductive type checker doesnt accept equality definition"
         );
 
-        // polymorphic lists
+        let equality_type = test_env.get_from_context("Eq");
+        assert!(
+            equality_type.is_some(), 
+            "Inductive definition wasnt included in context after type checking"
+        );
+        let (_, equality_type) = equality_type.unwrap();
+        assert_eq!(
+            equality_type,
+            Product(
+                "T".to_string(),
+                Box::new(TYPE.clone()),
+                Box::new(Product(
+                    "x".to_string(), 
+                    Box::new(Variable("T".to_string(), 0)),
+                    Box::new(Product(
+                        "_".to_string(),
+                        Box::new(Variable("T".to_string(), 0)),
+                        Box::new(Sort("PROP".to_string()))
+                    ))
+                ))
+            )
+        );
+
+        let refl_type = test_env.get_from_context("refl");
+        assert!(
+            refl_type.is_some(), 
+            "Inductive constructor wasnt included in context after type checking"
+        );
+        let (_, refl_type) = refl_type.unwrap();
+        assert_eq!(
+            refl_type,
+            Product(
+                "T".to_string(),
+                Box::new(TYPE.clone()),
+                Box::new(Product(
+                    "x".to_string(), 
+                    Box::new(Variable("T".to_string(), 0)),
+                    Box::new(Application(
+                        Box::new(Application(
+                            Box::new(Application(
+                                Box::new(Variable("Eq".to_string(), GLOBAL_INDEX)),
+                                Box::new(Variable("T".to_string(), 0))
+                            )),
+                            Box::new(Variable("x".to_string(), 1))
+                        )),
+                        Box::new(Variable("x".to_string(), 1))
+                    ))
+                ))
+            ),
+            "Inductive constructor doesnt have the proper type"
+        );
+    }
+
+    #[test]
+    fn test_inductive_naturals() {
+        let mut test_env = Cic::default_environment();
+        #[allow(non_snake_case)]
+        let TYPE = Sort("TYPE".to_string());
+        let nat = Variable("Nat".to_string(), GLOBAL_INDEX);
+        let constructors = vec![
+            ("o".to_string(), nat.clone()),
+            (
+                "s".to_string(),
+                Product(
+                    "_".to_string(),
+                    Box::new(nat.clone()),
+                    Box::new(nat.clone()),
+                ),
+            ),
+        ];
+
+        assert!(
+            type_check_inductive(
+                &mut test_env,
+                "Nat",
+                &vec![],
+                &TYPE,
+                &constructors
+            ).is_ok(),
+            "Inductive type checking isnt passing nat definition"
+        );
+
+        let nat_type = test_env.get_from_context("Nat");
+        assert!(
+            nat_type.is_some(), 
+            "Inductive definition wasnt included in context after type checking"
+        );
+        let (_, nat_type) = nat_type.unwrap();
+        assert_eq!(
+            nat_type,
+            TYPE,
+            "Inductive type wasnt constructed properly"
+        );
+        
+        let zero_type = test_env.get_from_context("o");
+        assert!(
+            zero_type.is_some(), 
+            "Zero constructor wasnt included in context after type checking"
+        );
+        let (_, zero_type) = zero_type.unwrap();
+        assert_eq!(
+            zero_type,
+            Variable("Nat".to_string(), GLOBAL_INDEX),
+            "Zero constructor type wasnt constructed properly"
+        );
+        
+        let succ_type = test_env.get_from_context("s");
+        assert!(
+            succ_type.is_some(), 
+            "Successor constructor wasnt included in context after type checking"
+        );
+        let (_, succ_type) = succ_type.unwrap();
+        assert_eq!(
+            succ_type,
+            Product(
+                "_".to_string(),
+                Box::new(Variable("Nat".to_string(), GLOBAL_INDEX)),
+                Box::new(Variable("Nat".to_string(), GLOBAL_INDEX)),
+            ),
+            "Successor constructor type wasnt constructed properly"
+        );
+    }
+
+    #[test]
+    fn test_inductive_lists() {
+        let mut test_env = Cic::default_environment();
+        #[allow(non_snake_case)]
+        let TYPE = Sort("TYPE".to_string());
+
         let list_of_t = Application(
             Box::new(Variable("list".to_string(), GLOBAL_INDEX)),
             Box::new(Variable("T".to_string(), 0)),

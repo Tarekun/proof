@@ -208,7 +208,8 @@ pub fn evaluate_inductive(
     let ind_type = make_multiarg_fun_type(params, ariety);
     environment.add_to_context(name, &ind_type);
     for (constr_name, constr_type) in constructors {
-        environment.add_to_context(constr_name, constr_type);
+        let constr_type = make_multiarg_fun_type(&params, constr_type);
+        environment.add_to_context(constr_name, &constr_type);
     }
     environment.add_to_context(
         &format!("e_{}", name),
