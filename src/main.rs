@@ -70,7 +70,10 @@ use type_theory::{
 };
 
 fn determine_entrypoint(args: &[String]) -> EntryPoint {
-    if args.len() < 2 {
+    // if no workspace is specified run the help entrypoint
+    // this works properly only if Help is the only entrypoint which
+    // doesnt require a workspace
+    if args.len() < 3 {
         return EntryPoint::Help;
     }
 
@@ -79,7 +82,8 @@ fn determine_entrypoint(args: &[String]) -> EntryPoint {
         "elaborate" => EntryPoint::Elaborate,
         "parse" => EntryPoint::ParseOnly,
         "help" => EntryPoint::Help,
-        _ => EntryPoint::Execute,
+        "run" => EntryPoint::Execute,
+        _ => EntryPoint::Help,
     }
 }
 
@@ -121,22 +125,17 @@ fn run_with_theory<T: TypeTheory + Kernel + Reducer>(
 
 fn main() {
     println!("################ PROGRAM START #################\n");
-
     let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        println!("Usage: lof <entrypoint> <workspace> [--flags]");
-        return;
-    }
 
     // get cli args
     let entrypoint = determine_entrypoint(&args);
-    let filepath = &args[2];
+    let filepath = &args.get(2).cloned().unwrap_or_default();
     let config_path = match get_flag_value(&args, "--config") {
         Some(path) => path,
         None => "./config.yml".to_string(),
     };
 
-    let config: config::Config = load_config(&config_path).unwrap();
+    let config = load_config(&config_path).unwrap();
     init_logger(&config);
 
     info!("Specified config: {:?}", config);
