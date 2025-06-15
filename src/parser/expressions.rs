@@ -1,6 +1,6 @@
 use super::api::{
     Expression::{
-        self, Abstraction, Application, Arrow, Inferator, Match, Pipe,
+        self, Abstraction, Application, Arrow, Inferator, Match, Pipe, Tuple,
         TypeProduct, VarUse,
     },
     LofParser,
@@ -9,7 +9,7 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{char, multispace0, multispace1},
-    combinator::map,
+    combinator::{map, opt},
     multi::{many0, many1},
     sequence::{delimited, preceded},
     IResult,
@@ -227,6 +227,30 @@ impl LofParser {
         Ok((input, Pipe(all_types)))
     }
 
+    pub fn parse_tuple<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Expression> {
+        let (input, _) = preceded(multispace0, char('('))(input)?;
+
+        let (input, first_expr) = self.parse_expression(input)?;
+        let (input, remaining_exprs) = many0(preceded(
+            multispace0,
+            preceded(
+                char(','),
+                preceded(multispace0, |input| self.parse_expression(input)),
+            ),
+        ))(input)?;
+
+        // optional trailing comma
+        let (input, _) = preceded(multispace0, opt(char(',')))(input)?;
+        let (input, _) = preceded(multispace0, char(')'))(input)?;
+
+        let mut all_exprs = vec![first_expr];
+        all_exprs.extend(remaining_exprs);
+        Ok((input, Tuple(all_exprs)))
+    }
+
     pub fn parse_expression<'a>(
         &'a self,
         input: &'a str,
@@ -243,6 +267,8 @@ impl LofParser {
             |input| self.parse_pipe(input),
             |input| self.parse_var(input),
             |input| self.parse_parens(input),
+            // parses must be tried before tuples to avoid conflicts
+            |input| self.parse_tuple(input),
             |input| self.parse_pattern_match(input),
         ))(input)
     }
@@ -256,7 +282,7 @@ mod unit_tests {
         config::Config,
         parser::api::{
             Expression::{
-                Abstraction, Application, Arrow, Inferator, Match, Pipe,
+                Abstraction, Application, Arrow, Inferator, Match, Pipe, Tuple,
                 TypeProduct, VarUse,
             },
             LofParser,
@@ -544,6 +570,51 @@ mod unit_tests {
                 Pipe(vec![VarUse("A".to_string()), VarUse("B".to_string())])
             ),
             "Pipe expression cant cope with whitespaces"
+        );
+    }
+
+    #[test]
+    fn test_tuple() {
+        let parser = LofParser::new(Config::default());
+
+        assert_eq!(
+            parser.parse_tuple("(one, two, three)"),
+            Ok((
+                "",
+                Tuple(vec![
+                    VarUse("one".to_string()),
+                    VarUse("two".to_string()),
+                    VarUse("three".to_string()),
+                ])
+            )),
+            "Tuple parser isnt working properly"
+        );
+        assert!(
+            parser.parse_tuple("(one, two, three,)").is_ok(),
+            "Tuple parser doesnt support optional trailing comma"
+        );
+        assert!(
+            parser
+                .parse_tuple(
+                    "(  \n\t one,  \n\r   two   \t , \r\r\t three   \n)"
+                )
+                .is_ok(),
+            "Tuple parser cant cope with whitespaces"
+        );
+        assert!(
+            parser.parse_expression("(one, two, three)").is_ok(),
+            "Top level expression parser doesnt support tuples"
+        );
+
+        assert_eq!(
+            parser.parse_expression("(one)"),
+            Ok(("", VarUse("one".to_string()),)),
+            "Tuple parser parser likely conflicts with the parenthesis one"
+        );
+        assert_eq!(
+            parser.parse_expression("(one,)"),
+            Ok(("", Tuple(vec![VarUse("one".to_string())]))),
+            "Singleton tuples cant be parsed properly"
         );
     }
 
