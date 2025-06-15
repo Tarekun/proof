@@ -70,24 +70,20 @@ use type_theory::{
 };
 
 fn determine_entrypoint(args: &[String]) -> EntryPoint {
-    if args.contains(&"--typecheck".to_string())
-        || args.contains(&"-t".to_string())
-    {
-        EntryPoint::TypeCheck
-    } else if args.contains(&"--elaborate".to_string())
-        || args.contains(&"-e".to_string())
-    {
-        EntryPoint::Elaborate
-    } else if args.contains(&"--parse".to_string())
-        || args.contains(&"-p".to_string())
-    {
-        EntryPoint::ParseOnly
-    } else if args.contains(&"--help".to_string())
-        || args.contains(&"-h".to_string())
-    {
-        EntryPoint::Help
-    } else {
-        EntryPoint::Execute
+    // if no workspace is specified run the help entrypoint
+    // this works properly only if Help is the only entrypoint which
+    // doesnt require a workspace
+    if args.len() < 3 {
+        return EntryPoint::Help;
+    }
+
+    match args[1].as_str() {
+        "check" => EntryPoint::TypeCheck,
+        "elaborate" => EntryPoint::Elaborate,
+        "parse" => EntryPoint::ParseOnly,
+        "help" => EntryPoint::Help,
+        "run" => EntryPoint::Execute,
+        _ => EntryPoint::Help,
     }
 }
 
@@ -129,24 +125,20 @@ fn run_with_theory<T: TypeTheory + Kernel + Reducer>(
 
 fn main() {
     println!("################ PROGRAM START #################\n");
-
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("Usage: cargo run <workspace> [--flags]");
-        return;
-    }
 
-    let filepath = &args[1];
-
+    // get cli args
+    let entrypoint = determine_entrypoint(&args);
+    let filepath = &args.get(2).cloned().unwrap_or_default();
     let config_path = match get_flag_value(&args, "--config") {
         Some(path) => path,
         None => "./config.yml".to_string(),
     };
-    let config: config::Config = load_config(&config_path).unwrap();
-    init_logger(&config);
-    info!("Specified config: {:?}", config);
 
-    let entrypoint = determine_entrypoint(&args);
+    let config = load_config(&config_path).unwrap();
+    init_logger(&config);
+
+    info!("Specified config: {:?}", config);
     info!("Requested entrypoint: {:?}", entrypoint);
 
     match config.system {

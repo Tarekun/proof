@@ -87,13 +87,18 @@ pub fn execute<T: TypeTheory + Kernel + Reducer>(
 }
 
 pub fn help() {
-    println!("Usage: lof <workspace> [--flags]");
-    println!("workspace can be either a .lof file or a directory");
+    println!("Usage: lof <operation> <workspace> [--flags]");
+    println!("workspace can be a path to either a .lof file or a directory");
+    println!();
+    println!("Operations:");
+    println!("\trun\t\tExecute the code");
+    println!("\tcheck\t\tParse and type check the code");
+    println!("\tparse\t\tOnly parse code");
+    println!(
+        "\telaborate\tParse and map the AST to the configured type system"
+    );
     println!();
     println!("Flags:");
-    println!("\t-t, --typecheck\t\tRun the type checking entrypoint");
-    println!("\t-e, --elaborate\t\tRun the parse and elaborate entrypoint");
-    println!("\t-p, --parse\t\tRun the parse only entrypoint");
     println!("\t--config <path>\t\tSpecify a custom config file path (defaults to ./config.yml)");
 }
 
