@@ -1,6 +1,6 @@
 use tracing::error;
 use std::collections::HashMap;
-use super::cic::CicTerm::{Application, Abstraction, Product, Sort, Variable, Meta};
+use super::cic::CicTerm::{Application, Product, Sort, Variable, Meta};
 use super::cic::{Cic, CicTerm};
 use super::cic_utils::{check_positivity, substitute_meta};
 use super::evaluation::{evaluate_inductive};
@@ -18,8 +18,7 @@ use crate::type_theory::commons::type_check::{
     generic_type_check_universal, generic_type_check_variable
 };
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::{Kernel, TypeTheory};
-use crate::type_theory::interface::Refiner;
+use crate::type_theory::interface::{Kernel, Refiner};
 
 //########################### EXPRESSIONS TYPE CHECKING
 //
