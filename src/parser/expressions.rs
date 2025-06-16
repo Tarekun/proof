@@ -267,7 +267,7 @@ impl LofParser {
             |input| self.parse_pipe(input),
             |input| self.parse_var(input),
             |input| self.parse_parens(input),
-            // parses must be tried before tuples to avoid conflicts
+            // parens must be tried before tuples to avoid conflicts
             |input| self.parse_tuple(input),
             |input| self.parse_pattern_match(input),
         ))(input)
