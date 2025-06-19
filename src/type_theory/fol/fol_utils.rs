@@ -1,6 +1,8 @@
 use super::fol::{
     Fol,
-    FolFormula::{self, Arrow, Disjunction, Not},
+    FolFormula::{
+        self, Arrow, Atomic, Conjunction, Disjunction, Exist, ForAll, Not,
+    },
 };
 use crate::{
     misc::simple_map,
@@ -22,8 +24,70 @@ pub fn make_multiarg_fun_type(
 }
 
 /// Removes implications and pushes negations to atomic predicates
-fn negation_normal_form(φ: &FolFormula) -> FolFormula {
-    φ.to_owned()
+pub fn negation_normal_form(φ: &FolFormula) -> FolFormula {
+    fn solver(φ: &FolFormula, negate: bool) -> FolFormula {
+        match φ {
+            Atomic(_) => {
+                if negate {
+                    Not(Box::new(φ.to_owned()))
+                } else {
+                    φ.to_owned()
+                }
+            }
+            Arrow(assumption, conclusion) => {
+                let not_assumption = solver(assumption, !negate);
+                let conclusion = solver(conclusion, negate);
+                Disjunction(vec![not_assumption, conclusion])
+            }
+            Not(ψ) => match *ψ.to_owned() {
+                // simplify double negation
+                Not(γ) => solver(&*γ, negate),
+                // ¬(φ ∧ ψ ∧ γ) => ¬φ ∨ ¬ψ ∨ ¬γ
+                Conjunction(formulas) => {
+                    Disjunction(simple_map(formulas.to_owned(), |ψ| {
+                        solver(&ψ, !negate)
+                    }))
+                }
+                // ¬(φ ∨ ψ ∨ γ) => ¬φ ∧ ¬ψ ∧ ¬γ
+                Disjunction(formulas) => {
+                    Conjunction(simple_map(formulas.to_owned(), |ψ| {
+                        solver(&ψ, !negate)
+                    }))
+                }
+                ForAll(var_name, var_type, ψ) => {
+                    let ψ = solver(&*ψ, !negate);
+                    Exist(var_name, var_type, Box::new(ψ))
+                }
+                Exist(var_name, var_type, ψ) => {
+                    let ψ = solver(&*ψ, !negate);
+                    ForAll(var_name, var_type, Box::new(ψ))
+                }
+                _ => solver(ψ, !negate),
+            },
+            Conjunction(formulas) => {
+                Conjunction(simple_map(formulas.to_owned(), |ψ| {
+                    solver(&ψ, negate)
+                }))
+            }
+            Disjunction(formulas) => {
+                Disjunction(simple_map(formulas.to_owned(), |ψ| {
+                    solver(&ψ, negate)
+                }))
+            }
+            ForAll(var_name, var_type, ψ) => {
+                let ψ = solver(ψ, negate);
+                // im not recurring on the variable type as i assume its a sort
+                ForAll(var_name.to_string(), var_type.to_owned(), Box::new(ψ))
+            }
+            Exist(var_name, var_type, ψ) => {
+                let ψ = solver(ψ, negate);
+                // im not recurring on the variable type as i assume its a sort
+                Exist(var_name.to_string(), var_type.to_owned(), Box::new(ψ))
+            }
+        }
+    }
+
+    solver(φ, false)
 }
 
 /// Pulls quantifiers to the top level of the formula

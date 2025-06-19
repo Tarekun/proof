@@ -34,12 +34,14 @@ pub enum FolTerm {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum FolFormula {
+    //TODO add predicate application
     Atomic(String),
     Arrow(Box<FolFormula>, Box<FolFormula>),
     Not(Box<FolFormula>),
     Conjunction(Vec<FolFormula>),
     Disjunction(Vec<FolFormula>),
     ForAll(String, Box<FolFormula>, Box<FolFormula>),
+    Exist(String, Box<FolFormula>, Box<FolFormula>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum FolStm {
@@ -155,6 +157,10 @@ impl Kernel for Fol {
             }
             Disjunction(sub_formulas) => {
                 type_check_disjunction(environment, sub_formulas)
+            }
+            _ => {
+                Err("TODO: Existensial type checking not yet supported"
+                    .to_string())
             }
         }
     }
