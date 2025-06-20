@@ -44,7 +44,7 @@ mod type_theory {
         mod elaboration;
         mod evaluation;
         pub mod fol;
-        mod fol_utils;
+        pub mod fol_utils;
         mod type_check;
     }
     pub mod sup {
@@ -52,6 +52,11 @@ mod type_theory {
         pub mod sup;
         mod sup_utils;
         mod type_check;
+    }
+}
+mod tests {
+    mod fol {
+        mod utils;
     }
 }
 
