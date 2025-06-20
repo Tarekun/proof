@@ -12,6 +12,17 @@ use crate::{
     },
 };
 
+impl FolFormula {
+    // pub fn to_string(self) -> String {
+    //     match self {
+    //         Atomic(name) => name,
+    //         Conjunction(formulas) => .join("∧")
+    //         Exist(_, _, _) => true,
+    //         _ => false,
+    //     }
+    // }
+}
+
 pub fn make_multiarg_fun_type(
     arg_types: &[(String, FolFormula)],
     base: &FolFormula,
@@ -21,6 +32,27 @@ pub fn make_multiarg_fun_type(
         base,
         |_, arg_type, sub_type| Arrow(Box::new(arg_type), Box::new(sub_type)),
     )
+}
+
+/// Given a formula `φ` expected to be in PNF, returns the same quantification over
+/// the new formula `new_body`
+pub fn swap_binded_formula(
+    φ: &FolFormula,
+    new_body: &FolFormula,
+) -> FolFormula {
+    match φ {
+        ForAll(var_name, var_type, body) => ForAll(
+            var_name.to_string(),
+            var_type.to_owned(),
+            Box::new(swap_binded_formula(body, new_body)),
+        ),
+        Exist(var_name, var_type, body) => Exist(
+            var_name.to_string(),
+            var_type.to_owned(),
+            Box::new(swap_binded_formula(body, new_body)),
+        ),
+        _ => new_body.to_owned(),
+    }
 }
 
 /// Removes implications and pushes negations to atomic predicates
@@ -99,24 +131,157 @@ pub fn negation_normal_form(φ: &FolFormula) -> FolFormula {
 }
 
 /// Pulls quantifiers to the top level of the formula
-fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
+pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
     /// Renames bound variables to fresh names to avoid clashes
     fn rectify_variables(φ: &FolFormula) -> FolFormula {
         φ.to_owned()
     }
 
+    fn solver(
+        φ: &FolFormula,
+        mut quantification: FolFormula,
+    ) -> (FolFormula, FolFormula) {
+        let tmp_hole = Atomic("tmp".to_string());
+        // TODO quantifiers might need to recur on a conjunct of body and the existance of a variable of the given type
+        match φ {
+            // expected to be in NNF so ¬ is already a literal (base case)
+            Atomic(_) | Not(_) => (quantification, φ.to_owned()),
+            ForAll(var_name, var_type, body) => {
+                let quantification = swap_binded_formula(
+                    &quantification,
+                    &ForAll(
+                        var_name.to_string(),
+                        var_type.to_owned(),
+                        Box::new(tmp_hole.clone()),
+                    ),
+                );
+                solver(body, quantification)
+            }
+            Exist(var_name, var_type, body) => {
+                quantification = swap_binded_formula(
+                    &quantification,
+                    &Exist(
+                        var_name.to_string(),
+                        var_type.to_owned(),
+                        Box::new(tmp_hole.clone()),
+                    ),
+                );
+                solver(body, quantification)
+            }
+            Conjunction(formulas) => {
+                let mut quantifier_free = vec![];
+                for ψ in formulas {
+                    println!("quantification before call {:?}", quantification);
+                    let (q, ψ) = solver(ψ, quantification);
+                    quantification = q;
+                    println!("quantification after call {:?}", quantification);
+                    println!();
+                    quantifier_free.push(ψ);
+                }
+
+                (quantification, Conjunction(quantifier_free))
+            }
+            Disjunction(formulas) => {
+                let mut quantifier_free = vec![];
+                for ψ in formulas {
+                    let (q, ψ) = solver(ψ, quantification);
+                    quantification = q;
+                    quantifier_free.push(ψ);
+                }
+
+                (quantification, Disjunction(quantifier_free))
+            }
+            Arrow(assumption, conclusion) => {
+                let assumption = match &**assumption {
+                    ForAll(var_name, var_type, body) => {
+                        let (q, assumption) = solver(
+                            body,
+                            swap_binded_formula(
+                                &quantification,
+                                &Exist(
+                                    var_name.to_string(),
+                                    var_type.to_owned(),
+                                    Box::new(tmp_hole.clone()),
+                                ),
+                            ),
+                        );
+                        quantification = q;
+                        assumption
+                    }
+                    Exist(var_name, var_type, body) => {
+                        let (q, assumption) = solver(
+                            body,
+                            swap_binded_formula(
+                                &quantification,
+                                &ForAll(
+                                    var_name.to_string(),
+                                    var_type.to_owned(),
+                                    Box::new(tmp_hole.clone()),
+                                ),
+                            ),
+                        );
+                        quantification = q;
+                        assumption
+                    }
+                    _ => (**assumption).to_owned(),
+                };
+
+                let conclusion = match &**conclusion {
+                    ForAll(var_name, var_type, body) => {
+                        let (q, conclusion) = solver(
+                            body,
+                            swap_binded_formula(
+                                &quantification,
+                                &Exist(
+                                    var_name.to_string(),
+                                    var_type.to_owned(),
+                                    Box::new(tmp_hole.clone()),
+                                ),
+                            ),
+                        );
+                        quantification = q;
+                        conclusion
+                    }
+                    Exist(var_name, var_type, body) => {
+                        let (q, conclusion) = solver(
+                            body,
+                            swap_binded_formula(
+                                &quantification,
+                                &ForAll(
+                                    var_name.to_string(),
+                                    var_type.to_owned(),
+                                    Box::new(tmp_hole.clone()),
+                                ),
+                            ),
+                        );
+                        quantification = q;
+                        conclusion
+                    }
+                    _ => (**conclusion).to_owned(),
+                };
+
+                (
+                    quantification,
+                    Arrow(Box::new(assumption), Box::new(conclusion)),
+                )
+            }
+        }
+    }
+
     let rectified = rectify_variables(&φ);
-    rectified
+    let (quantification, quantifier_free) =
+        solver(&rectified, Atomic("tmp".to_string()));
+    swap_binded_formula(&quantification, &quantifier_free)
 }
 
 /// Removes existential quantifiers via Skolemization
-fn skolemize(φ: &FolFormula) -> FolFormula {
+pub fn skolemize(φ: &FolFormula) -> FolFormula {
     φ.to_owned()
 }
 
 /// Transforms the formula into a CNF logically equivalent one.
 /// Returns the vector of (conjuncted) clauses
-fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
+pub fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
     vec![]
 }
 

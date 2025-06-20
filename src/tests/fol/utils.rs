@@ -4,7 +4,7 @@ mod tests {
         fol::FolFormula::{
             Arrow, Atomic, Conjunction, Disjunction, Exist, ForAll, Not,
         },
-        fol_utils::negation_normal_form,
+        fol_utils::{negation_normal_form, prenex_normal_form},
     };
 
     #[test]
@@ -66,6 +66,93 @@ mod tests {
                 Box::new(Not(Box::new(Atomic("A".to_string()))))
             ),
             "NNF algorithm doesnt push down negation over existensial quantifier"
+        );
+    }
+
+    #[test]
+    fn test_prenex_normal_form() {
+        assert_eq!(
+            prenex_normal_form(&Conjunction(vec![
+                ForAll(
+                    "a".to_string(),
+                    Box::new(Atomic("A".to_string())),
+                    Box::new(Atomic("P".to_string()))
+                ),
+                Exist(
+                    "b".to_string(),
+                    Box::new(Atomic("B".to_string())),
+                    Box::new(Atomic("Q".to_string()))
+                ),
+            ])),
+            ForAll(
+                "a".to_string(),
+                Box::new(Atomic("A".to_string())),
+                Box::new(Exist(
+                    "b".to_string(),
+                    Box::new(Atomic("B".to_string())),
+                    Box::new(Conjunction(vec![
+                        Atomic("P".to_string()),
+                        Atomic("Q".to_string())
+                    ]))
+                ))
+            ),
+            "PNF algorithm couldnt pull out quantifiers in conjunctions"
+        );
+
+        assert_eq!(
+            prenex_normal_form(&Disjunction(vec![
+                Exist(
+                    "a".to_string(),
+                    Box::new(Atomic("A".to_string())),
+                    Box::new(Atomic("P".to_string()))
+                ),
+                ForAll(
+                    "b".to_string(),
+                    Box::new(Atomic("B".to_string())),
+                    Box::new(Atomic("Q".to_string()))
+                ),
+            ])),
+            Exist(
+                "a".to_string(),
+                Box::new(Atomic("A".to_string())),
+                Box::new(ForAll(
+                    "b".to_string(),
+                    Box::new(Atomic("B".to_string())),
+                    Box::new(Disjunction(vec![
+                        Atomic("P".to_string()),
+                        Atomic("Q".to_string())
+                    ]))
+                ))
+            ),
+            "PNF algorithm couldnt pull out quantifiers in disjunction"
+        );
+
+        assert_eq!(
+            prenex_normal_form(&Conjunction(vec![
+                ForAll(
+                    "a".to_string(),
+                    Box::new(Atomic("A".to_string())),
+                    Box::new(Exist(
+                        "b".to_string(),
+                        Box::new(Atomic("B".to_string())),
+                        Box::new(Atomic("P".to_string()))
+                    ))
+                ),
+                Atomic("Q".to_string())
+            ])),
+            ForAll(
+                "a".to_string(),
+                Box::new(Atomic("A".to_string())),
+                Box::new(Exist(
+                    "b".to_string(),
+                    Box::new(Atomic("B".to_string())),
+                    Box::new(Conjunction(vec![
+                        Atomic("P".to_string()),
+                        Atomic("Q".to_string())
+                    ]))
+                ))
+            ),
+            "PNF algorithm couldnt cope with double quantifiers in a subformula"
         );
     }
 }
