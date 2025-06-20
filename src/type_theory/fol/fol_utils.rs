@@ -39,7 +39,7 @@ pub fn negation_normal_form(φ: &FolFormula) -> FolFormula {
                 let conclusion = solver(conclusion, negate);
                 Disjunction(vec![not_assumption, conclusion])
             }
-            Not(ψ) => match *ψ.to_owned() {
+            Not(ψ) => match &**ψ {
                 // simplify double negation
                 Not(γ) => solver(&*γ, negate),
                 // ¬(φ ∧ ψ ∧ γ) => ¬φ ∨ ¬ψ ∨ ¬γ
@@ -56,11 +56,19 @@ pub fn negation_normal_form(φ: &FolFormula) -> FolFormula {
                 }
                 ForAll(var_name, var_type, ψ) => {
                     let ψ = solver(&*ψ, !negate);
-                    Exist(var_name, var_type, Box::new(ψ))
+                    Exist(
+                        var_name.to_string(),
+                        var_type.to_owned(),
+                        Box::new(ψ),
+                    )
                 }
                 Exist(var_name, var_type, ψ) => {
                     let ψ = solver(&*ψ, !negate);
-                    ForAll(var_name, var_type, Box::new(ψ))
+                    ForAll(
+                        var_name.to_string(),
+                        var_type.to_owned(),
+                        Box::new(ψ),
+                    )
                 }
                 _ => solver(ψ, !negate),
             },
