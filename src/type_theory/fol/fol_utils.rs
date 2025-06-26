@@ -1,3 +1,5 @@
+use std::fmt;
+
 use super::fol::{
     Fol,
     FolFormula::{
@@ -11,6 +13,42 @@ use crate::{
         sup::sup::SupFormula::{self, Atom, Clause, Equality},
     },
 };
+
+impl FolFormula {
+    pub fn to_string(&self) -> String {
+        match self {
+            Atomic(name) => name.clone(),
+            Not(f) => format!("¬{}", f.to_string()),
+            Arrow(l, r) => format!("{} → {}", l.to_string(), r.to_string()),
+            Conjunction(fs) => fs
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join("∧"),
+            Disjunction(fs) => fs
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join("∨"),
+            ForAll(var, ty, f) => {
+                format!("∀{}:{}. {}", var, ty.to_string(), f.to_string())
+            }
+            Exist(var, ty, f) => {
+                format!("∃{}:{}. {}", var, ty.to_string(), f.to_string())
+            }
+        }
+    }
+}
+impl fmt::Display for FolFormula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+impl fmt::Debug for FolFormula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
 
 pub fn make_multiarg_fun_type(
     arg_types: &[(String, FolFormula)],
@@ -245,7 +283,52 @@ pub fn skolemize(φ: &FolFormula) -> FolFormula {
 /// Transforms the formula into a CNF logically equivalent one.
 /// Returns the vector of (conjuncted) clauses
 pub fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
-    vec![]
+    fn flatten_or(φ: FolFormula) -> FolFormula {
+        φ
+    }
+
+    fn to_cnf(φ: &FolFormula) -> Vec<FolFormula> {
+        match φ {
+            Atomic(_) | Not(_) => vec![φ.clone()],
+            Conjunction(formulas) => {
+                formulas.iter().flat_map(|ψ| to_cnf(ψ)).collect()
+            }
+            Disjunction(formulas) => {
+                let mut result = vec![];
+                for ψ in formulas {
+                    let cnf = to_cnf(ψ);
+
+                    if result.is_empty() {
+                        result.extend(cnf);
+                    } else {
+                        let mut distributed_result = vec![];
+                        for literal in result {
+                            for γ in &cnf {
+                                let distributed_literal =
+                                    flatten_or(Disjunction(vec![
+                                        literal.clone(),
+                                        γ.clone(),
+                                    ]));
+                                distributed_result.push(distributed_literal);
+                            }
+                        }
+                        result = distributed_result;
+                    }
+                }
+
+                result
+            }
+            ForAll(_, _, ψ) => to_cnf(ψ),
+            Exist(_, _, _) => unreachable!(
+                "Existential quantifiers should be removed by skolemization"
+            ),
+            Arrow(_, _) => unreachable!(
+                "Implications should be removed by negation normal form"
+            ),
+        }
+    }
+
+    to_cnf(φ)
 }
 
 #[allow(non_snake_case)]

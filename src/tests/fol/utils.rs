@@ -4,7 +4,9 @@ mod tests {
         fol::FolFormula::{
             Arrow, Atomic, Conjunction, Disjunction, Exist, ForAll, Not,
         },
-        fol_utils::{negation_normal_form, prenex_normal_form},
+        fol_utils::{
+            conjunction_normal_form, negation_normal_form, prenex_normal_form,
+        },
     };
 
     #[test]
@@ -153,6 +155,95 @@ mod tests {
                 ))
             ),
             "PNF algorithm couldnt cope with double quantifiers in a subformula"
+        );
+    }
+
+    #[test]
+    fn test_conjunction_normal_form() {
+        assert_eq!(
+            conjunction_normal_form(&Disjunction(vec![
+                Atomic("A".to_string()),
+                Conjunction(vec![
+                    Atomic("B".to_string()),
+                    Atomic("C".to_string()),
+                ])
+            ])),
+            vec![
+                Disjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("B".to_string()),
+                ]),
+                Disjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("C".to_string()),
+                ]),
+            ],
+            "CNF isnt distributing a predicate to the right"
+        );
+        assert_eq!(
+            conjunction_normal_form(&Disjunction(vec![
+                Conjunction(vec![
+                    Atomic("B".to_string()),
+                    Atomic("C".to_string()),
+                ]),
+                Atomic("A".to_string()),
+            ])),
+            vec![
+                Disjunction(vec![
+                    Atomic("B".to_string()),
+                    Atomic("A".to_string()),
+                ]),
+                Disjunction(vec![
+                    Atomic("C".to_string()),
+                    Atomic("A".to_string()),
+                ]),
+            ],
+            "CNF isnt distributing a predicate to the left"
+        );
+
+        assert_eq!(
+            conjunction_normal_form(&Disjunction(vec![
+                Conjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("B".to_string()),
+                ]),
+                Conjunction(vec![
+                    Atomic("C".to_string()),
+                    Atomic("D".to_string()),
+                ]),
+            ])),
+            vec![
+                Disjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("C".to_string()),
+                ]),
+                Disjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("D".to_string()),
+                ]),
+                Disjunction(vec![
+                    Atomic("B".to_string()),
+                    Atomic("C".to_string()),
+                ]),
+                Disjunction(vec![
+                    Atomic("B".to_string()),
+                    Atomic("D".to_string()),
+                ]),
+            ],
+            "CNF doesnt work properly with double distribution"
+        );
+
+        assert_eq!(
+            conjunction_normal_form(&ForAll(
+                "n".to_string(),
+                Box::new(Atomic("Nat".to_string())),
+                Box::new(Conjunction(vec![
+                    Atomic("P".to_string()),
+                    Atomic("Q".to_string())
+                ]))
+            )),
+            vec![Atomic("P".to_string()), Atomic("Q".to_string()),],
+            "CNF algorithm isnt dropping universal quantifier"
         );
     }
 }

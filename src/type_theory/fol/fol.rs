@@ -32,7 +32,7 @@ pub enum FolTerm {
     Application(Box<FolTerm>, Box<FolTerm>),
     Tuple(Vec<FolTerm>),
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum FolFormula {
     //TODO add predicate application
     Atomic(String),
