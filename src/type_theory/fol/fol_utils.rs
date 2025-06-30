@@ -12,17 +12,6 @@ use crate::{
     },
 };
 
-impl FolFormula {
-    // pub fn to_string(self) -> String {
-    //     match self {
-    //         Atomic(name) => name,
-    //         Conjunction(formulas) => .join("∧")
-    //         Exist(_, _, _) => true,
-    //         _ => false,
-    //     }
-    // }
-}
-
 pub fn make_multiarg_fun_type(
     arg_types: &[(String, FolFormula)],
     base: &FolFormula,
@@ -137,6 +126,44 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
         φ.to_owned()
     }
 
+    fn handle_arrow_components(
+        φ: &FolFormula,
+        quantification: FolFormula,
+    ) -> (FolFormula, FolFormula) {
+        let tmp_hole = Atomic("tmp".to_string());
+        match φ {
+            ForAll(var_name, var_type, body) => {
+                let (quantification, resolved) = solver(
+                    body,
+                    swap_binded_formula(
+                        &quantification,
+                        &Exist(
+                            var_name.to_string(),
+                            var_type.to_owned(),
+                            Box::new(tmp_hole.clone()),
+                        ),
+                    ),
+                );
+                (quantification, resolved)
+            }
+            Exist(var_name, var_type, body) => {
+                let (quantification, resolved) = solver(
+                    body,
+                    swap_binded_formula(
+                        &quantification,
+                        &ForAll(
+                            var_name.to_string(),
+                            var_type.to_owned(),
+                            Box::new(tmp_hole.clone()),
+                        ),
+                    ),
+                );
+                (quantification, resolved)
+            }
+            _ => (quantification, φ.to_owned()),
+        }
+    }
+
     fn solver(
         φ: &FolFormula,
         mut quantification: FolFormula,
@@ -171,11 +198,8 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
             Conjunction(formulas) => {
                 let mut quantifier_free = vec![];
                 for ψ in formulas {
-                    println!("quantification before call {:?}", quantification);
                     let (q, ψ) = solver(ψ, quantification);
                     quantification = q;
-                    println!("quantification after call {:?}", quantification);
-                    println!();
                     quantifier_free.push(ψ);
                 }
 
@@ -192,73 +216,12 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
                 (quantification, Disjunction(quantifier_free))
             }
             Arrow(assumption, conclusion) => {
-                let assumption = match &**assumption {
-                    ForAll(var_name, var_type, body) => {
-                        let (q, assumption) = solver(
-                            body,
-                            swap_binded_formula(
-                                &quantification,
-                                &Exist(
-                                    var_name.to_string(),
-                                    var_type.to_owned(),
-                                    Box::new(tmp_hole.clone()),
-                                ),
-                            ),
-                        );
-                        quantification = q;
-                        assumption
-                    }
-                    Exist(var_name, var_type, body) => {
-                        let (q, assumption) = solver(
-                            body,
-                            swap_binded_formula(
-                                &quantification,
-                                &ForAll(
-                                    var_name.to_string(),
-                                    var_type.to_owned(),
-                                    Box::new(tmp_hole.clone()),
-                                ),
-                            ),
-                        );
-                        quantification = q;
-                        assumption
-                    }
-                    _ => (**assumption).to_owned(),
-                };
-
-                let conclusion = match &**conclusion {
-                    ForAll(var_name, var_type, body) => {
-                        let (q, conclusion) = solver(
-                            body,
-                            swap_binded_formula(
-                                &quantification,
-                                &Exist(
-                                    var_name.to_string(),
-                                    var_type.to_owned(),
-                                    Box::new(tmp_hole.clone()),
-                                ),
-                            ),
-                        );
-                        quantification = q;
-                        conclusion
-                    }
-                    Exist(var_name, var_type, body) => {
-                        let (q, conclusion) = solver(
-                            body,
-                            swap_binded_formula(
-                                &quantification,
-                                &ForAll(
-                                    var_name.to_string(),
-                                    var_type.to_owned(),
-                                    Box::new(tmp_hole.clone()),
-                                ),
-                            ),
-                        );
-                        quantification = q;
-                        conclusion
-                    }
-                    _ => (**conclusion).to_owned(),
-                };
+                let (q, assumption) =
+                    handle_arrow_components(assumption, quantification);
+                quantification = q;
+                let (q, conclusion) =
+                    handle_arrow_components(conclusion, quantification);
+                quantification = q;
 
                 (
                     quantification,
