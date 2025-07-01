@@ -1,5 +1,3 @@
-use std::fmt;
-
 use super::fol::{
     Fol,
     FolFormula::{
@@ -13,6 +11,7 @@ use crate::{
         sup::sup::SupFormula::{self, Atom, Clause, Equality},
     },
 };
+use std::fmt;
 
 impl FolFormula {
     pub fn to_string(&self) -> String {
@@ -38,6 +37,47 @@ impl FolFormula {
             }
         }
     }
+    pub fn parethesized(&self) -> String {
+        match self {
+            Atomic(name) => name.clone(),
+            Not(f) => format!("¬({})", f.parethesized()),
+            Arrow(l, r) => {
+                format!("({} → {})", l.parethesized(), r.parethesized())
+            }
+            Conjunction(fs) => {
+                let tmp = fs
+                    .iter()
+                    .map(|f| f.parethesized())
+                    .collect::<Vec<_>>()
+                    .join("∧");
+                format!("({})", tmp)
+            }
+            Disjunction(fs) => {
+                let tmp = fs
+                    .iter()
+                    .map(|f| f.parethesized())
+                    .collect::<Vec<_>>()
+                    .join("∨");
+                format!("({})", tmp)
+            }
+            ForAll(var, ty, f) => {
+                format!(
+                    "∀{}:{}. ({})",
+                    var,
+                    ty.parethesized(),
+                    f.parethesized()
+                )
+            }
+            Exist(var, ty, f) => {
+                format!(
+                    "∃{}:{}. ({})",
+                    var,
+                    ty.parethesized(),
+                    f.parethesized()
+                )
+            }
+        }
+    }
 }
 impl fmt::Display for FolFormula {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -46,7 +86,7 @@ impl fmt::Display for FolFormula {
 }
 impl fmt::Debug for FolFormula {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.parethesized())
     }
 }
 
@@ -283,8 +323,24 @@ pub fn skolemize(φ: &FolFormula) -> FolFormula {
 /// Transforms the formula into a CNF logically equivalent one.
 /// Returns the vector of (conjuncted) clauses
 pub fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
-    fn flatten_or(φ: FolFormula) -> FolFormula {
-        φ
+    /// Creates a flattened disjunction φ ∨ ψ keeping the AST height constant. Given
+    /// * φ := α ∨ β
+    /// * ψ := γ ∨ δ
+    ///
+    /// Instead of blindly returning (α ∨ β) ∨ (γ ∨ δ) constructs the flattened
+    /// (ie in one vector) (α ∨ β ∨ γ ∨ δ)
+    fn combine_disjunctions(φ: &FolFormula, ψ: &FolFormula) -> FolFormula {
+        let mut subformulas = match φ {
+            Disjunction(left) => left.to_owned(),
+            _ => vec![φ.to_owned()],
+        };
+        if let Disjunction(right) = ψ {
+            subformulas.extend(right.to_vec());
+        } else {
+            subformulas.push(ψ.to_owned());
+        }
+
+        Disjunction(subformulas)
     }
 
     fn to_cnf(φ: &FolFormula) -> Vec<FolFormula> {
@@ -296,19 +352,16 @@ pub fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
             Disjunction(formulas) => {
                 let mut result = vec![];
                 for ψ in formulas {
-                    let cnf = to_cnf(ψ);
+                    let ψ_clauses = to_cnf(ψ);
 
                     if result.is_empty() {
-                        result.extend(cnf);
+                        result.extend(ψ_clauses);
                     } else {
                         let mut distributed_result = vec![];
                         for literal in result {
-                            for γ in &cnf {
+                            for γ in &ψ_clauses {
                                 let distributed_literal =
-                                    flatten_or(Disjunction(vec![
-                                        literal.clone(),
-                                        γ.clone(),
-                                    ]));
+                                    combine_disjunctions(&literal, γ);
                                 distributed_result.push(distributed_literal);
                             }
                         }

@@ -245,5 +245,30 @@ mod tests {
             vec![Atomic("P".to_string()), Atomic("Q".to_string()),],
             "CNF algorithm isnt dropping universal quantifier"
         );
+
+        assert_eq!(
+            conjunction_normal_form(&Disjunction(vec![
+                Atomic("A".to_string()),
+                Conjunction(vec![
+                    Atomic("B".to_string()),
+                    Disjunction(vec![
+                        Atomic("C".to_string()),
+                        Atomic("D".to_string()),
+                    ])
+                ])
+            ])),
+            vec![
+                Disjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("B".to_string()),
+                ]),
+                Disjunction(vec![
+                    Atomic("A".to_string()),
+                    Atomic("C".to_string()),
+                    Atomic("D".to_string()),
+                ])
+            ],
+            "CNF algorithm isnt producing flattened disjunctions"
+        );
     }
 }
