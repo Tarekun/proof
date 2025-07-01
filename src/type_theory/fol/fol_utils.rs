@@ -11,6 +11,84 @@ use crate::{
         sup::sup::SupFormula::{self, Atom, Clause, Equality},
     },
 };
+use std::fmt;
+
+impl FolFormula {
+    pub fn to_string(&self) -> String {
+        match self {
+            Atomic(name) => name.clone(),
+            Not(f) => format!("¬{}", f.to_string()),
+            Arrow(l, r) => format!("{} → {}", l.to_string(), r.to_string()),
+            Conjunction(fs) => fs
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join("∧"),
+            Disjunction(fs) => fs
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join("∨"),
+            ForAll(var, ty, f) => {
+                format!("∀{}:{}. {}", var, ty.to_string(), f.to_string())
+            }
+            Exist(var, ty, f) => {
+                format!("∃{}:{}. {}", var, ty.to_string(), f.to_string())
+            }
+        }
+    }
+    pub fn parethesized(&self) -> String {
+        match self {
+            Atomic(name) => name.clone(),
+            Not(f) => format!("¬({})", f.parethesized()),
+            Arrow(l, r) => {
+                format!("({} → {})", l.parethesized(), r.parethesized())
+            }
+            Conjunction(fs) => {
+                let tmp = fs
+                    .iter()
+                    .map(|f| f.parethesized())
+                    .collect::<Vec<_>>()
+                    .join("∧");
+                format!("({})", tmp)
+            }
+            Disjunction(fs) => {
+                let tmp = fs
+                    .iter()
+                    .map(|f| f.parethesized())
+                    .collect::<Vec<_>>()
+                    .join("∨");
+                format!("({})", tmp)
+            }
+            ForAll(var, ty, f) => {
+                format!(
+                    "∀{}:{}. ({})",
+                    var,
+                    ty.parethesized(),
+                    f.parethesized()
+                )
+            }
+            Exist(var, ty, f) => {
+                format!(
+                    "∃{}:{}. ({})",
+                    var,
+                    ty.parethesized(),
+                    f.parethesized()
+                )
+            }
+        }
+    }
+}
+impl fmt::Display for FolFormula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+impl fmt::Debug for FolFormula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.parethesized())
+    }
+}
 
 pub fn make_multiarg_fun_type(
     arg_types: &[(String, FolFormula)],
@@ -245,7 +323,65 @@ pub fn skolemize(φ: &FolFormula) -> FolFormula {
 /// Transforms the formula into a CNF logically equivalent one.
 /// Returns the vector of (conjuncted) clauses
 pub fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
-    vec![]
+    /// Creates a flattened disjunction φ ∨ ψ keeping the AST height constant. Given
+    /// * φ := α ∨ β
+    /// * ψ := γ ∨ δ
+    ///
+    /// Instead of blindly returning (α ∨ β) ∨ (γ ∨ δ) constructs the flattened
+    /// (ie in one vector) (α ∨ β ∨ γ ∨ δ)
+    fn combine_disjunctions(φ: &FolFormula, ψ: &FolFormula) -> FolFormula {
+        let mut subformulas = match φ {
+            Disjunction(left) => left.to_owned(),
+            _ => vec![φ.to_owned()],
+        };
+        if let Disjunction(right) = ψ {
+            subformulas.extend(right.to_vec());
+        } else {
+            subformulas.push(ψ.to_owned());
+        }
+
+        Disjunction(subformulas)
+    }
+
+    fn to_cnf(φ: &FolFormula) -> Vec<FolFormula> {
+        match φ {
+            Atomic(_) | Not(_) => vec![φ.clone()],
+            Conjunction(formulas) => {
+                formulas.iter().flat_map(|ψ| to_cnf(ψ)).collect()
+            }
+            Disjunction(formulas) => {
+                let mut result = vec![];
+                for ψ in formulas {
+                    let ψ_clauses = to_cnf(ψ);
+
+                    if result.is_empty() {
+                        result.extend(ψ_clauses);
+                    } else {
+                        let mut distributed_result = vec![];
+                        for literal in result {
+                            for γ in &ψ_clauses {
+                                let distributed_literal =
+                                    combine_disjunctions(&literal, γ);
+                                distributed_result.push(distributed_literal);
+                            }
+                        }
+                        result = distributed_result;
+                    }
+                }
+
+                result
+            }
+            ForAll(_, _, ψ) => to_cnf(ψ),
+            Exist(_, _, _) => unreachable!(
+                "Existential quantifiers should be removed by skolemization"
+            ),
+            Arrow(_, _) => unreachable!(
+                "Implications should be removed by negation normal form"
+            ),
+        }
+    }
+
+    to_cnf(φ)
 }
 
 #[allow(non_snake_case)]
