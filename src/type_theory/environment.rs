@@ -5,6 +5,7 @@ pub struct Environment<Term, Type> {
     pub context: HashMap<String, Vec<Type>>, //var_name, variable type
     pub deltas: HashMap<String, Vec<Term>>,  //var_name, definition term, type
     pub atomic_types: HashMap<String, Type>, //type_name, type_obj
+    // pub predicates: HashMap<String, Vec<Type>>, //pred_name, arg_types
     constraints: Vec<(Term, Term)>,
     next_index: i32,
 }

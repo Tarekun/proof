@@ -1,4 +1,4 @@
-use super::fol::FolFormula::{Arrow, Atomic, Disjunction, ForAll};
+use super::fol::FolFormula::{Arrow, Disjunction, ForAll, Predicate};
 use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use super::fol::FolTerm::{Abstraction, Tuple, Variable};
 use super::fol::{Fol, FolFormula, FolTerm};
@@ -103,7 +103,7 @@ pub fn elaborate_var_use(
     //TODO better evaluate how to distinguish them
     //for now the logic is if it's spelled in PascalCase, its a type (formula)
     if pascal_case.is_match(&var_name) {
-        Ok(Union::R(Atomic(var_name)))
+        Ok(Union::R(Predicate(var_name, vec![])))
     } else {
         Ok(Union::L(Variable(var_name)))
     }
@@ -155,6 +155,7 @@ pub fn elaborate_arrow(
 }
 //
 //
+//TODO: look for predicate application
 pub fn elaborate_application(
     left: Expression,
     right: Expression,
@@ -176,6 +177,8 @@ pub fn elaborate_application(
         Union::R(wrong_type) => term_expected_error("application", &wrong_type),
     }
 }
+
+fn predicate(left: Expression, right: Expression) -> Result<FolTerm, String> {}
 //
 //
 pub fn elaborate_forall(

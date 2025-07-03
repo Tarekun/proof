@@ -1,7 +1,7 @@
 use super::fol::{
     Fol,
     FolFormula::{
-        self, Arrow, Atomic, Conjunction, Disjunction, Exist, ForAll, Not,
+        self, Arrow, Conjunction, Disjunction, Exist, ForAll, Not, Predicate,
     },
     FolTerm::Variable,
 };
@@ -10,7 +10,7 @@ use crate::{
     type_theory::{
         commons::utils::generic_multiarg_fun_type,
         fol::fol::FolTerm,
-        sup::sup::SupFormula::{self, Atom, Clause, Equality},
+        sup::sup::SupFormula::{self, Clause},
     },
 };
 use std::fmt;
@@ -18,7 +18,7 @@ use std::fmt;
 impl FolFormula {
     pub fn to_string(&self) -> String {
         match self {
-            Atomic(name) => name.clone(),
+            Predicate(name, args) => format!("{}({:?})", name, args),
             Not(f) => format!("¬{}", f.to_string()),
             Arrow(l, r) => format!("{} → {}", l.to_string(), r.to_string()),
             Conjunction(fs) => fs
@@ -41,7 +41,7 @@ impl FolFormula {
     }
     pub fn parethesized(&self) -> String {
         match self {
-            Atomic(name) => name.clone(),
+            Predicate(name, args) => format!("{}({:?})", name, args),
             Not(f) => format!("¬({})", f.parethesized()),
             Arrow(l, r) => {
                 format!("({} → {})", l.parethesized(), r.parethesized())
@@ -130,7 +130,7 @@ pub fn swap_binded_formula(
 pub fn negation_normal_form(φ: &FolFormula) -> FolFormula {
     fn solver(φ: &FolFormula, negate: bool) -> FolFormula {
         match φ {
-            Atomic(_) => {
+            Predicate(_, _) => {
                 if negate {
                     Not(Box::new(φ.to_owned()))
                 } else {
@@ -212,7 +212,7 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
         φ: &FolFormula,
         quantification: FolFormula,
     ) -> (FolFormula, FolFormula) {
-        let tmp_hole = Atomic("tmp".to_string());
+        let tmp_hole = Predicate("tmp".to_string(), vec![]);
         match φ {
             ForAll(var_name, var_type, body) => {
                 let (quantification, resolved) = solver(
@@ -250,11 +250,11 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
         φ: &FolFormula,
         mut quantification: FolFormula,
     ) -> (FolFormula, FolFormula) {
-        let tmp_hole = Atomic("tmp".to_string());
+        let tmp_hole = Predicate("tmp".to_string(), vec![]);
         // TODO quantifiers might need to recur on a conjunct of body and the existance of a variable of the given type
         match φ {
             // expected to be in NNF so ¬ is already a literal (base case)
-            Atomic(_) | Not(_) => (quantification, φ.to_owned()),
+            Predicate(_, _) | Not(_) => (quantification, φ.to_owned()),
             ForAll(var_name, var_type, body) => {
                 let quantification = swap_binded_formula(
                     &quantification,
@@ -315,7 +315,7 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
 
     let rectified = rectify_variables(&φ);
     let (quantification, quantifier_free) =
-        solver(&rectified, Atomic("tmp".to_string()));
+        solver(&rectified, Predicate("tmp".to_string(), vec![]));
     swap_binded_formula(&quantification, &quantifier_free)
 }
 
@@ -348,7 +348,7 @@ pub fn skolemize(φ: &FolFormula) -> FolFormula {
                 Box::new(solver(right, args)),
             ),
             Not(ψ) => Not(Box::new(solver(ψ, args))),
-            Atomic(_) => φ.to_owned(),
+            Predicate(_, _) => φ.to_owned(),
         }
     }
 
@@ -380,7 +380,7 @@ pub fn conjunction_normal_form(φ: &FolFormula) -> Vec<FolFormula> {
 
     fn to_cnf(φ: &FolFormula) -> Vec<FolFormula> {
         match φ {
-            Atomic(_) | Not(_) => vec![φ.clone()],
+            Predicate(_, _) | Not(_) => vec![φ.clone()],
             Conjunction(formulas) => {
                 formulas.iter().flat_map(|ψ| to_cnf(ψ)).collect()
             }

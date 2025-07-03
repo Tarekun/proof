@@ -77,13 +77,14 @@ pub fn type_check_tuple(
 //
 //
 //########################### TYPES TYPE CHECKING
-pub fn type_check_atomic(
+pub fn type_check_predicate(
     environment: &mut Environment<FolTerm, FolFormula>,
     type_name: &str,
+    args: &Vec<FolTerm>
 ) -> Result<FolFormula, String> {
-    match environment.get_atomic_type(type_name) {
+    match environment.get_Predicate_type(type_name) {
         Some(type_obj) => Ok(type_obj.to_owned()),
-        _ => Err(format!("Unbound type {}", type_name)),
+        _ => Err(format!("Unbound predicate {}", type_name)),
     }
 }
 //
@@ -202,11 +203,11 @@ mod unit_tests {
                 Fol,
                 FolStm::{Axiom, Fun, Let},
                 FolTerm::{self, Abstraction, Application, Variable},
-                FolFormula::{self, Arrow, Atomic, ForAll},
+                FolFormula::{self, Arrow, Predicate, ForAll},
             },
             type_check::{
                 type_check_abstraction, type_check_application,
-                type_check_arrow, type_check_atomic, type_check_forall,
+                type_check_arrow, type_check_predicate, type_check_forall,
                 type_check_fun, type_check_let, type_check_var,
             },
         },
@@ -218,11 +219,11 @@ mod unit_tests {
     #[test]
     fn test_var_type_check() {
         let mut test_env = Fol::default_environment();
-        test_env.add_to_context("it", &Atomic("Unit".to_string()));
+        test_env.add_to_context("it", &Predicate("Unit".to_string(), vec![]));
 
         assert_eq!(
             type_check_var(&mut test_env, "it"),
-            Ok(Atomic("Unit".to_string())),
+            Ok(Predicate("Unit".to_string(), vec![])),
             "Variable type checking isnt working properly"
         );
         assert!(
@@ -243,17 +244,18 @@ mod unit_tests {
     #[test]
     fn test_abs_type_check() {
         let mut test_env = Fol::default_environment();
+        let unit = Predicate("Unit".to_string(), vec![]);
 
         assert_eq!(
             type_check_abstraction(
                 &mut test_env,
                 "x",
-                &Atomic("Unit".to_string()),
+                &unit.clone(),
                 &Variable("x".to_string())
             ),
             Ok(Arrow(
-                Box::new(Atomic("Unit".to_string())),
-                Box::new(Atomic("Unit".to_string()))
+                Box::new(unit.clone()),
+                Box::new(unit.clone())
             )),
             "Abstraction type checker doesnt work properly"
         );
@@ -261,7 +263,7 @@ mod unit_tests {
             Fol::type_check_term(
                 &Abstraction(
                     "x".to_string(),
-                    Box::new(Atomic("Unit".to_string())),
+                    Box::new(unit.clone()),
                     Box::new(Variable("x".to_string())),
                 ),
                 &mut test_env,
@@ -274,7 +276,7 @@ mod unit_tests {
             type_check_abstraction(
                 &mut test_env,
                 "x",
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &Variable("x".to_string()),
             )
             .is_err(),
@@ -284,7 +286,7 @@ mod unit_tests {
             type_check_abstraction(
                 &mut test_env,
                 "x",
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &Variable("stupid_unbound_variable".to_string()),
             )
             .is_err(),
@@ -294,24 +296,26 @@ mod unit_tests {
 
     #[test]
     fn test_app_type_check() {
+        let unit = Predicate("Unit".to_string(), vec![]);
+        let nat = Predicate("Nat".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![
-                    ("Nat", &Atomic("Nat".to_string())),
-                    ("Unit", &Atomic("Unit".to_string())),
+                    ("Nat", &nat.clone()),
+                    ("Unit", &unit.clone()),
                 ],
             );
         test_env.add_to_context(
             "f",
             &Arrow(
-                Box::new(Atomic("Nat".to_string())),
-                Box::new(Atomic("Nat".to_string())),
+                Box::new(nat.clone()),
+                Box::new(nat.clone()),
             ),
         );
-        test_env.add_to_context("x", &Atomic("Nat".to_string()));
-        test_env.add_to_context("it", &Atomic("Unit".to_string()));
+        test_env.add_to_context("x", &nat.clone());
+        test_env.add_to_context("it", &unit.clone());
 
         assert_eq!(
             type_check_application(
@@ -319,7 +323,7 @@ mod unit_tests {
                 &Variable("f".to_string()),
                 &Variable("x".to_string())
             ),
-            Ok(Atomic("Nat".to_string())),
+            Ok(nat.clone()),
             "Application type checker doesnt work properly"
         );
         assert!(
@@ -364,34 +368,34 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_atomic_type_check() {
-        let unit = "Unit";
+    fn test_predicate_type_check() {
+        let unit = Predicate("Unit".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
-                vec![(unit, &Atomic(unit.to_string()))],
+                vec![(unit, &unit)],
             );
 
         assert!(
-            type_check_atomic(&mut test_env, unit).is_ok(),
-            "Atomic-type type checking refutes bound type"
+            type_check_predicate(&mut test_env, "Unit", &vec![]).is_ok(),
+            "Predicate-type type checking refutes bound type"
         );
         assert!(
-            Fol::type_check_type(&Atomic(unit.to_string()), &mut test_env)
+            Fol::type_check_type(&unit.clone(), &mut test_env)
                 .is_ok(),
-            "Top level type checker doesnt support atomic types"
+            "Top level type checker doesnt support Predicate types"
         );
         assert!(
-            type_check_atomic(&mut test_env, "StupidUnboundType")
+            type_check_predicate(&mut test_env, "StupidUnboundType", &vec![])
                 .is_err(),
-            "Atomic-type type checking accepts unbound type"
+            "Predicate-type type checking accepts unbound type"
         );
     }
 
     #[test]
     fn test_arrow_type_check() {
-        let nat = Atomic("Nat".to_string());
+        let nat = Predicate("Nat".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
@@ -414,7 +418,7 @@ mod unit_tests {
         assert!(
             type_check_arrow(
                 &mut test_env,
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &nat
             )
             .is_err(),
@@ -424,7 +428,7 @@ mod unit_tests {
             type_check_arrow(
                 &mut test_env,
                 &nat,
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
             )
             .is_err(),
             "Arrow type checker accepts unbound codomain"
@@ -433,8 +437,8 @@ mod unit_tests {
 
     #[test]
     fn test_forall_type_check() {
-        let top: FolFormula = Atomic("Top".to_string());
-        let nat = Atomic("Nat".to_string());
+        let top: FolFormula = Predicate("Top".to_string(), vec![]);
+        let nat = Predicate("Nat".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
@@ -468,7 +472,7 @@ mod unit_tests {
             type_check_forall(
                 &mut test_env,
                 "x",
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &top
             )
             .is_err(),
@@ -479,7 +483,7 @@ mod unit_tests {
                 &mut test_env,
                 "x",
                 &nat,
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
             )
             .is_err(),
             "Forall type checker accepts forall with ill typed body"
@@ -488,7 +492,7 @@ mod unit_tests {
 
     #[test]
     fn test_axiom_type_check() {
-        let top: FolFormula = Atomic("Top".to_string());
+        let top: FolFormula = Predicate("Top".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
@@ -523,7 +527,7 @@ mod unit_tests {
 
     #[test]
     fn test_let_type_check() {
-        let nat = Atomic("Nat".to_string());
+        let nat = Predicate("Nat".to_string(), vec![]);
         let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
@@ -567,7 +571,7 @@ mod unit_tests {
             type_check_let(
                 &mut test_env,
                 "o",
-                &Some(Atomic("StupidUnboundType".to_string())),
+                &Some(Predicate("StupidUnboundType".to_string(), vec![])),
                 &zero,
             )
             .is_err(),
@@ -587,7 +591,7 @@ mod unit_tests {
 
     #[test]
     fn test_fun_type_check() {
-        let nat = Atomic("Nat".to_string());
+        let nat = Predicate("Nat".to_string(), vec![]);
         // let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
@@ -629,7 +633,7 @@ mod unit_tests {
             type_check_fun(
                 &mut test_env,
                 "h", 
-                &vec![("n".to_string(), Atomic("StupidUnboundName".to_string()))], 
+                &vec![("n".to_string(), Predicate("StupidUnboundName".to_string(), vec![]))], 
                 &nat, 
                 &Variable("n".to_string()), 
                 &false,

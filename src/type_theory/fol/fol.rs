@@ -11,15 +11,15 @@ use crate::runtime::program::Program;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::fol::fol::FolFormula::{
-    Arrow, Atomic, Conjunction, Disjunction, ForAll, Not,
+    Arrow, Conjunction, Disjunction, ForAll, Not, Predicate,
 };
 use crate::type_theory::fol::fol::FolStm::{Axiom, Fun, Let, Theorem};
 use crate::type_theory::fol::fol::FolTerm::{
     Abstraction, Application, Tuple, Variable,
 };
 use crate::type_theory::fol::type_check::{
-    type_check_atomic, type_check_conjunction, type_check_disjunction,
-    type_check_not, type_check_tuple,
+    type_check_conjunction, type_check_disjunction, type_check_not,
+    type_check_predicate, type_check_tuple,
 };
 use crate::type_theory::interface::{
     Interactive, Kernel, Reducer, Refiner, TypeTheory,
@@ -35,7 +35,7 @@ pub enum FolTerm {
 #[derive(Clone, PartialEq)]
 pub enum FolFormula {
     //TODO add predicate application
-    Atomic(String),
+    Predicate(String, Vec<FolTerm>),
     Arrow(Box<FolFormula>, Box<FolFormula>),
     Not(Box<FolFormula>),
     Conjunction(Vec<FolFormula>),
@@ -77,8 +77,8 @@ impl TypeTheory for Fol {
             vec![],
             vec![],
             vec![
-                ("Unit", &FolFormula::Atomic("Unit".to_string())),
-                ("Top", &FolFormula::Atomic("Top".to_string())),
+                ("Unit", &Predicate("Unit".to_string(), vec![])),
+                ("Top", &Predicate("Top".to_string(), vec![])),
             ],
         )
     }
@@ -144,7 +144,9 @@ impl Kernel for Fol {
         environment: &mut Environment<Self::Term, FolFormula>,
     ) -> Result<FolFormula, String> {
         match typee {
-            Atomic(type_name) => type_check_atomic(environment, type_name),
+            Predicate(type_name, args) => {
+                type_check_predicate(environment, type_name, args)
+            }
             Arrow(domain, codomain) => {
                 type_check_arrow(environment, domain, codomain)
             }
@@ -234,11 +236,12 @@ impl Interactive for Fol {
     type Exp = Union<FolTerm, FolFormula>;
 
     fn proof_hole() -> Self::Term {
-        FolTerm::Variable("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
+        Variable("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
     }
     fn empty_target() -> Self::Type {
-        FolFormula::Atomic(
+        Predicate(
             "THIS_IS_AN_EMPTY_TERMINATION_PROOF_TARGET".to_string(),
+            vec![],
         )
     }
 
