@@ -76,10 +76,7 @@ impl TypeTheory for Fol {
         Environment::with_defaults(
             vec![],
             vec![],
-            vec![
-                ("Unit", &Predicate("Unit".to_string(), vec![])),
-                ("Top", &Predicate("Top".to_string(), vec![])),
-            ],
+            vec![("Unit", &vec![]), ("Top", &vec![])],
         )
     }
 

@@ -4,8 +4,7 @@ use std::collections::HashMap;
 pub struct Environment<Term, Type> {
     pub context: HashMap<String, Vec<Type>>, //var_name, variable type
     pub deltas: HashMap<String, Vec<Term>>,  //var_name, definition term, type
-    pub atomic_types: HashMap<String, Type>, //type_name, type_obj
-    // pub predicates: HashMap<String, Vec<Type>>, //pred_name, arg_types
+    pub predicates: HashMap<String, Vec<Type>>, //pred_name, arg_types
     constraints: Vec<(Term, Term)>,
     next_index: i32,
 }
@@ -15,11 +14,11 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
     pub fn with_defaults(
         axioms: Vec<(&str, &Type)>,
         deltas: Vec<(&str, &Term, &Option<Type>)>,
-        types: Vec<(&str, &Type)>,
+        predicates: Vec<(&str, &Vec<Type>)>,
     ) -> Self {
         let mut context_map = HashMap::new();
         let mut deltas_map = HashMap::new();
-        let mut atomic_types_map = HashMap::new();
+        let mut predicates_map = HashMap::new();
 
         for (name, term) in axioms {
             context_map.insert(name.to_string(), vec![term.clone()]);
@@ -30,14 +29,14 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
                 context_map.insert(name.to_string(), vec![typee.clone()]);
             }
         }
-        for (name, type_obj) in types {
-            atomic_types_map.insert(name.to_string(), type_obj.clone());
+        for (name, arg_types) in predicates {
+            predicates_map.insert(name.to_string(), arg_types.clone());
         }
 
         Self {
             context: context_map,
             deltas: deltas_map,
-            atomic_types: atomic_types_map,
+            predicates: predicates_map,
             constraints: vec![],
             next_index: 0,
         }
@@ -78,6 +77,11 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
 
     pub fn add_constraint(&mut self, left: &Term, right: &Term) {
         self.constraints.push((left.clone(), right.clone()));
+    }
+
+    pub fn add_predicate(&mut self, name: &str, arg_types: &Vec<Type>) {
+        self.predicates
+            .insert(name.to_string(), arg_types.to_owned());
     }
 
     fn remove_substitution(&mut self, name: &str) {
@@ -238,10 +242,10 @@ impl<Term: Clone, Type: Clone + PartialEq> Environment<Term, Type> {
         })
     }
 
-    pub fn get_atomic_type(&self, type_name: &str) -> Option<Type> {
-        self.atomic_types
+    pub fn get_predicate(&self, type_name: &str) -> Option<Vec<Type>> {
+        self.predicates
             .get(type_name)
-            .map(|type_obj| type_obj.to_owned())
+            .map(|arg_types| arg_types.to_owned())
     }
 
     pub fn get_constraints(&self) -> Vec<(Term, Term)> {

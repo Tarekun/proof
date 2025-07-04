@@ -320,7 +320,7 @@ mod unit_tests {
                     Box::new(VarUse("Nat".to_string())),
                     Box::new(Application(
                         Box::new(VarUse("s".to_string())),
-                        Box::new(VarUse("n".to_string()))
+                        vec![VarUse("n".to_string())]
                     )),
                     false
                 )
@@ -337,7 +337,7 @@ mod unit_tests {
                     Box::new(VarUse("Nat".to_string())),
                     Box::new(Application(
                         Box::new(VarUse("f".to_string())),
-                        Box::new(VarUse("n".to_string()))
+                        vec![VarUse("n".to_string())]
                     )),
                     true
                 )
@@ -369,12 +369,12 @@ mod unit_tests {
                         "l".to_string(),
                         Application(
                             Box::new(VarUse("List".to_string())),
-                            Box::new(VarUse("Nat".to_string()))
+                            vec![VarUse("Nat".to_string())]
                         )
                     )],
                     Box::new(Application(
                         Box::new(VarUse("List".to_string())),
-                        Box::new(VarUse("Nat".to_string()))
+                        vec![VarUse("Nat".to_string())]
                     )),
                     Box::new(VarUse("l".to_string())),
                     false
@@ -554,7 +554,7 @@ mod unit_tests {
                                     Box::new(VarUse(
                                         "list".to_string()
                                     )),
-                                    Box::new(VarUse("nat".to_string())),
+                                    vec![VarUse("nat".to_string())],
                                 )),
                                 Box::new(VarUse("T".to_string()))
                             )

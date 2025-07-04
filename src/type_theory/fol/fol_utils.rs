@@ -103,7 +103,7 @@ pub fn make_multiarg_fun_type(
     )
 }
 
-pub fn make_multiarg_app(fun_name: String, args: &[FolTerm]) -> FolFormula {}
+// pub fn make_multiarg_app(fun_name: String, args: &[FolTerm]) -> FolFormula {}
 
 /// Given a formula `φ` expected to be in PNF, returns the same quantification over
 /// the new formula `new_body`
@@ -321,38 +321,41 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
 
 /// Removes existential quantifiers via Skolemization
 pub fn skolemize(φ: &FolFormula) -> FolFormula {
-    fn solver(φ: &FolFormula, mut args: Vec<FolTerm>) -> FolFormula {
-        match φ {
-            Exist(var_name, var_type, ψ) => {}
-            ForAll(var_name, var_type, ψ) => {
-                args.push(Variable(var_name.to_string()));
+    φ.to_owned()
+    // fn solver(φ: &FolFormula, mut args: Vec<FolTerm>) -> FolFormula {
+    //     match φ {
+    //         Exist(var_name, var_type, ψ) => {
+    //             panic!("todo")
+    //         }
+    //         ForAll(var_name, var_type, ψ) => {
+    //             args.push(Variable(var_name.to_string()));
 
-                ForAll(
-                    var_name.to_string(),
-                    var_type.to_owned(),
-                    Box::new(solver(ψ, args)),
-                )
-            }
-            Conjunction(subformulas) => {
-                Conjunction(simple_map(subformulas.to_owned(), |ψ| {
-                    solver(&ψ, args)
-                }))
-            }
-            Disjunction(subformulas) => {
-                Disjunction(simple_map(subformulas.to_owned(), |ψ| {
-                    solver(&ψ, args)
-                }))
-            }
-            Arrow(left, right) => Arrow(
-                Box::new(solver(left, args)),
-                Box::new(solver(right, args)),
-            ),
-            Not(ψ) => Not(Box::new(solver(ψ, args))),
-            Predicate(_, _) => φ.to_owned(),
-        }
-    }
+    //             ForAll(
+    //                 var_name.to_string(),
+    //                 var_type.to_owned(),
+    //                 Box::new(solver(ψ, args)),
+    //             )
+    //         }
+    //         Conjunction(subformulas) => {
+    //             Conjunction(simple_map(subformulas.to_owned(), |ψ| {
+    //                 solver(&ψ, args)
+    //             }))
+    //         }
+    //         Disjunction(subformulas) => {
+    //             Disjunction(simple_map(subformulas.to_owned(), |ψ| {
+    //                 solver(&ψ, args)
+    //             }))
+    //         }
+    //         Arrow(left, right) => Arrow(
+    //             Box::new(solver(left, args)),
+    //             Box::new(solver(right, args)),
+    //         ),
+    //         Not(ψ) => Not(Box::new(solver(ψ, args))),
+    //         Predicate(_, _) => φ.to_owned(),
+    //     }
+    // }
 
-    solver(φ, vec![])
+    // solver(φ, vec![])
 }
 
 /// Transforms the formula into a CNF logically equivalent one.
