@@ -1,12 +1,20 @@
 #[cfg(test)]
 mod tests {
-    use crate::type_theory::fol::{
-        fol::FolFormula::{
-            Arrow, Conjunction, Disjunction, Exist, ForAll, Not, Predicate,
+    use crate::type_theory::{
+        fol::{
+            fol::{
+                FolFormula::{
+                    Arrow, Conjunction, Disjunction, Exist, ForAll, Not,
+                    Predicate,
+                },
+                FolTerm::{Application, Variable},
+            },
+            fol_utils::{
+                clausify, conjunction_normal_form, negation_normal_form,
+                prenex_normal_form, skolemize,
+            },
         },
-        fol_utils::{
-            conjunction_normal_form, negation_normal_form, prenex_normal_form,
-        },
+        sup::sup::{SupFormula, SupTerm},
     };
 
     #[test]
@@ -273,6 +281,75 @@ mod tests {
                 ])
             ],
             "CNF algorithm isnt producing flattened disjunctions"
+        );
+    }
+
+    #[test]
+    fn test_skolemization() {
+        assert_eq!(
+            skolemize(&Exist(
+                "n".to_string(),
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Predicate(
+                    "P".to_string(),
+                    vec![Variable("n".to_string())]
+                ))
+            )),
+            Predicate("P".to_string(), vec![Variable("sw_0".to_string())]),
+            "Skolemization algorithm doesnt remove one single existensial"
+        );
+
+        assert_eq!(
+            skolemize(&Exist(
+                "n".to_string(),
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Exist(
+                    "m".to_string(),
+                    Box::new(Predicate("Nat".to_string(), vec![])),
+                    Box::new(Predicate(
+                        "P".to_string(),
+                        vec![
+                            Variable("n".to_string()),
+                            Variable("m".to_string())
+                        ]
+                    ))
+                ))
+            )),
+            Predicate(
+                "P".to_string(),
+                vec![
+                    Variable("sw_0".to_string()),
+                    Variable("sw_1".to_string())
+                ]
+            ),
+            "Skolemization algorithm cant cope with multiple existensials"
+        );
+
+        assert_eq!(
+            skolemize(&ForAll(
+                "x".to_string(),
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Exist(
+                    "n".to_string(),
+                    Box::new(Predicate("Nat".to_string(), vec![])),
+                    Box::new(Predicate(
+                        "P".to_string(),
+                        vec![Variable("n".to_string())]
+                    ))
+                ))
+            )),
+            ForAll(
+                "x".to_string(),
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Predicate(
+                    "P".to_string(),
+                    vec![Application(
+                        Box::new(Variable("sw_0".to_string())),
+                        Box::new(Variable("x".to_string()))
+                    )]
+                ))
+            ),
+            "Skolemization algorithm doesnt produce a witness function when nested inside a universal"
         );
     }
 }

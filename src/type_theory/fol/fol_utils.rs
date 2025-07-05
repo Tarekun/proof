@@ -3,14 +3,17 @@ use super::fol::{
     FolFormula::{
         self, Arrow, Conjunction, Disjunction, Exist, ForAll, Not, Predicate,
     },
-    FolTerm::Variable,
+    FolTerm::{Abstraction, Application, Tuple, Variable},
 };
 use crate::{
     misc::simple_map,
     type_theory::{
         commons::utils::generic_multiarg_fun_type,
         fol::fol::FolTerm,
-        sup::sup::SupFormula::{self, Clause},
+        sup::sup::{
+            SupFormula::{self, Clause},
+            SupTerm,
+        },
     },
 };
 use std::fmt;
@@ -103,7 +106,84 @@ pub fn make_multiarg_fun_type(
     )
 }
 
-// pub fn make_multiarg_app(fun_name: String, args: &[FolTerm]) -> FolFormula {}
+pub fn make_multiarg_app(fun_name: &str, args: &[FolTerm]) -> FolTerm {
+    args.into_iter()
+        .fold(Variable(fun_name.to_string()), |acc, arg| {
+            Application(Box::new(acc), Box::new(arg.clone()))
+        })
+}
+
+/// Given a `term` and a variable, returns a term where each instance of
+/// `var_name` is substituted with `arg`
+pub fn substitute_term(
+    term: &FolTerm,
+    target_name: &str,
+    arg: &FolTerm,
+) -> FolTerm {
+    match term {
+        Variable(var_name) => {
+            if var_name == target_name {
+                arg.clone()
+            } else {
+                term.clone()
+            }
+        }
+        Abstraction(var_name, var_type, body) => Abstraction(
+            var_name.to_string(),
+            Box::new(substitute_formula(var_type, target_name, arg)),
+            Box::new(substitute_term(body, target_name, arg)),
+        ),
+        Application(left, right) => Application(
+            Box::new(substitute_term(left, target_name, arg)),
+            Box::new(substitute_term(right, target_name, arg)),
+        ),
+        Tuple(terms) => Tuple(simple_map(terms.to_owned(), |term| {
+            substitute_term(&term, target_name, arg)
+        })),
+    }
+}
+
+pub fn substitute_formula(
+    formula: &FolFormula,
+    target_name: &str,
+    arg: &FolTerm,
+) -> FolFormula {
+    match formula {
+        Predicate(name, args) => Predicate(
+            name.to_string(),
+            simple_map(args.to_owned(), |term| {
+                substitute_term(&term, target_name, arg)
+            }),
+        ),
+        Arrow(left, right) => Arrow(
+            Box::new(substitute_formula(left, target_name, arg)),
+            Box::new(substitute_formula(right, target_name, arg)),
+        ),
+        Not(formula) => {
+            Not(Box::new(substitute_formula(formula, target_name, arg)))
+        }
+        Conjunction(formulas) => {
+            Conjunction(simple_map(formulas.to_owned(), |term| {
+                substitute_formula(&term, target_name, arg)
+            }))
+        }
+        Disjunction(formulas) => {
+            Disjunction(simple_map(formulas.to_owned(), |term| {
+                substitute_formula(&term, target_name, arg)
+            }))
+        }
+        ForAll(var_name, var_type, body) => ForAll(
+            var_name.to_string(),
+            Box::new(substitute_formula(var_type, target_name, arg)),
+            Box::new(substitute_formula(body, target_name, arg)),
+        ),
+        Exist(var_name, var_type, body) => Exist(
+            var_name.to_string(),
+            Box::new(substitute_formula(var_type, target_name, arg)),
+            Box::new(substitute_formula(body, target_name, arg)),
+        ),
+    }
+}
 
 /// Given a formula `φ` expected to be in PNF, returns the same quantification over
 /// the new formula `new_body`
@@ -321,41 +401,48 @@ pub fn prenex_normal_form(φ: &FolFormula) -> FolFormula {
 
 /// Removes existential quantifiers via Skolemization
 pub fn skolemize(φ: &FolFormula) -> FolFormula {
-    φ.to_owned()
-    // fn solver(φ: &FolFormula, mut args: Vec<FolTerm>) -> FolFormula {
-    //     match φ {
-    //         Exist(var_name, var_type, ψ) => {
-    //             panic!("todo")
-    //         }
-    //         ForAll(var_name, var_type, ψ) => {
-    //             args.push(Variable(var_name.to_string()));
+    fn solver(
+        φ: &FolFormula,
+        mut args: Vec<FolTerm>,
+        prev_witnesses: i32,
+    ) -> FolFormula {
+        match φ {
+            Exist(var_name, _, ψ) => {
+                //TODO should i type the witness function?
+                let skolem_witness =
+                    make_multiarg_app(&format!("sw_{}", prev_witnesses), &args);
+                let ψ = substitute_formula(ψ, var_name, &skolem_witness);
+                solver(&ψ, args, prev_witnesses + 1)
+            }
+            ForAll(var_name, var_type, ψ) => {
+                args.push(Variable(var_name.to_string()));
 
-    //             ForAll(
-    //                 var_name.to_string(),
-    //                 var_type.to_owned(),
-    //                 Box::new(solver(ψ, args)),
-    //             )
-    //         }
-    //         Conjunction(subformulas) => {
-    //             Conjunction(simple_map(subformulas.to_owned(), |ψ| {
-    //                 solver(&ψ, args)
-    //             }))
-    //         }
-    //         Disjunction(subformulas) => {
-    //             Disjunction(simple_map(subformulas.to_owned(), |ψ| {
-    //                 solver(&ψ, args)
-    //             }))
-    //         }
-    //         Arrow(left, right) => Arrow(
-    //             Box::new(solver(left, args)),
-    //             Box::new(solver(right, args)),
-    //         ),
-    //         Not(ψ) => Not(Box::new(solver(ψ, args))),
-    //         Predicate(_, _) => φ.to_owned(),
-    //     }
-    // }
+                ForAll(
+                    var_name.to_string(),
+                    var_type.to_owned(),
+                    Box::new(solver(ψ, args, prev_witnesses)),
+                )
+            }
+            Conjunction(subformulas) => {
+                Conjunction(simple_map(subformulas.to_owned(), |ψ| {
+                    solver(&ψ, args.clone(), prev_witnesses)
+                }))
+            }
+            Disjunction(subformulas) => {
+                Disjunction(simple_map(subformulas.to_owned(), |ψ| {
+                    solver(&ψ, args.clone(), prev_witnesses)
+                }))
+            }
+            Arrow(left, right) => Arrow(
+                Box::new(solver(left, args.clone(), prev_witnesses)),
+                Box::new(solver(right, args, prev_witnesses)),
+            ),
+            Not(ψ) => Not(Box::new(solver(ψ, args, prev_witnesses))),
+            Predicate(_, _) => φ.to_owned(),
+        }
+    }
 
-    // solver(φ, vec![])
+    solver(φ, vec![], 0)
 }
 
 /// Transforms the formula into a CNF logically equivalent one.
@@ -461,5 +548,6 @@ pub fn clausify(φ: &FolFormula) -> Result<Vec<SupFormula>, String> {
     let pnf = prenex_normal_form(&nnf);
     let skolemized = skolemize(&pnf);
     let cnf = conjunction_normal_form(&skolemized);
+    println!("constructed cnf: {:?}", cnf);
     clauses_to_sup(cnf)
 }
