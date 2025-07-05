@@ -76,7 +76,7 @@ mod tests {
                 Box::new(Predicate("Nat".to_string(),vec![])),
                 Box::new(Not(Box::new(Predicate("A".to_string(), vec![]))))
             ),
-            "NNF algorithm doesnt push down negation over existensial quantifier"
+            "NNF algorithm doesnt push down negation over existential quantifier"
         );
     }
 
@@ -296,7 +296,7 @@ mod tests {
                 ))
             )),
             Predicate("P".to_string(), vec![Variable("sw_0".to_string())]),
-            "Skolemization algorithm doesnt remove one single existensial"
+            "Skolemization algorithm doesnt remove one single existential"
         );
 
         assert_eq!(
@@ -322,7 +322,7 @@ mod tests {
                     Variable("sw_1".to_string())
                 ]
             ),
-            "Skolemization algorithm cant cope with multiple existensials"
+            "Skolemization algorithm cant cope with multiple existentials"
         );
 
         assert_eq!(
@@ -350,6 +350,50 @@ mod tests {
                 ))
             ),
             "Skolemization algorithm doesnt produce a witness function when nested inside a universal"
+        );
+    }
+
+    #[test]
+    fn test_clausification() {
+        let nat = Predicate("Nat".to_string(), vec![]);
+
+        assert_eq!(
+            clausify(&ForAll(
+                "x".to_string(),
+                Box::new(nat.clone()),
+                Box::new(Exist(
+                    "y".to_string(),
+                    Box::new(nat.clone()),
+                    Box::new(Disjunction(vec![
+                        Predicate(
+                            "P".to_string(),
+                            vec![Variable("y".to_string())]
+                        ),
+                        Not(Box::new(Conjunction(vec![
+                            Predicate("A".to_string(), vec![]),
+                            Predicate("B".to_string(), vec![])
+                        ])))
+                    ]))
+                ))
+            )),
+            Ok(vec![SupFormula::Clause(vec![
+                SupFormula::Atom(
+                    "P".to_string(),
+                    vec![SupTerm::Application(
+                        "sw_0".to_string(),
+                        vec![SupTerm::Variable("x".to_string())],
+                    )]
+                ),
+                SupFormula::Not(Box::new(SupFormula::Atom(
+                    "A".to_string(),
+                    vec![]
+                ))),
+                SupFormula::Not(Box::new(SupFormula::Atom(
+                    "B".to_string(),
+                    vec![]
+                ))),
+            ])]),
+            "Clausification didnt produce the expected formula"
         );
     }
 }

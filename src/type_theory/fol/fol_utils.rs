@@ -16,7 +16,7 @@ use crate::{
         },
     },
 };
-use std::fmt;
+use std::fmt::{self, format};
 
 impl FolFormula {
     pub fn to_string(&self) -> String {
@@ -111,6 +111,22 @@ pub fn make_multiarg_app(fun_name: &str, args: &[FolTerm]) -> FolTerm {
         .fold(Variable(fun_name.to_string()), |acc, arg| {
             Application(Box::new(acc), Box::new(arg.clone()))
         })
+}
+
+pub fn get_application_components(
+    app: &FolTerm,
+) -> Result<(String, Vec<FolTerm>), String> {
+    match app {
+        Variable(fun_name) => Ok((fun_name.to_string(), vec![])),
+        // TODO i have no idea how to handle anonymous functions
+        Abstraction(_, _, _) => Ok(("".to_string(), vec![])),
+        Application(left, right) => {
+            let (fun_name, mut left_args) = get_application_components(left)?;
+            left_args.push((**right).clone());
+            Ok((fun_name, left_args))
+        }
+        _ => Err(format!("Term {:?} is not an application", app)),
+    }
 }
 
 /// Given a `term` and a variable, returns a term where each instance of
@@ -532,8 +548,33 @@ pub fn clausify(φ: &FolFormula) -> Result<Vec<SupFormula>, String> {
         }
     }
 
+    fn term_to_sup(term: FolTerm) -> Result<SupTerm, String> {
+        match &term {
+            Variable(name) => Ok(SupTerm::Variable(name.to_string())),
+            Application(_, _) => {
+                let (fun_name, args) = get_application_components(&term)?;
+                let mut sup_args = vec![];
+                for arg in args {
+                    sup_args.push(term_to_sup(arg)?);
+                }
+                Ok(SupTerm::Application(fun_name, sup_args))
+            }
+            _ => Err(format!(
+                "FOL term {:?} doesn't have a corresponding SUP term",
+                term
+            )),
+        }
+    }
+
     fn clause_to_sup(C: FolFormula) -> Result<SupFormula, String> {
         let C = match C {
+            Predicate(name, args) => {
+                let mut sup_args = vec![];
+                for arg in args {
+                    sup_args.push(term_to_sup(arg)?);
+                }
+                SupFormula::Atom(name, sup_args)
+            }
             Disjunction(lits) => Clause(clauses_to_sup(lits)?),
             Not(D) => SupFormula::Not(Box::new(clause_to_sup(*D)?)),
             _ => {
@@ -548,6 +589,6 @@ pub fn clausify(φ: &FolFormula) -> Result<Vec<SupFormula>, String> {
     let pnf = prenex_normal_form(&nnf);
     let skolemized = skolemize(&pnf);
     let cnf = conjunction_normal_form(&skolemized);
-    println!("constructed cnf: {:?}", cnf);
+    println!("constructed cnf: {}", cnf[0].to_string());
     clauses_to_sup(cnf)
 }

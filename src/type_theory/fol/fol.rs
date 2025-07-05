@@ -158,7 +158,7 @@ impl Kernel for Fol {
                 type_check_disjunction(environment, sub_formulas)
             }
             _ => {
-                Err("TODO: Existensial type checking not yet supported"
+                Err("TODO: Existential type checking not yet supported"
                     .to_string())
             }
         }
