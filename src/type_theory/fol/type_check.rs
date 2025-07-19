@@ -1,12 +1,17 @@
-use super::fol::FolFormula::{Arrow, ForAll, Conjunction, Disjunction, Not};
-use super::fol::{Fol, FolTerm, FolFormula};
+use super::fol::FolFormula::{
+    Arrow, Conjunction, Disjunction, ForAll, Not, Predicate,
+};
+use super::fol::{Fol, FolFormula, FolTerm};
 use super::fol_utils::make_multiarg_fun_type;
 use crate::misc::Union;
 use crate::parser::api::Tactic;
-use crate::type_theory::commons::type_check::{generic_type_check_abstraction, generic_type_check_axiom, generic_type_check_fun, generic_type_check_let, generic_type_check_theorem, generic_type_check_universal, generic_type_check_variable};
+use crate::type_theory::commons::type_check::{
+    generic_type_check_abstraction, generic_type_check_axiom,
+    generic_type_check_fun, generic_type_check_let, generic_type_check_theorem,
+    generic_type_check_universal, generic_type_check_variable,
+};
 use crate::type_theory::environment::Environment;
-use crate::type_theory::interface::{Kernel, Refiner};
-
+use crate::type_theory::interface::{Kernel, Refiner, TypeTheory};
 
 //########################### TERMS TYPE CHECKING
 pub fn type_check_var(
@@ -27,7 +32,7 @@ pub fn type_check_abstraction(
         environment,
         &var_name,
         &var_type,
-        &body
+        &body,
     )?;
     Ok(Arrow(Box::new(var_type.to_owned()), Box::new(body_type)))
 }
@@ -77,13 +82,46 @@ pub fn type_check_tuple(
 //
 //
 //########################### TYPES TYPE CHECKING
-pub fn type_check_atomic(
+pub fn type_check_predicate(
     environment: &mut Environment<FolTerm, FolFormula>,
-    type_name: &str,
+    pred_name: &str,
+    args: &Vec<FolTerm>,
 ) -> Result<FolFormula, String> {
-    match environment.get_atomic_type(type_name) {
-        Some(type_obj) => Ok(type_obj.to_owned()),
-        _ => Err(format!("Unbound type {}", type_name)),
+    match environment.get_predicate(pred_name) {
+        None => Err(format!("Unbound predicate {}", pred_name)),
+        Some(arg_types) => {
+            for i in 0..arg_types.len().max(args.len()) {
+                let formal_type = arg_types.get(i);
+                let actual_type = if args.get(i).is_none() {
+                    None
+                } else {
+                    Some(Fol::type_check_term(&args[i], environment)?)
+                };
+
+                match (formal_type, actual_type) {
+                    (Some(formal_type), Some(actual_type)) => {
+                        if let Err(_msg) =
+                            Fol::base_type_equality(&actual_type, &arg_types[i])
+                        {
+                            return Err(format!(
+                                "Predicate application type doesn't match the argument; expected {:?} found {:?}.",
+                                formal_type, actual_type
+                            ));
+                        }
+                    }
+                    // note: this also covers (None, None) which shouldnt be possible
+                    // TODO should i make it explicit and put an unreachable! ?
+                    (_, _) => {
+                        return Err(format!(
+                            "Predicate application argument missmatch; {} expects {} arguments, but {} were given",
+                            pred_name, arg_types.len(), args.len()
+                        ));
+                    }
+                }
+            }
+
+            Ok(Predicate(pred_name.to_string(), args.to_owned()))
+        }
     }
 }
 //
@@ -96,7 +134,10 @@ pub fn type_check_arrow(
     let _ = Fol::type_check_type(domain, environment)?;
     let _ = Fol::type_check_type(codomain, environment)?;
 
-    Ok(Arrow(Box::new(domain.to_owned()), Box::new(codomain.to_owned())))
+    Ok(Arrow(
+        Box::new(domain.to_owned()),
+        Box::new(codomain.to_owned()),
+    ))
 }
 //
 //
@@ -106,18 +147,23 @@ pub fn type_check_forall(
     var_type: &FolFormula,
     predicate: &FolFormula,
 ) -> Result<FolFormula, String> {
-    let _body_type = generic_type_check_universal::<Fol>(environment, var_name, var_type, predicate)?;
+    let _body_type = generic_type_check_universal::<Fol>(
+        environment,
+        var_name,
+        var_type,
+        predicate,
+    )?;
     Ok(ForAll(
-        var_name.to_string(), 
-        Box::new(var_type.to_owned()), 
-        Box::new(predicate.to_owned()))
-    )
+        var_name.to_string(),
+        Box::new(var_type.to_owned()),
+        Box::new(predicate.to_owned()),
+    ))
 }
 //
 //
 pub fn type_check_not(
     environment: &mut Environment<FolTerm, FolFormula>,
-    φ: &FolFormula
+    φ: &FolFormula,
 ) -> Result<FolFormula, String> {
     let φ = Fol::type_check_type(φ, environment)?;
     Ok(Not(Box::new(φ)))
@@ -163,9 +209,14 @@ pub fn type_check_theorem(
     environment: &mut Environment<FolTerm, FolFormula>,
     theorem_name: &str,
     formula: &FolFormula,
-    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolFormula>>>>
+    proof: &Union<FolTerm, Vec<Tactic<Union<FolTerm, FolFormula>>>>,
 ) -> Result<FolFormula, String> {
-    generic_type_check_theorem::<Fol, Union<FolTerm, FolFormula>>(environment, theorem_name, formula, proof)
+    generic_type_check_theorem::<Fol, Union<FolTerm, FolFormula>>(
+        environment,
+        theorem_name,
+        formula,
+        proof,
+    )
 }
 //
 //
@@ -187,7 +238,15 @@ pub fn type_check_fun(
     body: &FolTerm,
     is_rec: &bool,
 ) -> Result<FolFormula, String> {
-    generic_type_check_fun::<Fol, _>(environment, fun_name, args, out_type, body, is_rec, make_multiarg_fun_type)
+    generic_type_check_fun::<Fol, _>(
+        environment,
+        fun_name,
+        args,
+        out_type,
+        body,
+        is_rec,
+        make_multiarg_fun_type,
+    )
 }
 //
 //########################### STATEMENTS TYPE CHECKING
@@ -202,11 +261,11 @@ mod unit_tests {
                 Fol,
                 FolStm::{Axiom, Fun, Let},
                 FolTerm::{self, Abstraction, Application, Variable},
-                FolFormula::{self, Arrow, Atomic, ForAll},
+                FolFormula::{self, Arrow, Predicate, ForAll},
             },
             type_check::{
                 type_check_abstraction, type_check_application,
-                type_check_arrow, type_check_atomic, type_check_forall,
+                type_check_arrow, type_check_predicate, type_check_forall,
                 type_check_fun, type_check_let, type_check_var,
             },
         },
@@ -218,11 +277,11 @@ mod unit_tests {
     #[test]
     fn test_var_type_check() {
         let mut test_env = Fol::default_environment();
-        test_env.add_to_context("it", &Atomic("Unit".to_string()));
+        test_env.add_to_context("it", &Predicate("Unit".to_string(), vec![]));
 
         assert_eq!(
             type_check_var(&mut test_env, "it"),
-            Ok(Atomic("Unit".to_string())),
+            Ok(Predicate("Unit".to_string(), vec![])),
             "Variable type checking isnt working properly"
         );
         assert!(
@@ -243,17 +302,18 @@ mod unit_tests {
     #[test]
     fn test_abs_type_check() {
         let mut test_env = Fol::default_environment();
+        let unit = Predicate("Unit".to_string(), vec![]);
 
         assert_eq!(
             type_check_abstraction(
                 &mut test_env,
                 "x",
-                &Atomic("Unit".to_string()),
+                &unit.clone(),
                 &Variable("x".to_string())
             ),
             Ok(Arrow(
-                Box::new(Atomic("Unit".to_string())),
-                Box::new(Atomic("Unit".to_string()))
+                Box::new(unit.clone()),
+                Box::new(unit.clone())
             )),
             "Abstraction type checker doesnt work properly"
         );
@@ -261,7 +321,7 @@ mod unit_tests {
             Fol::type_check_term(
                 &Abstraction(
                     "x".to_string(),
-                    Box::new(Atomic("Unit".to_string())),
+                    Box::new(unit.clone()),
                     Box::new(Variable("x".to_string())),
                 ),
                 &mut test_env,
@@ -274,7 +334,7 @@ mod unit_tests {
             type_check_abstraction(
                 &mut test_env,
                 "x",
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &Variable("x".to_string()),
             )
             .is_err(),
@@ -284,7 +344,7 @@ mod unit_tests {
             type_check_abstraction(
                 &mut test_env,
                 "x",
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &Variable("stupid_unbound_variable".to_string()),
             )
             .is_err(),
@@ -294,24 +354,26 @@ mod unit_tests {
 
     #[test]
     fn test_app_type_check() {
+        let unit = Predicate("Unit".to_string(), vec![]);
+        let nat = Predicate("Nat".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
                 vec![
-                    ("Nat", &Atomic("Nat".to_string())),
-                    ("Unit", &Atomic("Unit".to_string())),
+                    ("Nat", &vec![]),
+                    ("Unit", &vec![]),
                 ],
             );
         test_env.add_to_context(
             "f",
             &Arrow(
-                Box::new(Atomic("Nat".to_string())),
-                Box::new(Atomic("Nat".to_string())),
+                Box::new(nat.clone()),
+                Box::new(nat.clone()),
             ),
         );
-        test_env.add_to_context("x", &Atomic("Nat".to_string()));
-        test_env.add_to_context("it", &Atomic("Unit".to_string()));
+        test_env.add_to_context("x", &nat.clone());
+        test_env.add_to_context("it", &unit.clone());
 
         assert_eq!(
             type_check_application(
@@ -319,7 +381,7 @@ mod unit_tests {
                 &Variable("f".to_string()),
                 &Variable("x".to_string())
             ),
-            Ok(Atomic("Nat".to_string())),
+            Ok(nat.clone()),
             "Application type checker doesnt work properly"
         );
         assert!(
@@ -364,39 +426,39 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_atomic_type_check() {
-        let unit = "Unit";
+    fn test_sort_type_check() {
+        let unit = Predicate("Unit".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
-                vec![(unit, &Atomic(unit.to_string()))],
+                vec![("Unit", &vec![])],
             );
 
         assert!(
-            type_check_atomic(&mut test_env, unit).is_ok(),
-            "Atomic-type type checking refutes bound type"
+            type_check_predicate(&mut test_env, "Unit", &vec![]).is_ok(),
+            "Predicate-type type checking refutes bound type"
         );
         assert!(
-            Fol::type_check_type(&Atomic(unit.to_string()), &mut test_env)
+            Fol::type_check_type(&unit.clone(), &mut test_env)
                 .is_ok(),
-            "Top level type checker doesnt support atomic types"
+            "Top level type checker doesnt support Predicate types"
         );
         assert!(
-            type_check_atomic(&mut test_env, "StupidUnboundType")
+            type_check_predicate(&mut test_env, "StupidUnboundType", &vec![])
                 .is_err(),
-            "Atomic-type type checking accepts unbound type"
+            "Predicate-type type checking accepts unbound type"
         );
     }
 
     #[test]
     fn test_arrow_type_check() {
-        let nat = Atomic("Nat".to_string());
+        let nat = Predicate("Nat".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
-                vec![("Nat", &nat)],
+                vec![("Nat", &vec![])],
             );
 
         assert!(
@@ -414,7 +476,7 @@ mod unit_tests {
         assert!(
             type_check_arrow(
                 &mut test_env,
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &nat
             )
             .is_err(),
@@ -424,7 +486,7 @@ mod unit_tests {
             type_check_arrow(
                 &mut test_env,
                 &nat,
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
             )
             .is_err(),
             "Arrow type checker accepts unbound codomain"
@@ -433,13 +495,13 @@ mod unit_tests {
 
     #[test]
     fn test_forall_type_check() {
-        let top: FolFormula = Atomic("Top".to_string());
-        let nat = Atomic("Nat".to_string());
+        let top: FolFormula = Predicate("Top".to_string(), vec![]);
+        let nat = Predicate("Nat".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
-                vec![("Top", &top), ("Nat", &nat)],
+                vec![("Top", &vec![]), ("Nat", &vec![])],
             );
 
         assert!(
@@ -468,7 +530,7 @@ mod unit_tests {
             type_check_forall(
                 &mut test_env,
                 "x",
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
                 &top
             )
             .is_err(),
@@ -479,7 +541,7 @@ mod unit_tests {
                 &mut test_env,
                 "x",
                 &nat,
-                &Atomic("StupidUnboundType".to_string()),
+                &Predicate("StupidUnboundType".to_string(), vec![]),
             )
             .is_err(),
             "Forall type checker accepts forall with ill typed body"
@@ -488,12 +550,12 @@ mod unit_tests {
 
     #[test]
     fn test_axiom_type_check() {
-        let top: FolFormula = Atomic("Top".to_string());
+        let top: FolFormula = Predicate("Top".to_string(), vec![]);
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
-                vec![("Top", &top)],
+                vec![("Top", &vec![])],
             );
         let res = type_check_axiom(
             &mut test_env,
@@ -523,13 +585,13 @@ mod unit_tests {
 
     #[test]
     fn test_let_type_check() {
-        let nat = Atomic("Nat".to_string());
+        let nat = Predicate("Nat".to_string(), vec![]);
         let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![("zero", &nat)],
                 vec![],
-                vec![("Nat", &nat)],
+                vec![("Nat", &vec![])],
             );
 
         let res = type_check_let(
@@ -567,7 +629,7 @@ mod unit_tests {
             type_check_let(
                 &mut test_env,
                 "o",
-                &Some(Atomic("StupidUnboundType".to_string())),
+                &Some(Predicate("StupidUnboundType".to_string(), vec![])),
                 &zero,
             )
             .is_err(),
@@ -587,13 +649,13 @@ mod unit_tests {
 
     #[test]
     fn test_fun_type_check() {
-        let nat = Atomic("Nat".to_string());
+        let nat = Predicate("Nat".to_string(), vec![]);
         // let zero = Variable("zero".to_string());
         let mut test_env: Environment<FolTerm, FolFormula> =
             Environment::with_defaults(
                 vec![],
                 vec![],
-                vec![("Nat", &nat)],
+                vec![("Nat", &vec![])],
             );
 
         let res = type_check_fun(
@@ -629,7 +691,7 @@ mod unit_tests {
             type_check_fun(
                 &mut test_env,
                 "h", 
-                &vec![("n".to_string(), Atomic("StupidUnboundName".to_string()))], 
+                &vec![("n".to_string(), Predicate("StupidUnboundName".to_string(), vec![]))], 
                 &nat, 
                 &Variable("n".to_string()), 
                 &false,

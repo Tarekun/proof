@@ -1,6 +1,6 @@
-use super::fol::FolFormula::{Arrow, Atomic, Disjunction, ForAll};
+use super::fol::FolFormula::{Arrow, Disjunction, ForAll, Predicate};
 use super::fol::FolStm::{Axiom, Fun, Let, Theorem};
-use super::fol::FolTerm::{Abstraction, Tuple, Variable};
+use super::fol::FolTerm::{Abstraction, Application, Tuple, Variable};
 use super::fol::{Fol, FolFormula, FolTerm};
 use crate::misc::simple_map;
 use crate::parser::api::{Statement, Tactic};
@@ -80,7 +80,7 @@ pub fn elaborate_expression(
             wrap_term::<Fol>(elaborate_abstraction(var_name, *var_type, *body))
         }
         Expression::Application(left, right) => {
-            wrap_term::<Fol>(elaborate_application(*left, *right))
+            elaborate_application(*left, right)
         }
         Expression::Arrow(domain, codomain) => {
             wrap_type::<Fol>(elaborate_arrow(*domain, *codomain))
@@ -103,7 +103,7 @@ pub fn elaborate_var_use(
     //TODO better evaluate how to distinguish them
     //for now the logic is if it's spelled in PascalCase, its a type (formula)
     if pascal_case.is_match(&var_name) {
-        Ok(Union::R(Atomic(var_name)))
+        Ok(Union::R(Predicate(var_name, vec![])))
     } else {
         Ok(Union::L(Variable(var_name)))
     }
@@ -156,25 +156,29 @@ pub fn elaborate_arrow(
 //
 //
 pub fn elaborate_application(
-    left: Expression,
-    right: Expression,
-) -> Result<FolTerm, String> {
-    let left = elaborate_expression(left)?;
-    match left {
-        Union::L(function) => {
-            let right = elaborate_expression(right)?;
-            match right {
-                Union::L(argument) => Ok(FolTerm::Application(
-                    Box::new(function),
-                    Box::new(argument),
-                )),
-                Union::R(wrong_type) => {
-                    term_expected_error("application", &wrong_type)
-                }
-            }
-        }
-        Union::R(wrong_type) => term_expected_error("application", &wrong_type),
+    function: Expression,
+    args: Vec<Expression>,
+) -> Result<Union<FolTerm, FolFormula>, String> {
+    let fun_term: FolTerm = expect_term(elaborate_expression(function)?)?;
+    let arg_terms = simple_map(args, |arg| elaborate_expression(arg));
+    let mut unwrapped: Vec<FolTerm> = vec![];
+    for term in arg_terms {
+        unwrapped.push(expect_term(term?)?);
     }
+
+    if let Variable(applied_name) = &fun_term {
+        let pascal_case = Regex::new(r"^[A-Z][a-zA-Z]*$").unwrap();
+        if pascal_case.is_match(&applied_name) {
+            return wrap_type::<Fol>(Ok(Predicate(
+                applied_name.to_string(),
+                unwrapped,
+            )));
+        }
+    }
+
+    wrap_term::<Fol>(Ok(unwrapped.into_iter().fold(fun_term, |acc, arg| {
+        Application(Box::new(acc), Box::new(arg))
+    })))
 }
 //
 //
@@ -477,7 +481,7 @@ pub fn elaborate_empty(
 //want to do it now cuz i dont have a real way to distinguish them yet
 mod unit_tests {
     use crate::{
-        misc::Union,
+        misc::Union::{self, L, R},
         parser::api::{
             Expression::{self, VarUse},
             Statement,
@@ -490,7 +494,7 @@ mod unit_tests {
                 elaborate_statement, elaborate_var_use,
             },
             fol::{
-                FolFormula::{Arrow, Atomic, ForAll},
+                FolFormula::{Arrow, ForAll, Predicate},
                 FolStm::Let,
                 FolTerm::{Abstraction, Application, Variable},
             },
@@ -511,12 +515,12 @@ mod unit_tests {
         );
         assert_eq!(
             elaborate_var_use("Nat".to_string()),
-            Ok(Union::R(Atomic("Nat".to_string()))),
+            Ok(Union::R(Predicate("Nat".to_string(), vec![]))),
             "Variable elaboration doesnt produce proper atomic type"
         );
         assert_eq!(
             elaborate_var_use("ListOfNat".to_string()),
-            Ok(Union::R(Atomic("ListOfNat".to_string()))),
+            Ok(Union::R(Predicate("ListOfNat".to_string(), vec![]))),
             "PascalCase doesnt return a type"
         );
         assert_eq!(
@@ -536,7 +540,7 @@ mod unit_tests {
             ),
             Ok(Abstraction(
                 "x".to_string(),
-                Box::new(Atomic("Nat".to_string())),
+                Box::new(Predicate("Nat".to_string(), vec![])),
                 Box::new(Variable("x".to_string())),
             )),
             "Abstraction elaboration doesnt produce correct term "
@@ -549,7 +553,7 @@ mod unit_tests {
             )),
             Ok(Union::L(Abstraction(
                 "x".to_string(),
-                Box::new(Atomic("Nat".to_string())),
+                Box::new(Predicate("Nat".to_string(), vec![])),
                 Box::new(Variable("x".to_string())),
             ))),
             "Top level elaboration doesnt support abstraction"
@@ -561,20 +565,20 @@ mod unit_tests {
         assert_eq!(
             elaborate_application(
                 Expression::VarUse("f".to_string()),
-                Expression::VarUse("x".to_string())
+                vec![Expression::VarUse("x".to_string())]
             ),
-            Ok(Application(
+            Ok(L(Application(
                 Box::new(Variable("f".to_string())),
                 Box::new(Variable("x".to_string())),
-            )),
+            ))),
             "Application elaboration doesnt produce correct term"
         );
         assert_eq!(
             elaborate_expression(Expression::Application(
                 Box::new(Expression::VarUse("f".to_string())),
-                Box::new(Expression::VarUse("x".to_string())),
+                vec![Expression::VarUse("x".to_string())],
             )),
-            Ok(Union::L(Application(
+            Ok(L(Application(
                 Box::new(Variable("f".to_string())),
                 Box::new(Variable("x".to_string())),
             ))),
@@ -590,8 +594,8 @@ mod unit_tests {
                 Expression::VarUse("Bool".to_string())
             ),
             Ok(Arrow(
-                Box::new(Atomic("Nat".to_string())),
-                Box::new(Atomic("Bool".to_string()))
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Predicate("Bool".to_string(), vec![]))
             )),
             "Arrow elaboration doesnt produce proper term"
         );
@@ -600,9 +604,9 @@ mod unit_tests {
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("Bool".to_string())),
             )),
-            Ok(Union::R(Arrow(
-                Box::new(Atomic("Nat".to_string())),
-                Box::new(Atomic("Bool".to_string()))
+            Ok(R(Arrow(
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Predicate("Bool".to_string(), vec![]))
             ))),
             "Top level elaboration doesnt support arrow expression"
         );
@@ -618,8 +622,8 @@ mod unit_tests {
             ),
             Ok(ForAll(
                 "n".to_string(),
-                Box::new(Atomic("Nat".to_string())),
-                Box::new(Atomic("Top".to_string()))
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Predicate("Top".to_string(), vec![]))
             )),
             "For all elaboration doesnt produce proper term"
         );
@@ -631,8 +635,8 @@ mod unit_tests {
             )),
             Ok(Union::R(ForAll(
                 "n".to_string(),
-                Box::new(Atomic("Nat".to_string())),
-                Box::new(Atomic("Top".to_string()))
+                Box::new(Predicate("Nat".to_string(), vec![])),
+                Box::new(Predicate("Top".to_string(), vec![]))
             ))),
             "Top level elaboration doesnt support forall"
         );
@@ -653,7 +657,7 @@ mod unit_tests {
         );
         let expected_let = ProgramNode::OfStm(Let(
             "n".to_string(),
-            Some(Atomic("Nat".to_string())),
+            Some(Predicate("Nat".to_string(), vec![])),
             Box::new(Variable("zero".to_string())),
         ));
 

@@ -14,7 +14,8 @@ pub enum Expression {
     TypeProduct(String, Box<Expression>, Box<Expression>),
     /// (domain, codomain)
     Arrow(Box<Expression>, Box<Expression>),
-    Application(Box<Expression>, Box<Expression>),
+    /// function, args
+    Application(Box<Expression>, Vec<Expression>),
     /// (matched_term, [ branch: ([pattern], body) ])
     Match(Box<Expression>, Vec<(Vec<Expression>, Expression)>),
     // Infer operator to be elaborated to metavariables

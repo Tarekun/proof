@@ -150,12 +150,7 @@ impl LofParser {
             self.argument_expression(input)
         }))(input)?;
 
-        Ok((
-            input,
-            args.into_iter().fold(left, |acc, arg| {
-                Application(Box::new(acc), Box::new(arg))
-            }),
-        ))
+        Ok((input, Application(Box::new(left), args)))
     }
     //
     //
@@ -393,7 +388,7 @@ mod unit_tests {
                 "",
                 Application(
                     Box::new(VarUse("f".to_string())),
-                    Box::new(VarUse("x".to_string()))
+                    vec![VarUse("x".to_string())]
                 )
             ),
             "Parser cant read function application"
@@ -404,7 +399,7 @@ mod unit_tests {
                 "",
                 Application(
                     Box::new(VarUse("f".to_string())),
-                    Box::new(VarUse("x".to_string()))
+                    vec![VarUse("x".to_string())]
                 )
             ),
             "Expression parser doesnt recognize application"
@@ -415,14 +410,12 @@ mod unit_tests {
             (
                 "",
                 Application(
-                    Box::new(Application(
-                        Box::new(Application(
-                            Box::new(VarUse("f".to_string())),
-                            Box::new(VarUse("x".to_string()))
-                        )),
-                        Box::new(VarUse("y".to_string()))
-                    )),
-                    Box::new(VarUse("z".to_string()))
+                    Box::new(VarUse("f".to_string())),
+                    vec![
+                        VarUse("x".to_string()),
+                        VarUse("y".to_string()),
+                        VarUse("z".to_string())
+                    ]
                 )
             ),
             "Parser should implement left-associative application"
@@ -433,14 +426,14 @@ mod unit_tests {
             (
                 "",
                 Application(
-                    Box::new(Application(
-                        Box::new(VarUse("f".to_string())),
-                        Box::new(Application(
+                    Box::new(VarUse("f".to_string())),
+                    vec![
+                        Application(
                             Box::new(VarUse("x".to_string())),
-                            Box::new(VarUse("y".to_string()))
-                        ))
-                    )),
-                    Box::new(VarUse("z".to_string()))
+                            vec![VarUse("y".to_string())],
+                        ),
+                        VarUse("z".to_string())
+                    ]
                 )
             ),
             "Application parser messes up associativity with parenthesis"
@@ -642,14 +635,12 @@ mod unit_tests {
             Ok((
                 "",
                 Application(
-                    Box::new(Application(
-                        Box::new(Application(
-                            Box::new(VarUse("cons".to_string())),
-                            Box::new(Inferator()),
-                        )),
-                        Box::new(VarUse("z".to_string()))
-                    )),
-                    Box::new(VarUse("l".to_string()))
+                    Box::new(VarUse("cons".to_string())),
+                    vec![
+                        Inferator(),
+                        VarUse("z".to_string()),
+                        VarUse("l".to_string())
+                    ]
                 )
             )),
             "Metavariable parser doesnt integrate with applications"

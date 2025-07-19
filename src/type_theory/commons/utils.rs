@@ -1,6 +1,5 @@
 use crate::{
-    misc::Union,
-    misc::Union::{L, R},
+    misc::Union::{self, L, R},
     type_theory::interface::TypeTheory,
 };
 

@@ -69,14 +69,14 @@ pub fn elaborate_expression(ast: &Expression) -> CicTerm {
         Expression::TypeProduct(var_name, var_type, body) => {
             elaborate_type_product(var_name, &*var_type, &*body)
         }
-        Expression::Application(left, right) => {
-            elaborate_application(&*left, &*right)
+        Expression::Application(left, args) => {
+            elaborate_application(left, args)
         }
         Expression::Match(matched_term, branches) => {
             elaborate_match(&*matched_term, branches)
         }
         Expression::Arrow(domain, codomain) => {
-            elaborate_arrow(&*domain, &*codomain)
+            elaborate_arrow(domain, codomain)
         }
         Expression::Inferator() => elaborate_meta(),
         _ => panic!("Expression primitive {:?} is not supported in CIC", ast),
@@ -120,7 +120,7 @@ fn elaborate_abstraction(
 
     Abstraction(
         var_name.to_string(),
-        Box::new(var_type_term.clone()),
+        Box::new(var_type_term),
         Box::new(body_term),
     )
 }
@@ -142,11 +142,17 @@ fn elaborate_type_product(
 }
 //
 //
-fn elaborate_application(left: &Expression, right: &Expression) -> CicTerm {
-    let left_term = elaborate_expression(left);
-    let right_term = elaborate_expression(right);
+fn elaborate_application(
+    function: &Expression,
+    args: &Vec<Expression>,
+) -> CicTerm {
+    let fun_term = elaborate_expression(function);
+    let arg_terms =
+        simple_map(args.to_owned(), |arg| elaborate_expression(&arg));
 
-    Application(Box::new(left_term), Box::new(right_term))
+    arg_terms.into_iter().fold(fun_term, |acc, arg| {
+        Application(Box::new(acc), Box::new(arg))
+    })
 }
 //
 //
@@ -409,9 +415,9 @@ mod unit_tests {
                 GLOBAL_INDEX, PLACEHOLDER_DBI,
             },
             elaboration::{
-                elaborate_abstraction, elaborate_application,
-                elaborate_expression, elaborate_inductive, elaborate_match,
-                elaborate_type_product, elaborate_var_use,
+                elaborate_application, elaborate_expression,
+                elaborate_inductive, elaborate_match, elaborate_type_product,
+                elaborate_var_use,
             },
         },
     };
@@ -513,15 +519,32 @@ mod unit_tests {
         assert_eq!(
             elaborate_application(
                 &Expression::VarUse("s".to_string()),
-                &Expression::VarUse("o".to_string())
+                &vec![Expression::VarUse("o".to_string())]
             ),
             expected_term.clone(),
             "Application elaboration isnt working as expected"
         );
         assert_eq!(
+            elaborate_application(
+                &Expression::VarUse("f".to_string()),
+                &vec![
+                    Expression::VarUse("x".to_string()),
+                    Expression::VarUse("y".to_string())
+                ]
+            ),
+            Application(
+                Box::new(Application(
+                    Box::new(Variable("f".to_string(), GLOBAL_INDEX)),
+                    Box::new(Variable("x".to_string(), GLOBAL_INDEX)),
+                )),
+                Box::new(Variable("y".to_string(), GLOBAL_INDEX))
+            ),
+            "Application elaboration isnt respecting associativity"
+        );
+        assert_eq!(
             elaborate_expression(&Expression::Application(
                 Box::new(Expression::VarUse("s".to_string())),
-                Box::new(Expression::VarUse("o".to_string())),
+                vec![Expression::VarUse("o".to_string())],
             )),
             expected_term,
             "Top level elaborator isnt working with applications"
@@ -553,7 +576,7 @@ mod unit_tests {
             vec![Expression::VarUse("o".to_string())],
             Expression::Application(
                 Box::new(Expression::VarUse("s".to_string())),
-                Box::new(Expression::VarUse("o".to_string())),
+                vec![Expression::VarUse("o".to_string())],
             ),
         );
         let inductive_patter = (
