@@ -189,11 +189,13 @@ fn type_check_pattern(
     variables: Vec<CicTerm>,
     environment: &mut Environment<CicTerm, CicTerm>,
 ) -> Result<CicTerm, String> {
+    println!("type check pattern. constr type is {:?} variables {:?}", constr_type, variables);
     match variables.len() {
         0 => Ok(constr_type.clone()),
         1.. => match variables[0] {
             Variable(_, _) => match constr_type {
                 Product(_, _, codomain) => {
+                    let reduced_codomain = substitute(&codomain, var_name, arg)
                     // doesnt need to update the context, here var_name is a type variable, not a term
                     type_check_pattern(
                         &(*codomain),
@@ -228,9 +230,8 @@ pub fn type_check_match(
             pattern[1..].to_vec(),
             environment,
         )?;
+        println!("pre unification. constructed is {:?}, expected is {:?}", result_type, matching_type);
         if !Cic::terms_unify(environment, &result_type, &matching_type) {
-            //TODO this is the logic that should actually be used
-            // if !equal_under_substitution(environment, &result_type, &matching_type) {
             return Err(
                 format!(
                     "Pattern doesnt produce expected type: expected {:?} produced {:?}",

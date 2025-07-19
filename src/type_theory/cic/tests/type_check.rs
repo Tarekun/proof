@@ -371,9 +371,103 @@ mod tests {
     }
 
     #[test]
+    fn test_list_match() {
+        let nat = Variable("Nat".to_string(), GLOBAL_INDEX);
+        let list = Variable("List".to_string(), GLOBAL_INDEX);
+        let nil = Variable("nil".to_string(), GLOBAL_INDEX);
+        let cons = Variable("cons".to_string(), GLOBAL_INDEX);
+        let type_var = Variable("T".to_string(), 0);
+        let sort = Sort("TYPE".to_string());
+        let mut test_env = Cic::default_environment();
+
+        test_env.add_to_context(
+            "List", 
+        &Product(
+                "T".to_string(), 
+                Box::new(sort.clone()), 
+                Box::new(sort.clone())
+            )
+        );
+        test_env.add_to_context(
+            "nil",
+            &Product(
+                "T".to_string(),
+                Box::new(sort.clone()),
+                Box::new(Application(
+                    Box::new(list.clone()), 
+                    Box::new(type_var.clone())
+                ))
+            )
+        );
+        test_env.add_to_context(
+            "cons",
+            &Product(
+                "T".to_string(),
+                Box::new(sort.clone()),
+                Box::new(Product(
+                    "e".to_string(), 
+                    Box::new(type_var.clone()), 
+                    Box::new(Product(
+                        "l".to_string(), 
+                        Box::new(Application(
+                            Box::new(list.clone()), 
+                            Box::new(type_var.clone())
+                        )), 
+                        Box::new(Application(
+                            Box::new(list.clone()), 
+                            Box::new(type_var.clone())
+                        ))
+                    ))
+                )),
+            )
+        );
+        test_env.add_to_context(
+            "test_list",
+            &Application(
+                    Box::new(list.clone()), 
+                    Box::new(nat.clone())
+                )
+        );
+        test_env
+            .add_to_context("Nat", &sort);
+
+        assert!(
+            Cic::type_check_term(
+                &Match(
+                    Box::new(Variable("test_list".to_string(), GLOBAL_INDEX)),
+                    vec![
+                        (
+                            vec![
+                                nil.clone(), 
+                                nat.clone()
+                            ],
+                            Variable("test_list".to_string(), GLOBAL_INDEX)
+                        ),
+                        (
+                            vec![
+                                cons.clone(),
+                                nat.clone(),
+                                Variable("n".to_string(), 0),
+                                Variable("l".to_string(), 1),
+                            ],
+                            Variable("test_list".to_string(), GLOBAL_INDEX)
+                        ),
+                    ]
+                ),
+                &mut test_env
+            )
+            .is_ok(),
+            "test non passa"
+        );
+    }
+
+    #[test]
     //TODO add check of exaustiveness of patterns
     fn test_type_check_match() {
         let nat = Variable("nat".to_string(), GLOBAL_INDEX);
+        let list = Variable("List".to_string(), GLOBAL_INDEX);
+        let nil = Variable("nil".to_string(), GLOBAL_INDEX);
+        let cons = Variable("cons".to_string(), GLOBAL_INDEX);
         let mut test_env = Cic::default_environment();
         test_env
             .add_to_context("nat", &Sort("TYPE".to_string()));
