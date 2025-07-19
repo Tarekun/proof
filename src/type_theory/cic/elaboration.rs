@@ -105,11 +105,6 @@ fn elaborate_var_use(var_name: &str) -> CicTerm {
     if var_name.len() > 1 && var_name.chars().all(|c| c.is_ascii_uppercase()) {
         Sort(var_name.to_string())
     } else {
-        println!(
-            "elaborating variable {}, returning {:?}",
-            var_name,
-            Variable(var_name.to_string(), PLACEHOLDER_DBI)
-        );
         Variable(var_name.to_string(), PLACEHOLDER_DBI)
     }
 }
@@ -123,7 +118,6 @@ fn elaborate_abstraction(
     let var_type_term = elaborate_expression(var_type);
     let body_term = elaborate_expression(body);
 
-    println!("received body {:?}", body_term);
     Abstraction(
         var_name.to_string(),
         Box::new(var_type_term),

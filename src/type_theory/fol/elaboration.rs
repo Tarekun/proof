@@ -155,7 +155,6 @@ pub fn elaborate_arrow(
 }
 //
 //
-//TODO: look for predicate application
 pub fn elaborate_application(
     function: Expression,
     args: Vec<Expression>,

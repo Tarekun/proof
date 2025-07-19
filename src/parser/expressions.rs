@@ -151,13 +151,6 @@ impl LofParser {
         }))(input)?;
 
         Ok((input, Application(Box::new(left), args)))
-
-        // Ok((
-        //     input,
-        //     args.into_iter().fold(left, |acc, arg| {
-        //         Application(Box::new(acc), Box::new(arg))
-        //     }),
-        // ))
     }
     //
     //

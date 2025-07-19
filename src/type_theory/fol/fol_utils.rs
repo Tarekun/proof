@@ -16,7 +16,7 @@ use crate::{
         },
     },
 };
-use std::fmt::{self, format};
+use std::fmt::{self};
 
 impl FolFormula {
     pub fn to_string(&self) -> String {
@@ -144,11 +144,18 @@ pub fn substitute_term(
                 term.clone()
             }
         }
-        Abstraction(var_name, var_type, body) => Abstraction(
-            var_name.to_string(),
-            Box::new(substitute_formula(var_type, target_name, arg)),
-            Box::new(substitute_term(body, target_name, arg)),
-        ),
+        Abstraction(var_name, var_type, body) => {
+            // the name is overridden in `body`'s scope
+            if var_name != target_name {
+                Abstraction(
+                    var_name.to_string(),
+                    Box::new(substitute_formula(var_type, target_name, arg)),
+                    Box::new(substitute_term(body, target_name, arg)),
+                )
+            } else {
+                term.to_owned()
+            }
+        }
         Application(left, right) => Application(
             Box::new(substitute_term(left, target_name, arg)),
             Box::new(substitute_term(right, target_name, arg)),
@@ -188,16 +195,30 @@ pub fn substitute_formula(
                 substitute_formula(&term, target_name, arg)
             }))
         }
-        ForAll(var_name, var_type, body) => ForAll(
-            var_name.to_string(),
-            Box::new(substitute_formula(var_type, target_name, arg)),
-            Box::new(substitute_formula(body, target_name, arg)),
-        ),
-        Exist(var_name, var_type, body) => Exist(
-            var_name.to_string(),
-            Box::new(substitute_formula(var_type, target_name, arg)),
-            Box::new(substitute_formula(body, target_name, arg)),
-        ),
+        ForAll(var_name, var_type, body) => {
+            // the name is overridden in `body`'s scope
+            if var_name != target_name {
+                ForAll(
+                    var_name.to_string(),
+                    Box::new(substitute_formula(var_type, target_name, arg)),
+                    Box::new(substitute_formula(body, target_name, arg)),
+                )
+            } else {
+                formula.to_owned()
+            }
+        }
+        Exist(var_name, var_type, body) => {
+            // the name is overridden in `body`'s scope
+            if var_name != target_name {
+                Exist(
+                    var_name.to_string(),
+                    Box::new(substitute_formula(var_type, target_name, arg)),
+                    Box::new(substitute_formula(body, target_name, arg)),
+                )
+            } else {
+                formula.to_owned()
+            }
+        }
     }
 }
 
@@ -420,15 +441,15 @@ pub fn skolemize(φ: &FolFormula) -> FolFormula {
     fn solver(
         φ: &FolFormula,
         mut args: Vec<FolTerm>,
-        prev_witnesses: i32,
+        witness_idx: i32,
     ) -> FolFormula {
         match φ {
             Exist(var_name, _, ψ) => {
                 //TODO should i type the witness function?
                 let skolem_witness =
-                    make_multiarg_app(&format!("sw_{}", prev_witnesses), &args);
+                    make_multiarg_app(&format!("sw_{}", witness_idx), &args);
                 let ψ = substitute_formula(ψ, var_name, &skolem_witness);
-                solver(&ψ, args, prev_witnesses + 1)
+                solver(&ψ, args, witness_idx + 1)
             }
             ForAll(var_name, var_type, ψ) => {
                 args.push(Variable(var_name.to_string()));
@@ -436,24 +457,24 @@ pub fn skolemize(φ: &FolFormula) -> FolFormula {
                 ForAll(
                     var_name.to_string(),
                     var_type.to_owned(),
-                    Box::new(solver(ψ, args, prev_witnesses)),
+                    Box::new(solver(ψ, args, witness_idx)),
                 )
             }
             Conjunction(subformulas) => {
                 Conjunction(simple_map(subformulas.to_owned(), |ψ| {
-                    solver(&ψ, args.clone(), prev_witnesses)
+                    solver(&ψ, args.clone(), witness_idx)
                 }))
             }
             Disjunction(subformulas) => {
                 Disjunction(simple_map(subformulas.to_owned(), |ψ| {
-                    solver(&ψ, args.clone(), prev_witnesses)
+                    solver(&ψ, args.clone(), witness_idx)
                 }))
             }
             Arrow(left, right) => Arrow(
-                Box::new(solver(left, args.clone(), prev_witnesses)),
-                Box::new(solver(right, args, prev_witnesses)),
+                Box::new(solver(left, args.clone(), witness_idx)),
+                Box::new(solver(right, args, witness_idx)),
             ),
-            Not(ψ) => Not(Box::new(solver(ψ, args, prev_witnesses))),
+            Not(ψ) => Not(Box::new(solver(ψ, args, witness_idx))),
             Predicate(_, _) => φ.to_owned(),
         }
     }
