@@ -1,6 +1,7 @@
 use crate::parser::api::{LofAst, Tactic};
 use crate::runtime::program::Program;
 use crate::type_theory::environment::Environment;
+use std::cmp::Ordering;
 use std::fmt::Debug;
 
 /// Base trait for type systems. Requires a grammar for terms,
@@ -122,11 +123,11 @@ pub trait Automatic: TypeTheory {
 
     /// Simplification ordering over terms. Returns < 0 if t1 < t2,
     /// returns > 0 if t2 < t1, 0 otherwise
-    fn compare_terms(term1: &Self::Term, term2: &Self::Term) -> i32;
+    fn compare_terms(term1: &Self::Term, term2: &Self::Term) -> Ordering;
     #[allow(non_snake_case)]
-    /// Simplification ordering over terms. Returns < 0 if T1 < T2,
+    /// Simplification ordering over types. Returns < 0 if T1 < T2,
     /// returns > 0 if T2 < T1, 0 otherwise
-    fn compare_types(type1: &Self::Type, type2: &Self::Type) -> i32;
+    fn compare_types(type1: &Self::Type, type2: &Self::Type) -> Ordering;
 
     /// Check if the given set of `premises` prooves a `goal`. If a proof
     /// is found returns Ok(()), otherwise fails with details on the problem
