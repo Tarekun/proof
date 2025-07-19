@@ -4,7 +4,6 @@ use crate::{
     misc::Union,
 };
 use nom::{branch::alt, combinator::map, multi::many0, IResult};
-use std::{cell::RefCell, collections::BTreeMap};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -71,27 +70,19 @@ pub enum LofAst {
 }
 
 #[derive(Debug)]
-pub struct Notation {
-    pub pattern_tokens: Vec<String>,
-    pub body: Expression,
-    // pub precedence: i32,
-}
-
-#[derive(Debug)]
 pub struct LofParser {
     pub config: Config,
-    pub custom_notations: RefCell<BTreeMap<i32, Notation>>,
 }
 impl LofParser {
     pub fn new(config: Config) -> LofParser {
-        LofParser {
-            config,
-            custom_notations: RefCell::new(BTreeMap::new()),
-        }
+        LofParser { config }
     }
 
     /// Top level parser for single nodes that wraps expressions and statements
-    pub fn parse_node<'a>(&self, input: &'a str) -> IResult<&'a str, LofAst> {
+    pub fn parse_node<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, LofAst> {
         alt((
             map(|input| self.parse_expression(input), LofAst::Exp),
             map(|input| self.parse_statement(input), LofAst::Stm),
