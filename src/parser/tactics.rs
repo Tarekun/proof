@@ -13,20 +13,23 @@ use super::api::{Expression, LofParser, Tactic};
 //########################### TACTICS PARSER
 impl LofParser {
     fn begin<'a>(
-        &self,
+        &'a self,
         input: &'a str,
     ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("begin"))(input)?;
         Ok((input, Begin()))
     }
 
-    fn qed<'a>(&self, input: &'a str) -> IResult<&'a str, Tactic<Expression>> {
+    fn qed<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("qed."))(input)?;
         Ok((input, Qed()))
     }
 
     fn suppose<'a>(
-        &self,
+        &'a self,
         input: &'a str,
     ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("suppose"))(input)?;
@@ -43,7 +46,10 @@ impl LofParser {
         ))
     }
 
-    fn by<'a>(&self, input: &'a str) -> IResult<&'a str, Tactic<Expression>> {
+    fn by<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, Tactic<Expression>> {
         let (input, _) = preceded(multispace0, tag("by"))(input)?;
         let (input, proof_term) =
             preceded(multispace1, |input| self.parse_expression(input))(input)?;
@@ -52,7 +58,7 @@ impl LofParser {
     }
 
     pub fn parse_tactic<'a>(
-        &self,
+        &'a self,
         input: &'a str,
     ) -> IResult<&'a str, Tactic<Expression>> {
         alt((
@@ -64,7 +70,7 @@ impl LofParser {
     }
 
     pub fn parse_interactive_proof<'a>(
-        &self,
+        &'a self,
         input: &'a str,
     ) -> IResult<&'a str, Vec<Tactic<Expression>>> {
         let (input, partial_proof) =
