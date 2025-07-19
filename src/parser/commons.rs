@@ -2,13 +2,11 @@ use super::api::{Expression, LofParser};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{
-        alpha1, alphanumeric0, char, multispace0, multispace1,
-    },
+    character::complete::{alphanumeric1, char, multispace0, multispace1},
     combinator::{opt, recognize},
     error::{Error, ErrorKind},
-    multi::many0,
-    sequence::{delimited, pair, preceded},
+    multi::{many0, many1},
+    sequence::{delimited, preceded},
     IResult,
 };
 
@@ -38,7 +36,7 @@ impl LofParser {
     ) -> IResult<&'a str, &'a str> {
         let (input, identifier) = preceded(
             multispace0,
-            recognize(pair(alpha1, alphanumeric0)),
+            recognize(many1(alt((alphanumeric1, tag("_"))))),
         )(input)?;
 
         if RESERVED_KEYWORDS.contains(&identifier) {
@@ -136,6 +134,10 @@ mod unit_tests {
         assert!(
             parser.parse_identifier("test123").is_ok(),
             "Identifier parser cant read numbers/underscores"
+        );
+        assert!(
+            parser.parse_identifier("_snake_case_").is_ok(),
+            "Identifier parser cant read snake case name"
         );
     }
 
