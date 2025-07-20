@@ -158,13 +158,15 @@ fn type_constr_vars(
     constr_type: &CicTerm,
     variables: Vec<CicTerm>,
 ) -> Result<Vec<(String, CicTerm)>, String> {
+    println!("making type judgements for variables {:?} with type {:?}", variables, constr_type);
     match variables.len() {
         0 => Ok(vec![]),
         1.. => match &variables[0] {
             Variable(var_name, _dbi) => match constr_type {
-                Product(_, domain, codomain) => {
+                Product(type_var, domain, codomain) => {
+                    let reduced_codomain = substitute(&codomain, type_var, &variables[0]);
                     let mut typed_vars =
-                        type_constr_vars(&(*codomain), variables[1..].to_vec())?;
+                        type_constr_vars(&reduced_codomain, variables[1..].to_vec())?;
                     typed_vars.insert(0, (var_name.to_string(), *(domain.clone())));
                     Ok(typed_vars)
                 }
@@ -194,11 +196,11 @@ fn type_check_pattern(
         0 => Ok(constr_type.clone()),
         1.. => match variables[0] {
             Variable(_, _) => match constr_type {
-                Product(_, _, codomain) => {
-                    let reduced_codomain = substitute(&codomain, var_name, arg)
+                Product(var_name, _, codomain) => {
+                    let reduced_codomain = substitute(&codomain, var_name, &variables[0]);
                     // doesnt need to update the context, here var_name is a type variable, not a term
                     type_check_pattern(
-                        &(*codomain),
+                        &reduced_codomain,
                         variables[1..].to_vec(),
                         environment,
                     )
@@ -220,8 +222,11 @@ pub fn type_check_match(
 ) -> Result<CicTerm, String> {
     let matching_type = Cic::type_check_term(matched_term, environment)?;
     let mut return_type = None;
+    println!("match type checking of term {:?}", matched_term);
+    println!("branches provided are {:?}\n\n", branches);
 
     for (pattern, body) in branches {
+        println!("checcking pattern {:?}", pattern);
         //pattern type checking
         let constr_var = pattern[0].clone();
         let constr_type = Cic::type_check_term(&constr_var, environment)?;
@@ -241,13 +246,16 @@ pub fn type_check_match(
             );
         }
 
+        println!("pattern and term matched, continuing to the body {:?}", body);
         //body type checking
         let pattern_assumptions =
             type_constr_vars(&constr_type, pattern[1..].to_vec())?;
+        println!("created pattern assumptions {:?}", pattern_assumptions);
         let body_type = environment
             .with_local_assumptions(&pattern_assumptions, |local_env| {
                 Cic::type_check_term(body, local_env)
             })?;
+        println!("branch body type {:?}", body_type);
         if return_type.is_none() {
             return_type = Some(body_type);
         } else if !Cic::terms_unify(
@@ -263,6 +271,7 @@ pub fn type_check_match(
                 )
             );
         }
+        println!("\t pattern fully type checked\n")
     }
 
     Ok(return_type.unwrap())

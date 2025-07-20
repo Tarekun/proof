@@ -1,3 +1,5 @@
+use crate::parser::expressions;
+
 use super::api::{
     Expression::{
         self, Abstraction, Application, Arrow, Inferator, Match, Pipe, Tuple,
@@ -154,15 +156,34 @@ impl LofParser {
     }
     //
     //
+    fn parse_pattern<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> IResult<&'a str, (Expression, Vec<Expression>)> {
+        let (input, construction) = alt((
+            |input| self.parse_app(input),
+            |input| self.parse_var(input),
+        ))(input)?;
+
+        let (constructor, args) = match construction {
+            Application(fun, args) => (*fun, args),
+            VarUse(var_name) => (VarUse(var_name), vec![]),
+            _ => unreachable!(
+                "Why parse_app | parse_var return {:?} instead of a variable/application?",
+                construction
+            ),
+        };
+
+        Ok((input, (constructor, args)))
+    }
+    //
+    //
     pub fn parse_match_branch<'a>(
         &'a self,
         input: &'a str,
     ) -> IResult<&'a str, (Vec<Expression>, Expression)> {
         let (input, _) = preceded(multispace0, char('|'))(input)?;
-        let (input, constructor) =
-            preceded(multispace0, |input| self.parse_var(input))(input)?;
-        let (input, args) =
-            many0(preceded(multispace1, |input| self.parse_var(input)))(input)?;
+        let (input, (constructor, args)) = self.parse_pattern(input)?;
         let (input, _) = preceded(multispace0, tag("=>"))(input)?;
         let (input, body) =
             preceded(multispace0, |input| self.parse_expression(input))(input)?;
@@ -469,8 +490,9 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_pattern_matching() {
+    fn test_pattern_branch() {
         let parser = LofParser::new(Config::default());
+
         assert!(
             parser.parse_match_branch("| O => x,").is_ok(),
             "Parser cant read pattern matching branches"
@@ -484,6 +506,27 @@ mod unit_tests {
             parser.parse_match_branch("| BinTree l r => x ,").is_ok(),
             "Parser cant read pattern matching branches with variables"
         );
+        assert!(
+            parser.parse_match_branch("| cons ? h l => l,").is_ok(),
+            "Parser cant read pattern matching branches with inferator"
+        );
+    }
+
+    // #[test]
+    // fn test_pattern_on_custom() {
+    //     let parser = LofParser::new(Config::default());
+    //     let _ =
+    //         parser.parse_notation("notation \"_h :: _l\" := \"cons ? _h _l\"");
+
+    //     assert!(
+    //         parser.parse_match_branch("| h :: l => l,").is_ok(),
+    //         "Parser cant read pattern matching branches with custom notation"
+    //     );
+    // }
+
+    #[test]
+    fn test_pattern_matching() {
+        let parser = LofParser::new(Config::default());
 
         assert_eq!(
             parser

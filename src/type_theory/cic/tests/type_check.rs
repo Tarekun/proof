@@ -382,7 +382,7 @@ mod tests {
 
         test_env.add_to_context(
             "List", 
-        &Product(
+            &Product(
                 "T".to_string(), 
                 Box::new(sort.clone()), 
                 Box::new(sort.clone())
@@ -459,6 +459,34 @@ mod tests {
             .is_ok(),
             "test non passa"
         );
+        // assert!(
+        //     Cic::type_check_term(
+        //         &Match(
+        //             Box::new(Variable("test_list".to_string(), GLOBAL_INDEX)),
+        //             vec![
+        //                 (
+        //                     vec![
+        //                         nil.clone(), 
+        //                         Meta(0),
+        //                     ],
+        //                     Variable("test_list".to_string(), GLOBAL_INDEX)
+        //                 ),
+        //                 (
+        //                     vec![
+        //                         cons.clone(),
+        //                         Meta(0),
+        //                         Variable("n".to_string(), 0),
+        //                         Variable("l".to_string(), 1),
+        //                     ],
+        //                     Variable("test_list".to_string(), GLOBAL_INDEX)
+        //                 ),
+        //             ]
+        //         ),
+        //         &mut test_env
+        //     )
+        //     .is_ok(),
+        //     "test non passa"
+        // );
     }
 
     #[test]
