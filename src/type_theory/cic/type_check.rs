@@ -162,9 +162,10 @@ fn type_constr_vars(
         0 => Ok(vec![]),
         1.. => match &variables[0] {
             Variable(var_name, _dbi) => match constr_type {
-                Product(_, domain, codomain) => {
+                Product(type_var, domain, codomain) => {
+                    let reduced_codomain = substitute(&codomain, type_var, &variables[0]);
                     let mut typed_vars =
-                        type_constr_vars(&(*codomain), variables[1..].to_vec())?;
+                        type_constr_vars(&reduced_codomain, variables[1..].to_vec())?;
                     typed_vars.insert(0, (var_name.to_string(), *(domain.clone())));
                     Ok(typed_vars)
                 }
@@ -193,10 +194,11 @@ fn type_check_pattern(
         0 => Ok(constr_type.clone()),
         1.. => match variables[0] {
             Variable(_, _) => match constr_type {
-                Product(_, _, codomain) => {
+                Product(var_name, _, codomain) => {
+                    let reduced_codomain = substitute(&codomain, var_name, &variables[0]);
                     // doesnt need to update the context, here var_name is a type variable, not a term
                     type_check_pattern(
-                        &(*codomain),
+                        &reduced_codomain,
                         variables[1..].to_vec(),
                         environment,
                     )
@@ -229,8 +231,6 @@ pub fn type_check_match(
             environment,
         )?;
         if !Cic::terms_unify(environment, &result_type, &matching_type) {
-            //TODO this is the logic that should actually be used
-            // if !equal_under_substitution(environment, &result_type, &matching_type) {
             return Err(
                 format!(
                     "Pattern doesnt produce expected type: expected {:?} produced {:?}",
