@@ -158,7 +158,6 @@ fn type_constr_vars(
     constr_type: &CicTerm,
     variables: Vec<CicTerm>,
 ) -> Result<Vec<(String, CicTerm)>, String> {
-    println!("making type judgements for variables {:?} with type {:?}", variables, constr_type);
     match variables.len() {
         0 => Ok(vec![]),
         1.. => match &variables[0] {
@@ -191,7 +190,6 @@ fn type_check_pattern(
     variables: Vec<CicTerm>,
     environment: &mut Environment<CicTerm, CicTerm>,
 ) -> Result<CicTerm, String> {
-    println!("type check pattern. constr type is {:?} variables {:?}", constr_type, variables);
     match variables.len() {
         0 => Ok(constr_type.clone()),
         1.. => match variables[0] {
@@ -222,11 +220,8 @@ pub fn type_check_match(
 ) -> Result<CicTerm, String> {
     let matching_type = Cic::type_check_term(matched_term, environment)?;
     let mut return_type = None;
-    println!("match type checking of term {:?}", matched_term);
-    println!("branches provided are {:?}\n\n", branches);
 
     for (pattern, body) in branches {
-        println!("checcking pattern {:?}", pattern);
         //pattern type checking
         let constr_var = pattern[0].clone();
         let constr_type = Cic::type_check_term(&constr_var, environment)?;
@@ -235,7 +230,6 @@ pub fn type_check_match(
             pattern[1..].to_vec(),
             environment,
         )?;
-        println!("pre unification. constructed is {:?}, expected is {:?}", result_type, matching_type);
         if !Cic::terms_unify(environment, &result_type, &matching_type) {
             return Err(
                 format!(
@@ -246,16 +240,13 @@ pub fn type_check_match(
             );
         }
 
-        println!("pattern and term matched, continuing to the body {:?}", body);
         //body type checking
         let pattern_assumptions =
             type_constr_vars(&constr_type, pattern[1..].to_vec())?;
-        println!("created pattern assumptions {:?}", pattern_assumptions);
         let body_type = environment
             .with_local_assumptions(&pattern_assumptions, |local_env| {
                 Cic::type_check_term(body, local_env)
             })?;
-        println!("branch body type {:?}", body_type);
         if return_type.is_none() {
             return_type = Some(body_type);
         } else if !Cic::terms_unify(
@@ -271,7 +262,6 @@ pub fn type_check_match(
                 )
             );
         }
-        println!("\t pattern fully type checked\n")
     }
 
     Ok(return_type.unwrap())
