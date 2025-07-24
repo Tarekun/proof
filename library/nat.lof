@@ -37,9 +37,6 @@ fun rec plus (n:Nat) (m:Nat) : Nat {
   | s nn => s (plus nn m),
 }
 notation "_0 + _1" := "plus _0 _1"
-fun succ (n:Nat) : Nat {
-  n + (s z)
-}
 
 #note the case 0 - m always returns 0
 #in case m != 0 the function should be undefined

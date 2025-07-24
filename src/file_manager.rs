@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const SOURCE_FILE_EXTENSION: &str = ".lof";
 

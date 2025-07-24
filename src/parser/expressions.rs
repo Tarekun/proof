@@ -268,20 +268,16 @@ impl LofParser {
     }
 
     fn parse_custom<'a>(&self, input: &'a str) -> IResult<&'a str, Expression> {
-        println!("[parse_custom] parsing expression ```{}```", input);
         for (_, notation) in self.custom_notations.borrow().iter() {
-            println!("trying to match notation {:?}", notation);
             let mut remaining = input;
             let mut arguments: HashMap<&str, Expression> = HashMap::new();
             let mut matched = true;
 
             for token in &notation.pattern_tokens {
-                print!("trying token {:?}\t", token);
                 remaining = if token.starts_with("_") {
                     let token_parsing = self.non_custom_expression(remaining);
                     if token_parsing.is_err() {
                         matched = false;
-                        println!("fucked up");
                         break;
                     }
                     let (remaining, exp) = token_parsing?;
@@ -293,25 +289,20 @@ impl LofParser {
                         preceded(multispace0, tag(token.as_str()))(remaining);
                     if token_parsing.is_err() {
                         matched = false;
-                        println!("fucked up");
                         break;
                     }
                     let (remaining, _) = token_parsing?;
 
                     remaining
                 };
-                println!("OK. remaining: ({})", remaining);
             }
 
             if matched {
-                println!("matched");
                 let mut expanded_body = (&notation.body).to_owned();
                 for (name, arg) in arguments {
                     expanded_body = self.substitute(&expanded_body, name, &arg);
                 }
                 return Ok((remaining, expanded_body));
-            } else {
-                println!("matched falsed");
             }
         }
 
@@ -346,7 +337,6 @@ impl LofParser {
         &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
-        println!("[parse_expression]parsing expression ```{}```", input);
         alt((
             |input| self.parse_meta(input),
             |input| self.parse_abs(input),

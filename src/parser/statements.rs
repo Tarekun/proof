@@ -68,7 +68,6 @@ impl LofParser {
             )?;
 
         let (input, _) = preceded(multispace0, tag("{"))(input)?;
-        println!("trying to parse the function body ```{}```", input);
         let (input, body) =
             preceded(multispace0, |input| self.parse_expression(input))(input)?;
         let (input, _) = preceded(multispace0, tag("}"))(input)?;

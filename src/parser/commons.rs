@@ -48,7 +48,6 @@ impl LofParser {
         let (input, identifier) = preceded(
             multispace0,
             recognize(many1(alt((alphanumeric1, tag("_"))))),
-            // recognize(pair(alpha1, many0(alt((alphanumeric1, tag("_")))))),
         )(input)?;
 
         if RESERVED_KEYWORDS.contains(&identifier) {
