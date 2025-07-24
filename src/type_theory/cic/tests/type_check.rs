@@ -457,7 +457,7 @@ mod tests {
                 &mut test_env
             )
             .is_ok(),
-            "test non passa"
+            "match type checking doesnt work with type dependent types"
         );
         // assert!(
         //     Cic::type_check_term(
@@ -485,7 +485,7 @@ mod tests {
         //         &mut test_env
         //     )
         //     .is_ok(),
-        //     "test non passa"
+        //     "match type checking doesnt support unification in pattern"
         // );
     }
 
@@ -493,9 +493,6 @@ mod tests {
     //TODO add check of exaustiveness of patterns
     fn test_type_check_match() {
         let nat = Variable("nat".to_string(), GLOBAL_INDEX);
-        let list = Variable("List".to_string(), GLOBAL_INDEX);
-        let nil = Variable("nil".to_string(), GLOBAL_INDEX);
-        let cons = Variable("cons".to_string(), GLOBAL_INDEX);
         let mut test_env = Cic::default_environment();
         test_env
             .add_to_context("nat", &Sort("TYPE".to_string()));

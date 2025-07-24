@@ -1,13 +1,21 @@
-use super::api::{Expression, LofParser};
+use crate::misc::simple_map;
+
+use super::api::{
+    Expression::{
+        self, Abstraction, Application, Arrow, Inferator, Match, Pipe, Tuple,
+        TypeProduct, VarUse,
+    },
+    LofParser,
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{
-        alpha1, alphanumeric0, char, multispace0, multispace1,
+        alpha1, alphanumeric1, char, multispace0, multispace1,
     },
     combinator::{opt, recognize},
     error::{Error, ErrorKind},
-    multi::many0,
+    multi::{many0, many1},
     sequence::{delimited, pair, preceded},
     IResult,
 };
@@ -29,16 +37,17 @@ const RESERVED_KEYWORDS: &[&str] = &[
     "qed.",
     "suppose",
     "by",
+    "notation",
 ];
 
 impl LofParser {
     pub fn parse_identifier<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, &'a str> {
         let (input, identifier) = preceded(
             multispace0,
-            recognize(pair(alpha1, alphanumeric0)),
+            recognize(many1(alt((alphanumeric1, tag("_"))))),
         )(input)?;
 
         if RESERVED_KEYWORDS.contains(&identifier) {
@@ -49,7 +58,7 @@ impl LofParser {
     }
 
     pub fn parse_type_expression<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         alt((
@@ -65,7 +74,7 @@ impl LofParser {
     }
 
     pub fn parse_typed_identifier<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, (String, Expression)> {
         let (input, identifier) =
@@ -80,7 +89,7 @@ impl LofParser {
     }
 
     pub fn parse_optionally_typed_identifier<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, (String, Option<Expression>)> {
         let (input, identifier) =
@@ -99,7 +108,7 @@ impl LofParser {
     }
 
     pub fn typed_parameter_list<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Vec<(String, Expression)>> {
         many0(preceded(
@@ -110,6 +119,89 @@ impl LofParser {
                 preceded(multispace0, char(')')),
             ),
         ))(input)
+    }
+    pub fn substitute(
+        &self,
+        exp: &Expression,
+        target_name: &str,
+        body: &Expression,
+    ) -> Expression {
+        match exp {
+            // base case
+            VarUse(name) => {
+                if name == target_name {
+                    body.to_owned()
+                } else {
+                    exp.to_owned()
+                }
+            }
+
+            // binder variants
+            Abstraction(var_name, var_type, fun_body) => {
+                if var_name == target_name {
+                    // shadowing of target_name inside the function body
+                    exp.to_owned()
+                } else {
+                    Abstraction(
+                        var_name.to_string(),
+                        var_type.to_owned(),
+                        Box::new(self.substitute(fun_body, target_name, body)),
+                    )
+                }
+            }
+            TypeProduct(var_name, var_type, for_body) => {
+                if var_name == target_name {
+                    // shadowing of target_name inside the function body
+                    exp.to_owned()
+                } else {
+                    TypeProduct(
+                        var_name.to_string(),
+                        var_type.to_owned(),
+                        Box::new(self.substitute(for_body, target_name, body)),
+                    )
+                }
+            }
+
+            // binary variants
+            Arrow(left, right) => Arrow(
+                Box::new(self.substitute(left, target_name, body)),
+                Box::new(self.substitute(right, target_name, body)),
+            ),
+            // n-ary variants
+            Application(fun, args) => Application(
+                Box::new(self.substitute(fun, target_name, body)),
+                // TODO avoid cloning
+                simple_map(args.to_owned(), |arg| {
+                    self.substitute(&arg, target_name, body)
+                }),
+            ),
+            Pipe(formulas) => {
+                // TODO avoid cloning
+                Pipe(simple_map(formulas.to_owned(), |formula| {
+                    self.substitute(&formula, target_name, body)
+                }))
+            }
+            Tuple(terms) => Tuple(simple_map(terms.to_owned(), |term| {
+                // TODO avoid cloning
+                self.substitute(&term, target_name, body)
+            })),
+
+            // this bs
+            Match(matched_term, branches) => Match(
+                Box::new(self.substitute(matched_term, target_name, body)),
+                //TODO avoid cloning
+                simple_map(branches.clone(), |(pattern, patter_body)| {
+                    (
+                        simple_map(pattern, |term| {
+                            self.substitute(&term, target_name, body)
+                        }),
+                        self.substitute(&patter_body, target_name, body),
+                    )
+                }),
+            ),
+            // non recursive
+            Inferator() => exp.to_owned(),
+        }
     }
 }
 
@@ -136,6 +228,10 @@ mod unit_tests {
         assert!(
             parser.parse_identifier("test123").is_ok(),
             "Identifier parser cant read numbers/underscores"
+        );
+        assert!(
+            parser.parse_identifier("_snake_case_").is_ok(),
+            "Identifier parser cant read snake case name"
         );
     }
 

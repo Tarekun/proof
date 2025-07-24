@@ -17,9 +17,9 @@ pub fn elaborate_tactic<E, F: Fn(Expression) -> E>(
             elaborate_expression,
         ),
         By(proof_term) => elaborate_by(proof_term, elaborate_expression),
-        _ => {
-            Err("WIP: tactic {:?} is not yet supported. too bad :(".to_string())
-        }
+        // _ => {
+        //     Err("WIP: tactic {:?} is not yet supported. too bad :(".to_string())
+        // }
     }
 }
 //

@@ -2,6 +2,7 @@ use super::api::Statement::Theorem;
 use super::api::{Expression, LofAst, LofParser, Statement};
 use crate::config::id_to_system;
 use crate::misc::Union;
+use crate::parser::api::Notation;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
@@ -17,10 +18,7 @@ use nom::{
 
 //########################### STATEMENT PARSERS
 impl LofParser {
-    fn parse_import<'a>(
-        &'a self,
-        input: &'a str,
-    ) -> IResult<&'a str, Statement> {
+    fn parse_import<'a>(&self, input: &'a str) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("import"))(input)?;
         let (input, filepath) = preceded(
             multispace0,
@@ -35,10 +33,7 @@ impl LofParser {
     }
     //
     //
-    pub fn parse_let<'a>(
-        &'a self,
-        input: &'a str,
-    ) -> IResult<&'a str, Statement> {
+    pub fn parse_let<'a>(&self, input: &'a str) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("let"))(input)?;
         let (input, (var_name, opt_type)) = preceded(multispace1, |input| {
             self.parse_optionally_typed_identifier(input)
@@ -56,7 +51,7 @@ impl LofParser {
     //
     //
     pub fn parse_function<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("fun"))(input)?;
@@ -91,7 +86,7 @@ impl LofParser {
     //
     //
     pub fn parse_theorem<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(
@@ -120,7 +115,7 @@ impl LofParser {
     //
     //
     pub fn parse_comment<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         let (input, _) = multispace0(input)?;
@@ -133,7 +128,7 @@ impl LofParser {
     //
     //
     pub fn parse_axiom<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("axiom"))(input)?;
@@ -152,7 +147,7 @@ impl LofParser {
     //
     //
     pub fn parse_inductive_constructor<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, (String, Expression)> {
         let (input, _) = preceded(multispace0, char('|'))(input)?;
@@ -164,7 +159,7 @@ impl LofParser {
         Ok((input, (constructor_name.to_string(), constructor_type)))
     }
     pub fn parse_inductive_def<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("inductive"))(input)?;
@@ -194,7 +189,7 @@ impl LofParser {
     //
     //
     pub fn parse_theory_block<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         let (input, _) = preceded(multispace0, tag("!theory_block"))(input)?;
@@ -220,8 +215,36 @@ impl LofParser {
     }
     //
     //
+    pub fn parse_notation<'a>(
+        &self,
+        input: &'a str,
+    ) -> IResult<&'a str, Statement> {
+        let parse_quoted =
+            |input| delimited(char('"'), is_not("\""), char('"'))(input);
+
+        let (input, _) = preceded(multispace0, tag("notation"))(input)?;
+        let (input, notation) = preceded(multispace1, parse_quoted)(input)?;
+        let (input, _) = preceded(multispace0, tag(":="))(input)?;
+        let (input, body) = preceded(multispace1, parse_quoted)(input)?;
+
+        let pattern_tokens: Vec<String> =
+            notation.split_whitespace().map(|s| s.to_string()).collect();
+        let (_, exp) = self.parse_expression(body)?;
+        self.custom_notations.borrow_mut().insert(
+            0,
+            Notation {
+                pattern_tokens,
+                body: exp,
+                // precedence: 0,
+            },
+        );
+
+        Ok((input, Statement::Comment()))
+    }
+    //
+    //
     pub fn parse_statement<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Statement> {
         alt((
@@ -233,6 +256,7 @@ impl LofParser {
             |input| self.parse_function(input),
             |input| self.parse_import(input),
             |input| self.parse_theory_block(input),
+            |input| self.parse_notation(input),
         ))(input)
     }
 }
@@ -247,12 +271,75 @@ mod unit_tests {
         parser::api::{
             Expression::{Application, Arrow, VarUse},
             LofAst::Exp,
-            LofParser,
+            LofParser, Notation,
             Statement::{
                 self, Axiom, Comment, EmptyRoot, Inductive, Let, Theorem,
             },
         },
     };
+
+    #[test]
+    fn test_notation() {
+        fn notation_contains(parser: &LofParser, notation: Notation) -> bool {
+            for (_, n) in parser.custom_notations.borrow().iter() {
+                if n.body == notation.body
+                    && n.pattern_tokens == notation.pattern_tokens
+                {
+                    return true;
+                }
+            }
+
+            false
+        }
+
+        let parser = LofParser::new(Config::default());
+
+        let _ = parser.parse_notation("notation \"_0 + _1\" := \"comb _0 _1\"");
+        assert!(
+            notation_contains(
+                &parser,
+                Notation {
+                    pattern_tokens: vec![
+                        "_0".to_string(),
+                        "+".to_string(),
+                        "_1".to_string()
+                    ],
+                    body: Application(
+                        Box::new(VarUse("comb".to_string())),
+                        vec![
+                            VarUse("_0".to_string()),
+                            VarUse("_1".to_string())
+                        ]
+                    )
+                }
+            ),
+            "Notation parser didnt store tokens or parse the body properly"
+        );
+
+        let _ = parser.parse_notation(
+            "notation \"_0     *   _1\"    :=   \n\r\t \"comb _0 _1\"",
+        );
+        assert!(
+            notation_contains(
+                &parser,
+                Notation {
+                    pattern_tokens: vec![
+                        "_0".to_string(),
+                        "*".to_string(),
+                        "_1".to_string()
+                    ],
+                    body: Application(
+                        Box::new(VarUse("comb".to_string())),
+                        vec![
+                            VarUse("_0".to_string()),
+                            VarUse("_1".to_string())
+                        ]
+                    )
+                }
+            ),
+            "Notation parser didnt trim whitespaces"
+        );
+    }
 
     #[test]
     fn test_comments() {

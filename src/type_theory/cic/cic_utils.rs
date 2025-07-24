@@ -430,9 +430,7 @@ pub fn index_variables(term: &CicTerm) -> CicTerm {
 mod unit_tests {
     use crate::type_theory::cic::{
         cic::{
-            CicTerm::{
-                Abstraction, Application, Match, Product, Sort, Variable,
-            },
+            CicTerm::{Abstraction, Sort, Variable},
             GLOBAL_INDEX, PLACEHOLDER_DBI,
         },
         cic_utils::index_variables,

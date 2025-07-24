@@ -1,5 +1,3 @@
-use crate::parser::expressions;
-
 use super::api::{
     Expression::{
         self, Abstraction, Application, Arrow, Inferator, Match, Pipe, Tuple,
@@ -12,15 +10,17 @@ use nom::{
     bytes::complete::tag,
     character::complete::{char, multispace0, multispace1},
     combinator::{map, opt},
+    error::{Error, ErrorKind},
     multi::{many0, many1},
     sequence::{delimited, preceded},
     IResult,
 };
+use std::collections::HashMap;
 
 //########################### EXPRESSION PARSERS
 impl LofParser {
     pub fn parse_parens<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         delimited(
@@ -32,7 +32,7 @@ impl LofParser {
     //
     //
     pub fn parse_var<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         map(
@@ -43,7 +43,7 @@ impl LofParser {
     //
     //
     pub fn parse_abs<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, _) =
@@ -72,7 +72,7 @@ impl LofParser {
     //
     //
     pub fn parse_type_abs<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, _) = preceded(
@@ -103,7 +103,7 @@ impl LofParser {
     //
     //
     pub fn parse_arrow_type<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, domain) = alt((
@@ -119,7 +119,7 @@ impl LofParser {
     //
     //
     fn applicable_expression<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         alt((
@@ -131,7 +131,7 @@ impl LofParser {
         ))(input)
     }
     fn argument_expression<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         alt((
@@ -141,7 +141,7 @@ impl LofParser {
         ))(input)
     }
     pub fn parse_app<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, left) =
@@ -157,7 +157,7 @@ impl LofParser {
     //
     //
     fn parse_pattern<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, (Expression, Vec<Expression>)> {
         let (input, construction) = alt((
@@ -179,7 +179,7 @@ impl LofParser {
     //
     //
     pub fn parse_match_branch<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, (Vec<Expression>, Expression)> {
         let (input, _) = preceded(multispace0, char('|'))(input)?;
@@ -194,7 +194,7 @@ impl LofParser {
         Ok((input, (pattern, body)))
     }
     pub fn parse_pattern_match<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, _) = preceded(multispace0, tag("match"))(input)?;
@@ -208,7 +208,7 @@ impl LofParser {
     }
 
     pub fn parse_meta<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, _) = preceded(multispace0, char('?'))(input)?;
@@ -217,7 +217,7 @@ impl LofParser {
     }
 
     pub fn parse_pipe<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         // TODO should i avoid returning here if there's no '|' ?
@@ -244,7 +244,7 @@ impl LofParser {
     }
 
     pub fn parse_tuple<'a>(
-        &'a self,
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         let (input, _) = preceded(multispace0, char('('))(input)?;
@@ -267,8 +267,52 @@ impl LofParser {
         Ok((input, Tuple(all_exprs)))
     }
 
-    pub fn parse_expression<'a>(
-        &'a self,
+    fn parse_custom<'a>(&self, input: &'a str) -> IResult<&'a str, Expression> {
+        for (_, notation) in self.custom_notations.borrow().iter() {
+            let mut remaining = input;
+            let mut arguments: HashMap<&str, Expression> = HashMap::new();
+            let mut matched = true;
+
+            for token in &notation.pattern_tokens {
+                remaining = if token.starts_with("_") {
+                    let token_parsing = self.non_custom_expression(remaining);
+                    if token_parsing.is_err() {
+                        matched = false;
+                        break;
+                    }
+                    let (remaining, exp) = token_parsing?;
+                    arguments.insert(token, exp);
+
+                    remaining
+                } else {
+                    let token_parsing =
+                        preceded(multispace0, tag(token.as_str()))(remaining);
+                    if token_parsing.is_err() {
+                        matched = false;
+                        break;
+                    }
+                    let (remaining, _) = token_parsing?;
+
+                    remaining
+                };
+            }
+
+            if matched {
+                let mut expanded_body = (&notation.body).to_owned();
+                for (name, arg) in arguments {
+                    expanded_body = self.substitute(&expanded_body, name, &arg);
+                }
+                return Ok((remaining, expanded_body));
+            }
+        }
+
+        // TODO return a better error here
+        let error = nom::Err::Error(Error::new(input, ErrorKind::Tag));
+        return Err(error);
+    }
+
+    fn non_custom_expression<'a>(
+        &self,
         input: &'a str,
     ) -> IResult<&'a str, Expression> {
         alt((
@@ -288,6 +332,32 @@ impl LofParser {
             |input| self.parse_pattern_match(input),
         ))(input)
     }
+
+    pub fn parse_expression<'a>(
+        &self,
+        input: &'a str,
+    ) -> IResult<&'a str, Expression> {
+        alt((
+            |input| self.parse_meta(input),
+            |input| self.parse_abs(input),
+            |input| self.parse_type_abs(input),
+            |input| self.parse_arrow_type(input),
+            |input| self.parse_pattern_match(input),
+            // parse_app must come before parens for some reason
+            |input| self.parse_app(input),
+            |input| self.parse_parens(input),
+            // parens must be tried before tuples to avoid conflicts
+            |input| self.parse_tuple(input),
+            |input| self.parse_pipe(input),
+            |input| self.parse_custom(input),
+            // parse_var is the last one because it matches any identifiere, even
+            // when it starts composite expressions. examples:
+            // - parse_app starts with the name of the functions
+            // - parse_pipe starts with the name of the first type
+            // - parse_custom when the custom notation is infix/prefix
+            |input| self.parse_var(input),
+        ))(input)
+    }
 }
 //########################### EXPRESSION PARSERS
 
@@ -304,6 +374,85 @@ mod unit_tests {
             LofParser,
         },
     };
+
+    #[test]
+    fn test_notation() {
+        let parser = LofParser::new(Config::default());
+
+        let _ = parser.parse_notation("notation \"_0 + _1\" := \"add _0 _1\"");
+        assert_eq!(
+            parser.parse_custom("n + m"),
+            Ok((
+                "",
+                Application(
+                    Box::new(VarUse("add".to_string())),
+                    vec![VarUse("n".to_string()), VarUse("m".to_string())]
+                )
+            )),
+            "Parser couldnt pick up simple binary infix custom notation"
+        );
+        assert_eq!(
+            parser.parse_custom("n   \t\r +   \t\t\nm"),
+            Ok((
+                "",
+                Application(
+                    Box::new(VarUse("add".to_string())),
+                    vec![VarUse("n".to_string()), VarUse("m".to_string())]
+                )
+            )),
+            "Custom notation parser cant cope with whitespaces"
+        );
+        assert_eq!(
+            parser.parse_custom("(n + m) + o"),
+            Ok((
+                "",
+                Application(
+                    Box::new(VarUse("add".to_string())),
+                    vec![
+                        Application(
+                            Box::new(VarUse("add".to_string())),
+                            vec![
+                                VarUse("n".to_string()),
+                                VarUse("m".to_string()),
+                            ]
+                        ),
+                        VarUse("o".to_string())
+                    ]
+                )
+            )),
+            "composti non funzionano"
+        );
+        let _ = parser.parse_notation("notation \"_0 ++ _1\" := \"add _1 _0\"");
+        assert_eq!(
+            parser.parse_custom("n ++ m"),
+            Ok((
+                "",
+                Application(
+                    Box::new(VarUse("add".to_string())),
+                    vec![VarUse("m".to_string()), VarUse("n".to_string())]
+                )
+            )),
+            "Custom notation parser cant track arguments properly"
+        );
+
+        let _ =
+            parser.parse_notation("notation \"_h :: _l\" := \"cons ? _h _l\"");
+        assert_eq!(
+            parser.parse_custom("h :: l"),
+            Ok((
+                "",
+                Application(
+                    Box::new(VarUse("cons".to_string())),
+                    vec![
+                        Inferator(),
+                        VarUse("h".to_string()),
+                        VarUse("l".to_string())
+                    ]
+                )
+            )),
+            "Custom notation parser list doenst work properly"
+        );
+    }
 
     #[test]
     fn test_parens() {
