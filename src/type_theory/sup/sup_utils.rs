@@ -70,7 +70,7 @@ pub fn kbo_terms(term1: &SupTerm, term2: &SupTerm) -> Ordering {
     fn weight(term: &SupTerm) -> i32 {
         match term {
             Variable(_) => 1,
-            Application(_, args) => 1 + args.iter().map(weight).sum::<i32>(),
+            Application(_, args) => 1 + (args.len() as i32),
         }
     }
 
@@ -102,24 +102,9 @@ pub fn kbo_terms(term1: &SupTerm, term2: &SupTerm) -> Ordering {
     }
 }
 pub fn kbo_types(φ1: &SupFormula, φ2: &SupFormula) -> Ordering {
-    fn atom_key(a: &SupFormula) -> (String, Vec<&SupTerm>, bool) {
-        match a {
-            Not(inner) => match &**inner {
-                Atom(p, args) => (p.clone(), args.iter().collect(), true),
-                _ => ("~".to_string(), vec![], true),
-            },
-            Atom(p, args) => (p.clone(), args.iter().collect(), false),
-            Equality(l, r) => ("=".to_string(), vec![l, r], false),
-            _ => ("".to_string(), vec![], false),
-        }
-    }
-
     match (φ1, φ2) {
-        (Atom(_, _), Atom(_, _)) | (Not(_), Not(_)) => {
-            let (p1, args1, neg1) = atom_key(φ1);
-            let (p2, args2, neg2) = atom_key(φ2);
-
-            match p1.cmp(&p2) {
+        (Atom(p1, args1), Atom(p2, args2)) => {
+            match args1.len().cmp(&args2.len()) {
                 Equal => {
                     for (a1, a2) in args1.iter().zip(args2.iter()) {
                         match kbo_terms(a1, a2) {
@@ -127,11 +112,12 @@ pub fn kbo_types(φ1: &SupFormula, φ2: &SupFormula) -> Ordering {
                             non_eq => return non_eq,
                         }
                     }
-                    args1.len().cmp(&args2.len()).then(neg1.cmp(&neg2))
+                    p1.cmp(&p2)
                 }
                 non_eq => non_eq,
             }
         }
+        (Not(psi1), Not(psi2)) => kbo_types(psi1, psi2),
         (Equality(left1, right1), Equality(left2, right2)) => {
             match kbo_terms(left1, left2) {
                 Equal => kbo_terms(right1, right2),
@@ -200,7 +186,7 @@ mod tests {
         },
         sup_utils::{is_tautology, kbo_terms, kbo_types, subsumes},
     };
-    use std::cmp::Ordering::{self, Equal, Greater, Less};
+    use std::cmp::Ordering::{Equal, Greater, Less};
 
     #[test]
     fn test_tautology_detection() {
@@ -255,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kbo_temr() {
+    fn test_kbo_term() {
         let anon = Variable("_".to_string());
         let arg = Variable("arg".to_string());
 
