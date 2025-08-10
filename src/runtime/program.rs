@@ -11,11 +11,32 @@ pub enum ProgramNode<Term, Stm> {
     OfTerm(Term),
 }
 
+pub struct Schedule<T: TypeTheory> {
+    schedule: VecDeque<ProgramNode<T::Term, T::Stm>>,
+}
+
+impl<T: TypeTheory> Schedule<T> {
+    pub fn new() -> Self {
+        Self {
+            schedule: VecDeque::new(),
+        }
+    }
+
+    pub fn add_statement(&mut self, statement: &T::Stm) {
+        self.schedule
+            .push_back(ProgramNode::OfStm(statement.clone()));
+    }
+
+    pub fn add_expression(&mut self, term: &T::Exp) {
+        self.schedule.push_back(ProgramNode::OfTerm(term.clone()));
+    }
+}
+
 pub struct Program<T>
 where
     T: TypeTheory,
 {
-    schedule: VecDeque<ProgramNode<T::Term, T::Stm>>,
+    schedule: Schedule<T>,
     pub environment: Environment<T::Term, T::Type>,
 }
 
@@ -25,20 +46,15 @@ where
 {
     pub fn new() -> Self {
         Program {
-            schedule: VecDeque::new(),
+            schedule: Schedule::new(),
             environment: T::default_environment(),
         }
     }
-
-    /// Add a new statement to the queue
-    pub fn push_statement(&mut self, statement: &T::Stm) {
-        self.schedule
-            .push_back(ProgramNode::OfStm(statement.clone()));
-    }
-
-    /// Add a new term to the queue
-    pub fn push_term(&mut self, term: &T::Term) {
-        self.schedule.push_back(ProgramNode::OfTerm(term.clone()));
+    pub fn with_schedule(schedule: Schedule<T>) -> Self {
+        Program {
+            schedule,
+            environment: T::default_environment(),
+        }
     }
 
     pub fn schedule_iterable(

@@ -7,9 +7,8 @@ use super::type_check::{
     type_check_variable,
 };
 use super::unification::{cic_unification, solve_unification};
-use crate::misc::Union;
-use crate::parser::api::{LofAst, Tactic};
-use crate::runtime::program::Program;
+use crate::misc::Union::{self, L, R};
+use crate::parser::api::Tactic;
 use crate::type_theory::cic::elaboration::{
     elaborate_expression, elaborate_statement,
 };
@@ -71,12 +70,13 @@ impl TypeTheory for Cic {
     type Term = CicTerm;
     type Type = CicTerm;
     type Stm = CicStm;
+    type Exp = CicTerm;
 
     #[allow(non_snake_case)]
     fn default_environment() -> Environment<CicTerm, CicTerm> {
         let TYPE = CicTerm::Sort("TYPE".to_string());
         let axioms: Vec<(&str, &CicTerm)> =
-            vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
+            vec![("TYPE", &TYPE), ("PROP", &TYPE)];
 
         Environment::with_defaults(axioms, Vec::default(), vec![])
     }
@@ -96,23 +96,15 @@ impl TypeTheory for Cic {
         common_unification_check(type1, type2)
     }
 
-    fn elaborate_ast(ast: LofAst) -> Result<Program<Cic>, String> {
-        let mut program = Program::new();
-
-        debug!("Elaboration of ast node {:?}", ast);
-        match ast {
-            LofAst::Stm(stm) => {
-                match elaborate_statement(stm, &mut program) {
-                    Err(message) => panic!("{}", message),
-                    Ok(_) => {}
-                };
-            }
-            LofAst::Exp(exp) => {
-                elaborate_expression(&exp);
-            }
-        }
-
-        Ok(program)
+    fn elaborate_expression(
+        exp: &crate::parser::api::Expression,
+    ) -> Result<Self::Exp, String> {
+        Ok(elaborate_expression(exp))
+    }
+    fn elaborate_statement(
+        stm: &crate::parser::api::Statement,
+    ) -> Result<Vec<Self::Stm>, String> {
+        elaborate_statement(stm)
     }
 }
 
@@ -224,8 +216,6 @@ impl Reducer for Cic {
 }
 
 impl Interactive for Cic {
-    type Exp = CicTerm;
-
     fn proof_hole() -> Self::Term {
         CicTerm::Sort("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
     }

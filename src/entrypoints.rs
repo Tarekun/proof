@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::config::TypeSystem;
 use crate::parser::api::LofAst;
 use crate::parser::api::LofParser;
+use crate::runtime::program::Schedule;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::{Kernel, Reducer, TypeTheory};
@@ -28,12 +29,12 @@ pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
 pub fn parse_and_elaborate<T: TypeTheory + Kernel>(
     config: &Config,
     workspace: &str,
-) -> Result<Program<T>, String> {
+) -> Result<Schedule<T>, String> {
     let ast = parse_only(config, workspace)?;
     debug!("Elaboration of the AST into a program...");
-    let program = T::elaborate_ast(ast)?;
+    let schedule = T::elaborate_ast(&ast)?;
     debug!("Elaboration done.");
-    Ok(program)
+    Ok(schedule)
 }
 
 pub fn type_check<T: TypeTheory + Kernel + Reducer>(
@@ -86,29 +87,29 @@ pub fn execute<T: TypeTheory + Kernel + Reducer>(
     program.execute()
 }
 
-pub fn interactive<T: TypeTheory + Kernel + Reducer>(
-    // config: &Config,
-    workspace: &str,
-) -> Result<(), String> {
-    let parser = LofParser::new(Config::new(TypeSystem::Cic()));
-    let mut program = Program::new();
+// pub fn interactive<T: TypeTheory + Kernel + Reducer>(
+//     // config: &Config,
+//     workspace: &str,
+// ) -> Result<(), String> {
+//     let parser = LofParser::new(Config::new(TypeSystem::Cic()));
+//     let mut program = Program::new();
 
-    while true {
-        let input = "".to_string();
-        if should_exit(input) {
-            break;
-        }
+//     while true {
+//         let input = "".to_string();
+//         if should_exit(input) {
+//             break;
+//         }
 
-        let (_, node) = parser.parse_node(input)?;
-        let elaborated_node = qualcosa(node)?;
-        match node {
-            Ex``
-        }
-    }
+//         let (_, node) = parser.parse_node(input)?;
+//         let elaborated_node = qualcosa(node)?;
+//         match node {
+//             Ex``
+//         }
+//     }
 
-    let mut program: Program<T> = type_check(config, workspace)?;
-    program.execute()
-}
+//     let mut program: Program<T> = type_check(config, workspace)?;
+//     program.execute()
+// }
 
 pub fn help() {
     println!("Usage: lof <operation> <workspace> [--flags]");

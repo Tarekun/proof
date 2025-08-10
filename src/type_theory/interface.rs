@@ -1,5 +1,6 @@
-use crate::parser::api::{LofAst, Tactic};
-use crate::runtime::program::Program;
+use crate::misc::Union::{self, L, R};
+use crate::parser::api::{Expression, LofAst, Statement, Tactic};
+use crate::runtime::program::{Program, Schedule};
 use crate::type_theory::environment::Environment;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -15,6 +16,8 @@ pub trait TypeTheory {
     type Type: Debug + Clone + PartialEq;
     /// Enum listing all the statements elaborated with proper types
     type Stm: Debug + Clone;
+    /// Type for the system's expressions, usually Term or Union<Term, Type>
+    type Exp: Debug + Clone;
 
     /// Create the default environment
     fn default_environment() -> Environment<Self::Term, Self::Type>;
@@ -35,10 +38,42 @@ pub trait TypeTheory {
         type2: &Self::Type,
     ) -> Result<(), String>;
 
+    fn elaborate_expression(exp: &Expression) -> Result<Self::Exp, String>;
+    fn elaborate_statement(stm: &Statement) -> Result<Vec<Self::Stm>, String>;
+
+    fn elaborate_node(
+        node: &LofAst,
+    ) -> Result<Union<Self::Exp, Self::Stm>, String> {
+        match node {
+            LofAst::Exp(exp) => Ok(L(Self::elaborate_expression(exp)?)),
+            //TODO in case of nested staments this has no concept of schedule and picks the first element at random
+            LofAst::Stm(stm) => {
+                Ok(R(Self::elaborate_statement(stm)?[0].clone()))
+            }
+        }
+    }
+
     /// Elaborate a full AST into a program.
-    fn elaborate_ast(ast: LofAst) -> Result<Program<Self>, String>
+    fn elaborate_ast(ast: &LofAst) -> Result<Schedule<Self>, String>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        let mut schedule = Schedule::new();
+
+        match ast {
+            LofAst::Exp(exp) => {
+                let exp = Self::elaborate_expression(exp)?;
+                schedule.add_expression(&exp);
+            }
+            LofAst::Stm(stm) => {
+                for stm in Self::elaborate_statement(stm)? {
+                    schedule.add_statement(&stm);
+                }
+            }
+        }
+
+        Ok(schedule)
+    }
 }
 
 /// Kernel module, implements the type checking algorithms
@@ -98,7 +133,7 @@ pub trait Reducer: TypeTheory {
 
 /// Interactive module, implements tactic checking for interactive theorem proving
 pub trait Interactive: TypeTheory {
-    type Exp;
+    // type Exp;
 
     /// Canonical proof hole term for partial proofs
     fn proof_hole() -> Self::Term;
