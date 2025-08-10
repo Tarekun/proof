@@ -5,7 +5,7 @@ use crate::type_theory::{
 };
 use std::collections::VecDeque;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ProgramNode<Term, Stm> {
     OfStm(Stm),
     OfTerm(Term),
@@ -52,17 +52,30 @@ where
         self.schedule.back()
     }
 
+    // TODO: this should handle both terms and type expressions
+    pub fn execute_expression(
+        &mut self,
+        exp: &T::Term,
+    ) -> Result<T::Term, String> {
+        //TODO do something with the result
+        Ok(T::normalize_term(&mut self.environment, exp))
+    }
+
+    pub fn execute_statement(&mut self, stm: &T::Stm) -> Result<(), String> {
+        let _ = T::evaluate_statement(&mut self.environment, stm);
+        Ok(())
+    }
+
     /// Execute the prorgam schedule
     pub fn execute(&mut self) -> Result<(), String> {
-        for node in &self.schedule {
+        let schedule = self.schedule.clone();
+        for node in schedule {
             match node {
                 OfTerm(term) => {
-                    let _normal_form =
-                        T::normalize_term(&mut self.environment, term);
-                    //TODO do something with the result
+                    let _normal_form = self.execute_expression(&term)?;
                 }
                 OfStm(stm) => {
-                    let _ = T::evaluate_statement(&mut self.environment, stm);
+                    let _ = self.execute_statement(&stm)?;
                 }
             }
         }

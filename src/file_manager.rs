@@ -4,10 +4,13 @@ use std::path::PathBuf;
 
 const SOURCE_FILE_EXTENSION: &str = ".lof";
 
+/// Opens the file at `filepath` and returns its content in the returned string
 pub fn read_file(filepath: &str) -> Result<String, io::Error> {
     fs::read_to_string(filepath)
 }
 
+/// Opens the source file at `filepath` and returns its content in the returned string.
+/// Fails in case the file extension isn't .lof
 pub fn read_source_file(filepath: &str) -> Result<String, io::Error> {
     if !filepath.ends_with(SOURCE_FILE_EXTENSION) {
         return Err(io::Error::new(
@@ -22,6 +25,9 @@ pub fn read_source_file(filepath: &str) -> Result<String, io::Error> {
     read_file(filepath)
 }
 
+/// Lists all source files contained at `workspace`. A workspace is either a source file
+/// or a directory containing multiples.
+/// Returns a vector containing all found file paths.
 pub fn list_sources(workspace: &str) -> Vec<String> {
     let path = PathBuf::from(workspace);
 

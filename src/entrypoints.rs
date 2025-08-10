@@ -1,11 +1,11 @@
-use tracing::debug;
-
 use crate::config::Config;
+use crate::config::TypeSystem;
 use crate::parser::api::LofAst;
 use crate::parser::api::LofParser;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::{Kernel, Reducer, TypeTheory};
+use tracing::debug;
 
 #[derive(Debug)]
 pub enum EntryPoint {
@@ -82,6 +82,30 @@ pub fn execute<T: TypeTheory + Kernel + Reducer>(
     config: &Config,
     workspace: &str,
 ) -> Result<(), String> {
+    let mut program: Program<T> = type_check(config, workspace)?;
+    program.execute()
+}
+
+pub fn interactive<T: TypeTheory + Kernel + Reducer>(
+    // config: &Config,
+    workspace: &str,
+) -> Result<(), String> {
+    let parser = LofParser::new(Config::new(TypeSystem::Cic()));
+    let mut program = Program::new();
+
+    while true {
+        let input = "".to_string();
+        if should_exit(input) {
+            break;
+        }
+
+        let (_, node) = parser.parse_node(input)?;
+        let elaborated_node = qualcosa(node)?;
+        match node {
+            Ex``
+        }
+    }
+
     let mut program: Program<T> = type_check(config, workspace)?;
     program.execute()
 }
