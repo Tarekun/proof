@@ -5,9 +5,8 @@ use super::type_check::{
     type_check_axiom, type_check_forall, type_check_fun, type_check_let,
     type_check_theorem, type_check_var,
 };
-use crate::misc::Union;
-use crate::parser::api::{LofAst, Tactic};
-use crate::runtime::program::Program;
+use crate::misc::Union::{self, L, R};
+use crate::parser::api::{Expression, Tactic};
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::fol::fol::FolFormula::{
@@ -71,6 +70,7 @@ impl TypeTheory for Fol {
     type Term = FolTerm;
     type Type = FolFormula;
     type Stm = FolStm;
+    type Exp = Union<FolTerm, FolFormula>;
 
     fn default_environment() -> Environment<FolTerm, FolFormula> {
         Environment::with_defaults(
@@ -102,23 +102,27 @@ impl TypeTheory for Fol {
         }
     }
 
-    fn elaborate_ast(ast: LofAst) -> Result<Program<Fol>, String> {
-        let mut program = Program::new();
-
-        match ast {
-            LofAst::Stm(stm) => {
-                let _ = elaborate_statement(stm, &mut program);
-            }
-            LofAst::Exp(exp) => {
-                let _ = elaborate_expression(exp);
-            }
-        }
-
-        Ok(program)
+    fn elaborate_expression(exp: &Expression) -> Result<Self::Exp, String> {
+        elaborate_expression(exp)
+    }
+    fn elaborate_statement(
+        stm: &crate::parser::api::Statement,
+    ) -> Result<Vec<FolStm>, String> {
+        elaborate_statement(stm)
     }
 }
 
 impl Kernel for Fol {
+    fn type_check_expression(
+        exp: &Union<FolTerm, FolFormula>,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String> {
+        match exp {
+            L(term) => Fol::type_check_term(term, environment),
+            R(typee) => Fol::type_check_type(typee, environment),
+        }
+    }
+
     fn type_check_term(
         term: &FolTerm,
         environment: &mut Environment<FolTerm, FolFormula>,
@@ -210,6 +214,18 @@ impl Refiner for Fol {
 }
 
 impl Reducer for Fol {
+    fn normalize_expression(
+        environment: &mut Environment<FolTerm, FolFormula>,
+        exp: &Union<FolTerm, FolFormula>,
+    ) -> Union<FolTerm, FolFormula> {
+        match exp {
+            L(term) => L(Fol::normalize_term(environment, term)),
+            R(typee) => {
+                panic!("TODO still need to implement type normalization in FOL")
+            }
+        }
+    }
+
     fn normalize_term(
         environment: &mut Environment<FolTerm, FolFormula>,
         term: &FolTerm,
@@ -230,8 +246,6 @@ impl Reducer for Fol {
 }
 
 impl Interactive for Fol {
-    type Exp = Union<FolTerm, FolFormula>;
-
     fn proof_hole() -> Self::Term {
         Variable("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
     }

@@ -1,6 +1,6 @@
 use crate::misc::Union::{self, L, R};
 use crate::parser::api::{Expression, LofAst, Statement, Tactic};
-use crate::runtime::program::{Program, Schedule};
+use crate::runtime::program::Schedule;
 use crate::type_theory::environment::Environment;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -84,13 +84,19 @@ pub trait Kernel: TypeTheory {
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 
-    /// Type check the type and returns its type.
+    /// Type checks the type and returns its type.
     fn type_check_type(
         typee: &Self::Type,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 
-    /// Type check the statement components
+    // Type checks the expression and returns its type
+    fn type_check_expression(
+        exp: &Self::Exp,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String>;
+
+    /// Type checks the statement components
     fn type_check_stm(
         term: &Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
@@ -124,6 +130,11 @@ pub trait Reducer: TypeTheory {
         term: &Self::Term,
     ) -> Self::Term;
 
+    fn normalize_expression(
+        environment: &mut Environment<Self::Term, Self::Type>,
+        exp: &Self::Exp,
+    ) -> Self::Exp;
+
     /// Evaluates the statement, updating the context accordingly
     fn evaluate_statement(
         environment: &mut Environment<Self::Term, Self::Type>,
@@ -133,8 +144,6 @@ pub trait Reducer: TypeTheory {
 
 /// Interactive module, implements tactic checking for interactive theorem proving
 pub trait Interactive: TypeTheory {
-    // type Exp;
-
     /// Canonical proof hole term for partial proofs
     fn proof_hole() -> Self::Term;
     /// Canonical empty  target signaling the completeness of the proof

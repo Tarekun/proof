@@ -99,30 +99,22 @@ fn run_with_theory<T: TypeTheory + Kernel + Reducer>(
 ) {
     match entrypoint {
         EntryPoint::Execute => match execute::<T>(&config, filepath) {
-            Ok(_) => {}
             Err(message) => error!("Program failed: {}", message),
+            Ok(_) => {}
         },
         EntryPoint::TypeCheck => match type_check::<T>(&config, filepath) {
-            Ok(program) => {
-                for node in program.schedule_iterable() {
-                    debug!("node in the type checked program: {:?}", node);
-                }
-            }
             Err(message) => error!("Program failed: {}", message),
+            Ok(_) => {}
         },
         EntryPoint::Elaborate => {
             match parse_and_elaborate::<T>(&config, filepath) {
-                Ok(program) => {
-                    for node in program.schedule_iterable() {
-                        debug!("node in the elaborated program: {:?}", node);
-                    }
-                }
                 Err(message) => error!("Program failed: {}", message),
+                Ok(_) => {}
             }
         }
         EntryPoint::ParseOnly => match parse_only(&config, filepath) {
-            Ok(ast) => info!("Parsed AST: {:?}", ast),
             Err(message) => error!("Program failed: {}", message),
+            Ok(_) => {}
         },
         EntryPoint::Help => help(),
     }

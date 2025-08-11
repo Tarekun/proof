@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use super::{
     saturation::saturate,
     type_check::{
@@ -9,7 +7,7 @@ use super::{
     },
 };
 use crate::{
-    runtime::program::Program,
+    misc::Union::{self, L, R},
     type_theory::{
         environment::Environment,
         interface::{Automatic, Kernel, TypeTheory},
@@ -22,6 +20,7 @@ use crate::{
         },
     },
 };
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SupTerm {
@@ -48,6 +47,7 @@ pub struct Sup;
 impl TypeTheory for Sup {
     type Term = SupTerm;
     type Type = SupFormula;
+    type Exp = Union<SupTerm, SupFormula>;
     type Stm = ();
 
     fn default_environment() -> Environment<SupTerm, SupFormula> {
@@ -75,12 +75,17 @@ impl TypeTheory for Sup {
         }
     }
 
-    fn elaborate_ast(
-        _ast: crate::parser::api::LofAst,
-    ) -> Result<Program<Self>, String>
-    where
-        Self: Sized,
-    {
+    fn elaborate_expression(
+        _: &crate::parser::api::Expression,
+    ) -> Result<Self::Exp, String> {
+        Err(
+            "TODO: superposition calculus doesnt support elaboration currently"
+                .to_string(),
+        )
+    }
+    fn elaborate_statement(
+        _: &crate::parser::api::Statement,
+    ) -> Result<Vec<Self::Stm>, String> {
         Err(
             "TODO: superposition calculus doesnt support elaboration currently"
                 .to_string(),
@@ -124,6 +129,16 @@ impl Kernel for Sup {
                 type_check_forall(environment, var_name, var_type, ψ)
             }
             Clause(literals) => type_check_clause(environment, literals),
+        }
+    }
+
+    fn type_check_expression(
+        exp: &Union<SupTerm, SupFormula>,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String> {
+        match exp {
+            L(term) => Sup::type_check_term(term, environment),
+            R(typee) => Sup::type_check_type(typee, environment),
         }
     }
 

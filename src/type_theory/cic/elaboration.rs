@@ -389,10 +389,9 @@ fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Vec<CicStm>, String> {
 mod unit_tests {
     use crate::{
         parser::api::Expression,
-        runtime::program::{Program, ProgramNode},
         type_theory::cic::{
             cic::{
-                Cic, CicStm,
+                CicStm,
                 CicTerm::{
                     Abstraction, Application, Match, Product, Sort, Variable,
                 },
@@ -578,9 +577,8 @@ mod unit_tests {
     #[test]
     fn test_inductive_elaboration() {
         let ariety = Expression::VarUse("TYPE".to_string());
-        let program: Program<Cic> = Program::new();
 
-        let _ = elaborate_inductive(
+        let result = elaborate_inductive(
             &"nat".to_string(),
             &vec![],
             &ariety,
@@ -597,8 +595,8 @@ mod unit_tests {
             ],
         );
         assert_eq!(
-            program.peek_top_schedule(),
-            Some(&ProgramNode::OfStm(CicStm::InductiveDef(
+            result,
+            Ok(CicStm::InductiveDef(
                 "nat".to_string(),
                 vec![],
                 Box::new(Sort("TYPE".to_string())),
@@ -616,7 +614,7 @@ mod unit_tests {
                         )
                     )
                 ]
-            ))),
+            )),
             "Inductive elaboration isnt working with constant constructor"
         );
     }

@@ -1,4 +1,4 @@
-use crate::runtime::program::ProgramNode::{OfStm, OfTerm};
+use crate::runtime::program::ProgramNode::{OfExp, OfStm};
 use crate::type_theory::{
     environment::Environment,
     interface::{Reducer, TypeTheory},
@@ -6,13 +6,13 @@ use crate::type_theory::{
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ProgramNode<Term, Stm> {
+pub enum ProgramNode<Exp, Stm> {
     OfStm(Stm),
-    OfTerm(Term),
+    OfExp(Exp),
 }
 
 pub struct Schedule<T: TypeTheory> {
-    schedule: VecDeque<ProgramNode<T::Term, T::Stm>>,
+    schedule: VecDeque<ProgramNode<T::Exp, T::Stm>>,
 }
 
 impl<T: TypeTheory> Schedule<T> {
@@ -28,7 +28,17 @@ impl<T: TypeTheory> Schedule<T> {
     }
 
     pub fn add_expression(&mut self, term: &T::Exp) {
-        self.schedule.push_back(ProgramNode::OfTerm(term.clone()));
+        self.schedule.push_back(ProgramNode::OfExp(term.clone()));
+    }
+
+    pub fn peek_latest(&self) -> Option<&ProgramNode<T::Exp, T::Stm>> {
+        self.schedule.back()
+    }
+
+    pub fn iterate(
+        &self,
+    ) -> impl Iterator<Item = &ProgramNode<T::Exp, T::Stm>> {
+        self.schedule.iter()
     }
 }
 
@@ -57,24 +67,17 @@ where
         }
     }
 
-    pub fn schedule_iterable(
-        &self,
-    ) -> std::collections::vec_deque::Iter<'_, ProgramNode<T::Term, T::Stm>>
-    {
-        self.schedule.iter()
-    }
-
-    pub fn peek_top_schedule(&self) -> Option<&ProgramNode<T::Term, T::Stm>> {
-        self.schedule.back()
+    pub fn peek_top_schedule(&self) -> Option<&ProgramNode<T::Exp, T::Stm>> {
+        self.schedule.peek_latest()
     }
 
     // TODO: this should handle both terms and type expressions
     pub fn execute_expression(
         &mut self,
-        exp: &T::Term,
-    ) -> Result<T::Term, String> {
+        exp: &T::Exp,
+    ) -> Result<T::Exp, String> {
         //TODO do something with the result
-        Ok(T::normalize_term(&mut self.environment, exp))
+        Ok(T::normalize_expression(&mut self.environment, exp))
     }
 
     pub fn execute_statement(&mut self, stm: &T::Stm) -> Result<(), String> {
@@ -84,10 +87,10 @@ where
 
     /// Execute the prorgam schedule
     pub fn execute(&mut self) -> Result<(), String> {
-        let schedule = self.schedule.clone();
-        for node in schedule {
+        let nodes: Vec<_> = self.schedule.iterate().cloned().collect();
+        for node in nodes {
             match node {
-                OfTerm(term) => {
+                OfExp(term) => {
                     let _normal_form = self.execute_expression(&term)?;
                 }
                 OfStm(stm) => {
