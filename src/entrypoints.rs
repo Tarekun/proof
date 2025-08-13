@@ -1,10 +1,12 @@
 use crate::config::Config;
+use crate::misc::Union::{L, R};
 use crate::parser::api::LofAst;
 use crate::parser::api::LofParser;
 use crate::runtime::program::Schedule;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::{Kernel, Reducer, TypeTheory};
+use std::io::{self, Write};
 use tracing::debug;
 
 #[derive(Debug)]
@@ -14,6 +16,7 @@ pub enum EntryPoint {
     Elaborate,
     ParseOnly,
     Help,
+    Interactive,
 }
 
 pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
@@ -97,29 +100,56 @@ pub fn execute<T: TypeTheory + Kernel + Reducer>(
     program.execute()
 }
 
-// pub fn interactive<T: TypeTheory + Kernel + Reducer>(
-//     // config: &Config,
-//     workspace: &str,
-// ) -> Result<(), String> {
-//     let parser = LofParser::new(Config::new(TypeSystem::Cic()));
-//     let mut program = Program::new();
+pub fn interactive<T: TypeTheory + Kernel + Reducer>(
+    config: &Config,
+    _workspace: &str,
+) -> Result<(), String> {
+    let parser = LofParser::new(config.clone());
+    let mut program: Program<T> = Program::new();
 
-//     while true {
-//         let input = "".to_string();
-//         if should_exit(input) {
-//             break;
-//         }
+    loop {
+        print!("> ");
+        // make sure the prompt shows immediately
+        io::stdout().flush().unwrap();
 
-//         let (_, node) = parser.parse_node(input)?;
-//         let elaborated_node = qualcosa(node)?;
-//         match node {
-//             Ex``
-//         }
-//     }
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| e.to_string())?;
 
-//     let mut program: Program<T> = type_check(config, workspace)?;
-//     program.execute()
-// }
+        let node = match parser.parse_node(input.trim()) {
+            Err(message) => {
+                println!("Parsing error: {:?}", message);
+                continue;
+            }
+            Ok((_, node)) => node,
+        };
+        match T::elaborate_node(&node)? {
+            L(exp) => {
+                match T::type_check_expression(&exp, &mut program.environment) {
+                    Err(message) => {
+                        println!("Type checking error: {}", message);
+                        continue;
+                    }
+                    Ok(_) => {}
+                }
+                let result =
+                    T::normalize_expression(&mut program.environment, &exp);
+                println!("{:?}", result);
+            }
+            R(stm) => {
+                match T::type_check_stm(&stm, &mut program.environment) {
+                    Err(message) => {
+                        println!("Type checking error: {}", message);
+                        continue;
+                    }
+                    Ok(_) => {}
+                }
+                let () = T::evaluate_statement(&mut program.environment, &stm);
+            }
+        }
+    }
+}
 
 pub fn help() {
     println!("Usage: lof <operation> <workspace> [--flags]");

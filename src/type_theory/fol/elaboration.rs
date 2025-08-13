@@ -4,7 +4,11 @@ use super::fol::FolTerm::{Abstraction, Application, Tuple, Variable};
 use super::fol::{Fol, FolFormula, FolTerm};
 use crate::misc::simple_map;
 use crate::parser::api::{Statement, Tactic};
-use crate::type_theory::commons::elaboration::elaborate_tactic;
+use crate::runtime::program::Schedule;
+use crate::type_theory::commons::elaboration::{
+    elaborate_ast_vector, elaborate_dir_root, elaborate_file_root,
+    elaborate_tactic,
+};
 use crate::type_theory::commons::utils::{wrap_term, wrap_type};
 use crate::type_theory::fol::fol::FolStm;
 use crate::{
@@ -227,96 +231,34 @@ pub fn elaborate_pipe(types: &Vec<Expression>) -> Result<FolFormula, String> {
 //########################### EXPRESSIONS ELABORATION
 //
 //########################### STATEMENTS ELABORATION
-pub fn elaborate_statement(ast: &Statement) -> Result<Vec<FolStm>, String> {
+pub fn elaborate_statement(ast: &Statement) -> Result<Schedule<Fol>, String> {
     match ast {
-        Statement::Comment() => Ok(vec![]),
+        Statement::Comment() => Ok(Schedule::new()),
         Statement::FileRoot(file_path, asts) => {
-            elaborate_file_root(file_path, asts)
+            elaborate_file_root::<Fol>(file_path, asts)
         }
         Statement::DirRoot(dirpath, asts) => elaborate_dir_root(dirpath, asts),
-        Statement::Axiom(axiom_name, formula) => {
-            Ok(vec![elaborate_axiom(axiom_name, formula)?])
-        }
-        Statement::Let(var_name, var_type, body) => {
-            Ok(vec![elaborate_let(var_name, var_type, body)?])
-        }
+        Statement::Axiom(axiom_name, formula) => Ok(Schedule::singleton_stm(
+            elaborate_axiom(axiom_name, formula)?,
+        )),
+        Statement::Let(var_name, var_type, body) => Ok(
+            Schedule::singleton_stm(elaborate_let(var_name, var_type, body)?),
+        ),
         Statement::Fun(fun_name, args, out_type, body, is_rec) => {
-            Ok(vec![elaborate_fun(fun_name, args, out_type, body, is_rec)?])
+            Ok(Schedule::singleton_stm(elaborate_fun(
+                fun_name, args, out_type, body, is_rec,
+            )?))
         }
         Statement::EmptyRoot(nodes) => elaborate_empty(nodes),
         Statement::Theorem(theorem_name, formula, proof) => {
-            Ok(vec![elaborate_theorem(theorem_name, formula, proof)?])
+            Ok(Schedule::singleton_stm(elaborate_theorem(
+                theorem_name,
+                formula,
+                proof,
+            )?))
         }
         _ => Err(format!("Language construct {:?} not supported in FOL", ast)),
     }
-}
-//
-//
-fn elaborate_ast_vector(
-    root: &String,
-    asts: &Vec<LofAst>,
-) -> Result<Vec<FolStm>, String> {
-    let mut errors: Vec<_> = vec![];
-    let mut elaborated_statements = vec![];
-
-    for sub_ast in asts {
-        match sub_ast {
-            LofAst::Stm(stm) => match elaborate_statement(&stm) {
-                Err(message) => errors.push(message),
-                Ok(stms) => {
-                    elaborated_statements.extend(stms);
-                }
-            },
-            LofAst::Exp(exp) => {
-                let term = elaborate_expression(exp);
-                // If we want to push terms, it should be handled by the caller
-                // For now, just ignore them since they are not part of statements.
-                // TODO: this function is used for script import too so this should be ignored
-            }
-        }
-    }
-
-    if errors.is_empty() {
-        Ok(elaborated_statements)
-    } else {
-        Err(format!(
-            "Elaborating the ASTs rooted at '{}' raised errors:\n{}",
-            root,
-            errors.join("\n")
-        ))
-    }
-}
-
-pub fn elaborate_file_root(
-    file_path: &String,
-    asts: &Vec<LofAst>,
-) -> Result<Vec<FolStm>, String> {
-    elaborate_ast_vector(file_path, asts)
-}
-//
-//
-pub fn elaborate_dir_root(
-    dir_path: &String,
-    asts: &Vec<LofAst>,
-) -> Result<Vec<FolStm>, String> {
-    let mut elaborated_statements = vec![];
-
-    for sub_ast in asts {
-        match sub_ast {
-            LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
-                let nested_statements = elaborate_file_root(
-                    &format!("{}/{}", dir_path, file_path),
-                    file_contet,
-                )?;
-                elaborated_statements.extend(nested_statements);
-            }
-            _ => {
-                return Err(format!("AST nodes of directory node can only be FileRoot, not {:?}", sub_ast));
-            }
-        }
-    }
-
-    Ok(elaborated_statements)
 }
 //
 //
@@ -442,8 +384,8 @@ pub fn elaborate_fun(
 }
 //
 //
-pub fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Vec<FolStm>, String> {
-    elaborate_ast_vector(&"".to_string(), nodes)
+pub fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Schedule<Fol>, String> {
+    elaborate_ast_vector::<Fol>(&"".to_string(), nodes)
 }
 //
 //########################### STATEMENTS ELABORATION

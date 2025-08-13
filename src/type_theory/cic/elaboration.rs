@@ -10,7 +10,11 @@ use crate::misc::simple_map;
 use crate::misc::Union;
 use crate::misc::Union::{L, R};
 use crate::parser::api::{Expression, LofAst, Statement, Tactic};
-use crate::type_theory::commons::elaboration::elaborate_tactic;
+use crate::runtime::program::Schedule;
+use crate::type_theory::cic::cic::Cic;
+use crate::type_theory::commons::elaboration::{
+    elaborate_ast_vector, elaborate_tactic,
+};
 
 fn map_typed_variables(
     variables: &Vec<(String, Expression)>,
@@ -22,44 +26,6 @@ fn map_typed_variables(
         })
         .collect()
 }
-
-fn elaborate_ast_vector(
-    root: &String,
-    asts: &Vec<LofAst>,
-) -> Result<Vec<CicStm>, String> {
-    let mut errors: Vec<_> = vec![];
-    let mut elaborated_statements = vec![];
-
-    for sub_ast in asts {
-        match sub_ast {
-            LofAst::Stm(stm) => match elaborate_statement(&stm) {
-                Err(message) => errors.push(message),
-                Ok(stms) => {
-                    for elaborated_stm in stms {
-                        elaborated_statements.push(elaborated_stm);
-                    }
-                }
-            },
-            LofAst::Exp(exp) => {
-                let term = elaborate_expression(&exp);
-                // If we want to push terms, it should be handled by the caller
-                // For now, just ignore them since they are not part of statements.
-                // TODO: this function is used for script import too so this should be ignored
-            }
-        }
-    }
-
-    if errors.is_empty() {
-        Ok(elaborated_statements)
-    } else {
-        Err(format!(
-            "Elaborating the ASTs rooted at '{}' raised errors:\n{}",
-            root,
-            errors.join("\n")
-        ))
-    }
-}
-
 //
 //########################### EXPRESSIONS ELABORATION
 /// Performs elaboration of the LoF `Expression` to a `CicTerm`.
@@ -239,16 +205,16 @@ pub fn elaborate_statement(ast: &Statement) -> Result<Vec<CicStm>, String> {
 fn elaborate_file_root(
     file_path: &String,
     asts: &Vec<LofAst>,
-) -> Result<Vec<CicStm>, String> {
-    elaborate_ast_vector(file_path, asts)
+) -> Result<Schedule<Cic>, String> {
+    elaborate_ast_vector::<Cic>(file_path, asts)
 }
 //
 //
 fn elaborate_dir_root(
     dir_path: &String,
     asts: &Vec<LofAst>,
-) -> Result<Vec<CicStm>, String> {
-    let mut elaborated_statements = vec![];
+) -> Result<Schedule<Cic>, String> {
+    let mut schedule = Schedule::new();
     for sub_ast in asts {
         match sub_ast {
             LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
@@ -379,7 +345,7 @@ fn elaborate_theorem(
 //
 //
 fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Vec<CicStm>, String> {
-    elaborate_ast_vector(&"".to_string(), nodes)
+    elaborate_ast_vector::<Cic>(&"".to_string(), nodes)
 }
 //
 //########################### STATEMENTS ELABORATION

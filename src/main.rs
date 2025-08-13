@@ -67,19 +67,18 @@ use entrypoints::{
 };
 use logger::init_logger;
 use std::env;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use type_theory::{
     cic::cic::Cic,
     fol::fol::Fol,
     interface::{Kernel, Reducer, TypeTheory},
 };
 
+use crate::{entrypoints::interactive, file_manager::read_ascii_logo};
+
 fn determine_entrypoint(args: &[String]) -> EntryPoint {
-    // if no workspace is specified run the help entrypoint
-    // this works properly only if Help is the only entrypoint which
-    // doesnt require a workspace
-    if args.len() < 3 {
-        return EntryPoint::Help;
+    if args.len() < 2 {
+        return EntryPoint::Interactive;
     }
 
     match args[1].as_str() {
@@ -88,6 +87,7 @@ fn determine_entrypoint(args: &[String]) -> EntryPoint {
         "parse" => EntryPoint::ParseOnly,
         "help" => EntryPoint::Help,
         "run" => EntryPoint::Execute,
+        "interactive" => EntryPoint::Interactive,
         _ => EntryPoint::Help,
     }
 }
@@ -117,16 +117,20 @@ fn run_with_theory<T: TypeTheory + Kernel + Reducer>(
             Ok(_) => {}
         },
         EntryPoint::Help => help(),
+        EntryPoint::Interactive => match interactive::<T>(&config, filepath) {
+            Err(message) => error!("Program failed: {}", message),
+            Ok(_) => {}
+        },
     }
 }
 
 fn main() {
-    println!("################ PROGRAM START #################\n");
+    println!("{}", read_ascii_logo().unwrap());
     let args: Vec<String> = env::args().collect();
 
     // get cli args
     let entrypoint = determine_entrypoint(&args);
-    let filepath = &args.get(2).cloned().unwrap_or_default();
+    let filepath = &args.get(2).cloned().unwrap_or_else(|| ".".to_string());
     let config_path = match get_flag_value(&args, "--config") {
         Some(path) => path,
         None => "./config.yml".to_string(),
@@ -135,8 +139,8 @@ fn main() {
     let config = load_config(&config_path).unwrap();
     init_logger(&config);
 
-    info!("Specified config: {:?}", config);
-    info!("Requested entrypoint: {:?}", entrypoint);
+    debug!("Specified config: {:?}", config);
+    debug!("Requested entrypoint: {:?}", entrypoint);
 
     match config.system {
         TypeSystem::Cic() => {

@@ -3,7 +3,7 @@ use crate::type_theory::{
     environment::Environment,
     interface::{Reducer, TypeTheory},
 };
-use std::collections::VecDeque;
+use std::collections::{vec_deque, VecDeque};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProgramNode<Exp, Stm> {
@@ -21,6 +21,11 @@ impl<T: TypeTheory> Schedule<T> {
             schedule: VecDeque::new(),
         }
     }
+    pub fn singleton_stm(statement: T::Stm) -> Self {
+        let mut deq = VecDeque::new();
+        deq.push_back(OfStm(statement));
+        Self { schedule: deq }
+    }
 
     pub fn add_statement(&mut self, statement: &T::Stm) {
         self.schedule
@@ -35,10 +40,14 @@ impl<T: TypeTheory> Schedule<T> {
         self.schedule.back()
     }
 
-    pub fn iterate(
-        &self,
-    ) -> impl Iterator<Item = &ProgramNode<T::Exp, T::Stm>> {
+    pub fn iter(&self) -> impl Iterator<Item = &ProgramNode<T::Exp, T::Stm>> {
         self.schedule.iter()
+    }
+
+    pub fn extend(&mut self, other: &Schedule<T>) {
+        for node in other.iter() {
+            self.schedule.push_back(node.clone());
+        }
     }
 }
 
@@ -87,7 +96,7 @@ where
 
     /// Execute the prorgam schedule
     pub fn execute(&mut self) -> Result<(), String> {
-        let nodes: Vec<_> = self.schedule.iterate().cloned().collect();
+        let nodes: Vec<_> = self.schedule.iter().cloned().collect();
         for node in nodes {
             match node {
                 OfExp(term) => {

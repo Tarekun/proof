@@ -1,8 +1,11 @@
+use rand::prelude::IndexedRandom;
 use std::fs;
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
 
 const SOURCE_FILE_EXTENSION: &str = ".lof";
+const LOGOS_DIRECTORY: &str = "./ascii_logos";
 
 /// Opens the file at `filepath` and returns its content in the returned string
 pub fn read_file(filepath: &str) -> Result<String, io::Error> {
@@ -57,4 +60,51 @@ pub fn list_sources(workspace: &str) -> Vec<String> {
     } else {
         panic!("Workspace path does not point to an existing directory or file: {}", workspace);
     }
+}
+
+/// Reads one of the LoF logos in ASCII art at random
+pub fn read_ascii_logo() -> std::io::Result<String> {
+    let dir = Path::new(LOGOS_DIRECTORY);
+    let logos: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+
+            if path.extension()?.to_str()? == "txt" {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if logos.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("No logos found in directory {}", LOGOS_DIRECTORY),
+        ));
+    }
+
+    let mut rng = rand::rng();
+    let picked_logo = logos.choose(&mut rng).unwrap().to_str().unwrap();
+    let logo_content = read_file(picked_logo)?;
+
+    let logo_width = logo_content
+        .lines()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    let border = "=".repeat(logo_width);
+    let label = "LoF Proof Assistant".to_string();
+    let padding = if label.len() < logo_width {
+        " ".repeat((logo_width - label.len()) / 2)
+    } else {
+        "".to_string()
+    };
+    let final_logo = format!(
+        "{}\n{}\n{}\n{}{}{}\n",
+        border, logo_content, border, padding, label, padding
+    );
+
+    Ok(final_logo)
 }
