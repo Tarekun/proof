@@ -39,7 +39,7 @@ pub fn parse_and_elaborate<T: TypeTheory + Kernel>(
     let schedule = T::elaborate_ast(&ast)?;
     debug!("Elaboration done.");
 
-    for node in schedule.iterate() {
+    for node in schedule.iter() {
         debug!("node in the elaborated program: {:?}", node);
     }
     Ok(schedule)
@@ -55,7 +55,7 @@ pub fn type_check<T: TypeTheory + Kernel + Reducer>(
         T::default_environment();
     let mut errors = vec![];
 
-    for node in schedule.iterate() {
+    for node in schedule.iter() {
         match node {
             ProgramNode::OfExp(exp) => {
                 match T::type_check_expression(exp, &mut environment) {

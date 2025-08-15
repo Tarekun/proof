@@ -1,6 +1,9 @@
 use crate::misc::Union::{self, L, R};
 use crate::parser::api::{Expression, LofAst, Statement, Tactic};
-use crate::runtime::program::Schedule;
+use crate::runtime::program::{
+    ProgramNode::{OfExp, OfStm},
+    Schedule,
+};
 use crate::type_theory::environment::Environment;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -39,16 +42,28 @@ pub trait TypeTheory {
     ) -> Result<(), String>;
 
     fn elaborate_expression(exp: &Expression) -> Result<Self::Exp, String>;
-    fn elaborate_statement(stm: &Statement) -> Result<Vec<Self::Stm>, String>;
+    fn elaborate_statement(stm: &Statement) -> Result<Schedule<Self>, String>
+    where
+        Self: Sized;
 
     fn elaborate_node(
         node: &LofAst,
-    ) -> Result<Union<Self::Exp, Self::Stm>, String> {
+    ) -> Result<Union<Self::Exp, Self::Stm>, String>
+    where
+        Self: Sized,
+    {
         match node {
             LofAst::Exp(exp) => Ok(L(Self::elaborate_expression(exp)?)),
-            //TODO in case of nested staments this has no concept of schedule and picks the first element at random
             LofAst::Stm(stm) => {
-                Ok(R(Self::elaborate_statement(stm)?[0].clone()))
+                //TODO in case of nested staments this has no concept of schedule and picks the first element at random
+                let first_stm = Self::elaborate_statement(stm)?
+                    .peek_first()
+                    .unwrap()
+                    .to_owned();
+                match first_stm {
+                    OfStm(stm) => Ok(R(stm)),
+                    OfExp(_) => Err("TODO".to_string()),
+                }
             }
         }
     }
@@ -66,9 +81,8 @@ pub trait TypeTheory {
                 schedule.add_expression(&exp);
             }
             LofAst::Stm(stm) => {
-                for stm in Self::elaborate_statement(stm)? {
-                    schedule.add_statement(&stm);
-                }
+                let subschedule = Self::elaborate_statement(stm)?;
+                schedule.extend(&subschedule);
             }
         }
 

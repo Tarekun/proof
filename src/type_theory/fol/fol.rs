@@ -6,7 +6,8 @@ use super::type_check::{
     type_check_theorem, type_check_var,
 };
 use crate::misc::Union::{self, L, R};
-use crate::parser::api::{Expression, Tactic};
+use crate::parser::api::{Expression, Statement, Tactic};
+use crate::runtime::program::Schedule;
 use crate::type_theory::commons::evaluation::generic_term_normalization;
 use crate::type_theory::environment::Environment;
 use crate::type_theory::fol::fol::FolFormula::{
@@ -105,9 +106,7 @@ impl TypeTheory for Fol {
     fn elaborate_expression(exp: &Expression) -> Result<Self::Exp, String> {
         elaborate_expression(exp)
     }
-    fn elaborate_statement(
-        stm: &crate::parser::api::Statement,
-    ) -> Result<Vec<FolStm>, String> {
+    fn elaborate_statement(stm: &Statement) -> Result<Schedule<Fol>, String> {
         elaborate_statement(stm)
     }
 }

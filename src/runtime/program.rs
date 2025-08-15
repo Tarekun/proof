@@ -3,7 +3,7 @@ use crate::type_theory::{
     environment::Environment,
     interface::{Reducer, TypeTheory},
 };
-use std::collections::{vec_deque, VecDeque};
+use std::collections::VecDeque;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProgramNode<Exp, Stm> {
@@ -38,6 +38,9 @@ impl<T: TypeTheory> Schedule<T> {
 
     pub fn peek_latest(&self) -> Option<&ProgramNode<T::Exp, T::Stm>> {
         self.schedule.back()
+    }
+    pub fn peek_first(&self) -> Option<&ProgramNode<T::Exp, T::Stm>> {
+        self.schedule.front()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ProgramNode<T::Exp, T::Stm>> {

@@ -8,7 +8,8 @@ use super::type_check::{
 };
 use super::unification::{cic_unification, solve_unification};
 use crate::misc::Union::{self};
-use crate::parser::api::Tactic;
+use crate::parser::api::{Expression, Statement, Tactic};
+use crate::runtime::program::Schedule;
 use crate::type_theory::cic::elaboration::{
     elaborate_expression, elaborate_statement,
 };
@@ -96,14 +97,10 @@ impl TypeTheory for Cic {
         common_unification_check(type1, type2)
     }
 
-    fn elaborate_expression(
-        exp: &crate::parser::api::Expression,
-    ) -> Result<Self::Exp, String> {
+    fn elaborate_expression(exp: &Expression) -> Result<CicTerm, String> {
         Ok(elaborate_expression(exp))
     }
-    fn elaborate_statement(
-        stm: &crate::parser::api::Statement,
-    ) -> Result<Vec<Self::Stm>, String> {
+    fn elaborate_statement(stm: &Statement) -> Result<Schedule<Cic>, String> {
         elaborate_statement(stm)
     }
 }

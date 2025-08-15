@@ -167,33 +167,39 @@ fn elaborate_match(
 //########################### EXPRESSIONS ELABORATION
 //
 //########################### STATEMENTS ELABORATION
-pub fn elaborate_statement(ast: &Statement) -> Result<Vec<CicStm>, String> {
+pub fn elaborate_statement(ast: &Statement) -> Result<Schedule<Cic>, String> {
     match ast {
-        Statement::Comment() => Ok(vec![]),
+        Statement::Comment() => Ok(Schedule::new()),
         Statement::FileRoot(file_path, asts) => {
             elaborate_file_root(file_path, asts)
         }
         Statement::DirRoot(dirpath, asts) => elaborate_dir_root(dirpath, asts),
-        Statement::Axiom(axiom_name, formula) => {
-            Ok(vec![elaborate_axiom(axiom_name, formula)?])
-        }
-        Statement::Let(var_name, var_type, body) => {
-            Ok(vec![elaborate_let(var_name, var_type, body)?])
-        }
+        Statement::Axiom(axiom_name, formula) => Ok(Schedule::singleton_stm(
+            elaborate_axiom(axiom_name, formula)?,
+        )),
+        Statement::Let(var_name, var_type, body) => Ok(
+            Schedule::singleton_stm(elaborate_let(var_name, var_type, body)?),
+        ),
         Statement::Inductive(type_name, parameters, ariety, constructors) => {
-            Ok(vec![elaborate_inductive(
+            Ok(Schedule::singleton_stm(elaborate_inductive(
                 type_name,
                 parameters,
                 ariety,
                 constructors,
-            )?])
+            )?))
         }
         Statement::Fun(fun_name, args, out_type, body, is_rec) => {
-            Ok(vec![elaborate_fun(fun_name, args, out_type, body, is_rec)?])
+            Ok(Schedule::singleton_stm(elaborate_fun(
+                fun_name, args, out_type, body, is_rec,
+            )?))
         }
         Statement::EmptyRoot(nodes) => Ok(elaborate_empty(nodes)?),
         Statement::Theorem(theorem_name, formula, proof) => {
-            Ok(vec![elaborate_theorem(theorem_name, formula, proof)?])
+            Ok(Schedule::singleton_stm(elaborate_theorem(
+                theorem_name,
+                formula,
+                proof,
+            )?))
         } // _ => Err(format!(
           //     "Language construct {:?} not supported in CIC",
           //     ast
@@ -218,11 +224,11 @@ fn elaborate_dir_root(
     for sub_ast in asts {
         match sub_ast {
             LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
-                let nested_statements = elaborate_file_root(
+                let content = elaborate_file_root(
                     &format!("{}/{}", dir_path, file_path),
                     file_contet,
                 )?;
-                elaborated_statements.extend(nested_statements);
+                schedule.extend(&content);
             }
             _ => {
                 return Err(format!("AST nodes of directory node can only be FileRoot, not {:?}", sub_ast));
@@ -230,7 +236,7 @@ fn elaborate_dir_root(
         }
     }
 
-    Ok(elaborated_statements)
+    Ok(schedule)
 }
 //
 //
@@ -344,7 +350,7 @@ fn elaborate_theorem(
 }
 //
 //
-fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Vec<CicStm>, String> {
+fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Schedule<Cic>, String> {
     elaborate_ast_vector::<Cic>(&"".to_string(), nodes)
 }
 //

@@ -20,9 +20,7 @@ pub fn elaborate_ast_vector<T: TypeTheory>(
             LofAst::Stm(stm) => match T::elaborate_statement(&stm) {
                 Err(message) => errors.push(message),
                 Ok(stms) => {
-                    for elaborated_stm in stms {
-                        schedule.add_statement(&elaborated_stm);
-                    }
+                    schedule.extend(&stms);
                 }
             },
             LofAst::Exp(exp) => match T::elaborate_expression(&exp) {

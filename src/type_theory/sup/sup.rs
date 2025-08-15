@@ -8,6 +8,7 @@ use super::{
 };
 use crate::{
     misc::Union::{self, L, R},
+    runtime::program::Schedule,
     type_theory::{
         environment::Environment,
         interface::{Automatic, Kernel, TypeTheory},
@@ -85,7 +86,7 @@ impl TypeTheory for Sup {
     }
     fn elaborate_statement(
         _: &crate::parser::api::Statement,
-    ) -> Result<Vec<Self::Stm>, String> {
+    ) -> Result<Schedule<Sup>, String> {
         Err(
             "TODO: superposition calculus doesnt support elaboration currently"
                 .to_string(),
