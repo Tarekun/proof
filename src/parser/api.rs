@@ -99,6 +99,7 @@ impl LofParser {
         ))(input)
     }
 
+    /// Fully parses the source file at `filepath` and returns its corresponding AST
     pub fn parse_source_file(&self, filepath: &str) -> (String, LofAst) {
         let source = match read_source_file(filepath) {
             Ok(content) => content,
@@ -120,6 +121,7 @@ impl LofParser {
         )
     }
 
+    /// Fully parses the code contained in `workspace` amd returns its corresponding AST
     pub fn parse_workspace(
         &self,
         _config: &Config,

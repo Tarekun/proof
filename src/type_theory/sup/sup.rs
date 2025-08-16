@@ -1,16 +1,15 @@
-use std::cmp::Ordering;
-
 use super::{
     saturation::saturate,
     type_check::{
         type_check_application, type_check_atomic, type_check_clause,
         type_check_equality, type_check_forall, type_check_not,
-        type_check_variable,
     },
 };
 use crate::{
-    runtime::program::Program,
+    misc::Union::{self, L, R},
+    runtime::program::Schedule,
     type_theory::{
+        commons::type_check::type_check_variable,
         environment::Environment,
         interface::{Automatic, Kernel, TypeTheory},
         sup::{
@@ -22,6 +21,7 @@ use crate::{
         },
     },
 };
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SupTerm {
@@ -48,9 +48,10 @@ pub struct Sup;
 impl TypeTheory for Sup {
     type Term = SupTerm;
     type Type = SupFormula;
+    type Exp = Union<SupTerm, SupFormula>;
     type Stm = ();
 
-    fn default_environment() -> Environment<SupTerm, SupFormula> {
+    fn default_environment() -> Environment<Sup> {
         Environment::with_defaults(vec![], vec![], vec![])
     }
 
@@ -75,12 +76,17 @@ impl TypeTheory for Sup {
         }
     }
 
-    fn elaborate_ast(
-        _ast: crate::parser::api::LofAst,
-    ) -> Result<Program<Self>, String>
-    where
-        Self: Sized,
-    {
+    fn elaborate_expression(
+        _: &crate::parser::api::Expression,
+    ) -> Result<Self::Exp, String> {
+        Err(
+            "TODO: superposition calculus doesnt support elaboration currently"
+                .to_string(),
+        )
+    }
+    fn elaborate_statement(
+        _: &crate::parser::api::Statement,
+    ) -> Result<Schedule<Sup>, String> {
         Err(
             "TODO: superposition calculus doesnt support elaboration currently"
                 .to_string(),
@@ -95,10 +101,10 @@ impl Kernel for Sup {
     /// 3) recursively its arguments are well‐formed.
     fn type_check_term(
         term: &Self::Term,
-        env: &mut Environment<Self::Term, Self::Type>,
+        env: &mut Environment<Sup>,
     ) -> Result<Self::Type, String> {
         match term {
-            Variable(var_name) => type_check_variable(env, var_name),
+            Variable(var_name) => type_check_variable::<Sup>(env, var_name),
             Application(fun_name, args) => {
                 type_check_application(env, fun_name, args)
             }
@@ -112,7 +118,7 @@ impl Kernel for Sup {
     /// - `Clause(lits)`: each literal is either an atomic formula or a negated atomic formula.
     fn type_check_type(
         φ: &Self::Type,
-        environment: &mut Environment<Self::Term, Self::Type>,
+        environment: &mut Environment<Sup>,
     ) -> Result<Self::Type, String> {
         match φ {
             Atom(predicate, args) => {
@@ -127,12 +133,21 @@ impl Kernel for Sup {
         }
     }
 
-    fn type_check_stm(
-        stm: &Self::Stm,
-        env: &mut Environment<Self::Term, Self::Type>,
+    fn type_check_expression(
+        exp: &Union<SupTerm, SupFormula>,
+        environment: &mut Environment<Sup>,
     ) -> Result<Self::Type, String> {
-        //TODO find something better
-        Ok(Atom("Unit".to_string(), vec![]))
+        match exp {
+            L(term) => Sup::type_check_term(term, environment),
+            R(typee) => Sup::type_check_type(typee, environment),
+        }
+    }
+
+    fn type_check_stm(
+        _stm: &Self::Stm,
+        _env: &mut Environment<Sup>,
+    ) -> Result<Self::Type, String> {
+        Err("Statement type checking is not supported in SUP".to_string())
     }
 }
 

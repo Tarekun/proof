@@ -3,7 +3,7 @@ mod tests {
     use crate::type_theory::cic::{
         cic::{Cic, CicStm::{Fun, InductiveDef}, CicTerm::{Abstraction, Application, Match, Meta, Product, Sort, Variable}, GLOBAL_INDEX},
         type_check::{
-            inductive_eliminator, type_check_fun, type_check_inductive,
+            inductive_eliminator, type_check_inductive,
         },
     };
     use crate::type_theory::interface::Kernel;
@@ -955,13 +955,15 @@ mod tests {
         );
 
         assert!(
-            type_check_fun(
+            Cic::type_check_stm(
+                &Fun(
+                    "f".to_string(),
+                    vec![("t".to_string(), Sort("TYPE".to_string()))],
+                    Box::new(Sort("TYPE".to_string())),
+                    Box::new(Variable("t".to_string(), 0)),
+                    false
+                ),
                 &mut test_env,
-                "f",
-                &vec![("t".to_string(), Sort("TYPE".to_string()))],
-                &Sort("TYPE".to_string()),
-                &Variable("t".to_string(), 0),
-                &false
             )
             .is_ok(),
             "Type checking refuses identity function"
@@ -996,30 +998,34 @@ mod tests {
             ),
         );
         assert!(
-            type_check_fun(
-                &mut test_env,
-                "add",
-                &args,
-                &Sort("Nat".to_string()),
-                &Match(
-                    Box::new(Variable("n".to_string(), 0)),
-                    vec![zerobranch.clone(), succbranch.clone()]
+            Cic::type_check_stm(
+                &Fun(
+                    "add".to_string(),
+                    args.clone(),
+                    Box::new(Sort("Nat".to_string())),
+                    Box::new(Match(
+                        Box::new(Variable("n".to_string(), 0)),
+                        vec![zerobranch.clone(), succbranch.clone()]
+                    )),
+                    false
                 ),
-                &false
+                &mut test_env,
             )
             .is_err(),
             "Type checking accepts recursive function not marked as recursive"
         );
-        let res = type_check_fun(
-            &mut test_env,
-            "add",
-            &args,
-            &nat.clone(),
-            &Match(
-                Box::new(Variable("n".to_string(), 0)),
-                vec![zerobranch, succbranch],
+        let res = Cic::type_check_stm(
+            &Fun(
+                "add".to_string(),
+                args.clone(),
+                Box::new(nat.clone()),
+                Box::new(Match(
+                    Box::new(Variable("n".to_string(), 0)),
+                    vec![zerobranch, succbranch],
+                )),
+                true
             ),
-            &true,
+            &mut test_env,
         );
         assert!(
             res.is_ok(),
@@ -1028,13 +1034,15 @@ mod tests {
         );
 
         assert!(
-            type_check_fun(
+            Cic::type_check_stm(
+                &Fun(
+                    "f".to_string(),
+                    vec![], 
+                    Box::new(nat.clone()),
+                    Box::new(Sort("TYPE".to_string())),
+                    false
+                ),
                 &mut test_env,
-                "f",
-                &vec![], 
-                &nat.clone(),
-                &Sort("TYPE".to_string()), 
-                &false
             ).is_err(),
             "Type checking accept function with a inconsistent declared and result type",
         );
@@ -1515,6 +1523,14 @@ mod tests {
                 Box::new(nat.clone())
             )
         );
+        test_env.add_to_context(
+            "id", 
+            &Product(
+                "x".to_string(),
+                Box::new(Meta(1)),
+                Box::new(Meta(1))
+            )
+        );
 
         assert_eq!(
             Cic::type_check_term(
@@ -1530,6 +1546,22 @@ mod tests {
             ),
             Ok(Product("n".to_string(), Box::new(nat.clone()), Box::new(nat.clone()))),
             "Type checking cant inference the type of argument applied to a function Nat->Nat"
+        );
+
+        assert_eq!(
+            Cic::type_check_term(
+                &Abstraction(
+                    "n".to_string(), 
+                    Box::new(nat.clone()), 
+                    Box::new(Application(
+                        Box::new(Variable("id".to_string(), GLOBAL_INDEX)), 
+                        Box::new(Variable("n".to_string(), 0))
+                    ))
+                ), 
+                &mut test_env
+            ),
+            Ok(Product("n".to_string(), Box::new(nat.clone()), Box::new(nat.clone()))),
+            "Type checking cant inference the output type of a function Nat->Nat"
         );
     }
 
