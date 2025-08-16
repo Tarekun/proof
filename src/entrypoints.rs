@@ -1,11 +1,13 @@
-use tracing::debug;
-
 use crate::config::Config;
+use crate::misc::Union::{L, R};
 use crate::parser::api::LofAst;
 use crate::parser::api::LofParser;
+use crate::runtime::program::Schedule;
 use crate::runtime::program::{Program, ProgramNode};
 use crate::type_theory::environment::Environment;
 use crate::type_theory::interface::{Kernel, Reducer, TypeTheory};
+use std::io::{self, Write};
+use tracing::debug;
 
 #[derive(Debug)]
 pub enum EntryPoint {
@@ -14,6 +16,7 @@ pub enum EntryPoint {
     Elaborate,
     ParseOnly,
     Help,
+    Interactive,
 }
 
 pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
@@ -21,6 +24,7 @@ pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
     let parser = LofParser::new(config.clone());
     let ast = parser.parse_workspace(config, &workspace)?;
     debug!("Parsing done.");
+    debug!("Parsed AST: {:?}", ast);
 
     Ok(ast)
 }
@@ -28,32 +32,39 @@ pub fn parse_only(config: &Config, workspace: &str) -> Result<LofAst, String> {
 pub fn parse_and_elaborate<T: TypeTheory + Kernel>(
     config: &Config,
     workspace: &str,
-) -> Result<Program<T>, String> {
+) -> Result<Schedule<T>, String> {
     let ast = parse_only(config, workspace)?;
+
     debug!("Elaboration of the AST into a program...");
-    let program = T::elaborate_ast(ast)?;
+    let schedule = T::elaborate_ast(&ast)?;
     debug!("Elaboration done.");
-    Ok(program)
+
+    for node in schedule.iter() {
+        debug!("node in the elaborated program: {:?}", node);
+    }
+    Ok(schedule)
 }
 
 pub fn type_check<T: TypeTheory + Kernel + Reducer>(
     config: &Config,
     workspace: &str,
-) -> Result<Program<T>, String> {
-    let program: Program<T> = parse_and_elaborate::<T>(config, workspace)?;
+) -> Result<Schedule<T>, String> {
+    let schedule = parse_and_elaborate::<T>(config, workspace)?;
     debug!("Type checking of the program...");
     let mut environment: Environment<T::Term, T::Type> =
         T::default_environment();
     let mut errors = vec![];
 
-    for node in program.schedule_iterable() {
+    for node in schedule.iter() {
         match node {
-            ProgramNode::OfTerm(term) => {
-                match T::type_check_term(term, &mut environment) {
+            ProgramNode::OfExp(exp) => {
+                match T::type_check_expression(exp, &mut environment) {
                     Err(message) => {
                         errors.push(message);
                     }
-                    Ok(_) => {}
+                    Ok(_) => {
+                        debug!("type checked expression: {:?}", exp);
+                    }
                 }
             }
             ProgramNode::OfStm(stm) => {
@@ -61,7 +72,9 @@ pub fn type_check<T: TypeTheory + Kernel + Reducer>(
                     Err(message) => {
                         errors.push(message);
                     }
-                    Ok(_) => {}
+                    Ok(_) => {
+                        debug!("type checked statement: {:?}", stm);
+                    }
                 }
             }
         }
@@ -69,7 +82,7 @@ pub fn type_check<T: TypeTheory + Kernel + Reducer>(
     debug!("Type checking done.");
 
     if errors.is_empty() {
-        Ok(program)
+        Ok(schedule)
     } else {
         Err(format!(
             "Type checking failed with errors:\n{}",
@@ -82,8 +95,60 @@ pub fn execute<T: TypeTheory + Kernel + Reducer>(
     config: &Config,
     workspace: &str,
 ) -> Result<(), String> {
-    let mut program: Program<T> = type_check(config, workspace)?;
+    let schedule: Schedule<T> = type_check(config, workspace)?;
+    let mut program = Program::with_schedule(schedule);
     program.execute()
+}
+
+pub fn interactive<T: TypeTheory + Kernel + Reducer>(
+    config: &Config,
+    _workspace: &str,
+) -> Result<(), String> {
+    let parser = LofParser::new(config.clone());
+    let mut program: Program<T> = Program::new();
+
+    loop {
+        print!("> ");
+        // make sure the prompt shows immediately
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| e.to_string())?;
+
+        let node = match parser.parse_node(input.trim()) {
+            Err(message) => {
+                println!("Parsing error: {:?}", message);
+                continue;
+            }
+            Ok((_, node)) => node,
+        };
+        match T::elaborate_node(&node)? {
+            L(exp) => {
+                match T::type_check_expression(&exp, &mut program.environment) {
+                    Err(message) => {
+                        println!("Type checking error: {}", message);
+                        continue;
+                    }
+                    Ok(_) => {}
+                }
+                let result =
+                    T::normalize_expression(&mut program.environment, &exp);
+                println!("{:?}", result);
+            }
+            R(stm) => {
+                match T::type_check_stm(&stm, &mut program.environment) {
+                    Err(message) => {
+                        println!("Type checking error: {}", message);
+                        continue;
+                    }
+                    Ok(_) => {}
+                }
+                let () = T::evaluate_statement(&mut program.environment, &stm);
+            }
+        }
+    }
 }
 
 pub fn help() {

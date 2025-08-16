@@ -1,5 +1,9 @@
-use crate::parser::api::{LofAst, Tactic};
-use crate::runtime::program::Program;
+use crate::misc::Union::{self, L, R};
+use crate::parser::api::{Expression, LofAst, Statement, Tactic};
+use crate::runtime::program::{
+    ProgramNode::{OfExp, OfStm},
+    Schedule,
+};
 use crate::type_theory::environment::Environment;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -15,6 +19,8 @@ pub trait TypeTheory {
     type Type: Debug + Clone + PartialEq;
     /// Enum listing all the statements elaborated with proper types
     type Stm: Debug + Clone;
+    /// Type for the system's expressions, usually Term or Union<Term, Type>
+    type Exp: Debug + Clone;
 
     /// Create the default environment
     fn default_environment() -> Environment<Self::Term, Self::Type>;
@@ -35,10 +41,53 @@ pub trait TypeTheory {
         type2: &Self::Type,
     ) -> Result<(), String>;
 
-    /// Elaborate a full AST into a program.
-    fn elaborate_ast(ast: LofAst) -> Result<Program<Self>, String>
+    fn elaborate_expression(exp: &Expression) -> Result<Self::Exp, String>;
+    fn elaborate_statement(stm: &Statement) -> Result<Schedule<Self>, String>
     where
         Self: Sized;
+
+    fn elaborate_node(
+        node: &LofAst,
+    ) -> Result<Union<Self::Exp, Self::Stm>, String>
+    where
+        Self: Sized,
+    {
+        match node {
+            LofAst::Exp(exp) => Ok(L(Self::elaborate_expression(exp)?)),
+            LofAst::Stm(stm) => {
+                //TODO in case of nested staments this has no concept of schedule and picks the first element at random
+                let first_stm = Self::elaborate_statement(stm)?
+                    .peek_first()
+                    .unwrap()
+                    .to_owned();
+                match first_stm {
+                    OfStm(stm) => Ok(R(stm)),
+                    OfExp(_) => Err("TODO".to_string()),
+                }
+            }
+        }
+    }
+
+    /// Elaborate a full AST into a program.
+    fn elaborate_ast(ast: &LofAst) -> Result<Schedule<Self>, String>
+    where
+        Self: Sized,
+    {
+        let mut schedule = Schedule::new();
+
+        match ast {
+            LofAst::Exp(exp) => {
+                let exp = Self::elaborate_expression(exp)?;
+                schedule.add_expression(&exp);
+            }
+            LofAst::Stm(stm) => {
+                let subschedule = Self::elaborate_statement(stm)?;
+                schedule.extend(&subschedule);
+            }
+        }
+
+        Ok(schedule)
+    }
 }
 
 /// Kernel module, implements the type checking algorithms
@@ -49,13 +98,19 @@ pub trait Kernel: TypeTheory {
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 
-    /// Type check the type and returns its type.
+    /// Type checks the type and returns its type.
     fn type_check_type(
         typee: &Self::Type,
         environment: &mut Environment<Self::Term, Self::Type>,
     ) -> Result<Self::Type, String>;
 
-    /// Type check the statement components
+    // Type checks the expression and returns its type
+    fn type_check_expression(
+        exp: &Self::Exp,
+        environment: &mut Environment<Self::Term, Self::Type>,
+    ) -> Result<Self::Type, String>;
+
+    /// Type checks the statement components
     fn type_check_stm(
         term: &Self::Stm,
         environment: &mut Environment<Self::Term, Self::Type>,
@@ -89,6 +144,11 @@ pub trait Reducer: TypeTheory {
         term: &Self::Term,
     ) -> Self::Term;
 
+    fn normalize_expression(
+        environment: &mut Environment<Self::Term, Self::Type>,
+        exp: &Self::Exp,
+    ) -> Self::Exp;
+
     /// Evaluates the statement, updating the context accordingly
     fn evaluate_statement(
         environment: &mut Environment<Self::Term, Self::Type>,
@@ -98,8 +158,6 @@ pub trait Reducer: TypeTheory {
 
 /// Interactive module, implements tactic checking for interactive theorem proving
 pub trait Interactive: TypeTheory {
-    type Exp;
-
     /// Canonical proof hole term for partial proofs
     fn proof_hole() -> Self::Term;
     /// Canonical empty  target signaling the completeness of the proof

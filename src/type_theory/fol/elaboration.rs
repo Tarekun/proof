@@ -4,13 +4,17 @@ use super::fol::FolTerm::{Abstraction, Application, Tuple, Variable};
 use super::fol::{Fol, FolFormula, FolTerm};
 use crate::misc::simple_map;
 use crate::parser::api::{Statement, Tactic};
-use crate::type_theory::commons::elaboration::elaborate_tactic;
+use crate::runtime::program::Schedule;
+use crate::type_theory::commons::elaboration::{
+    elaborate_ast_vector, elaborate_dir_root, elaborate_file_root,
+    elaborate_tactic,
+};
 use crate::type_theory::commons::utils::{wrap_term, wrap_type};
+use crate::type_theory::fol::fol::FolStm;
 use crate::{
     misc::Union,
     misc::Union::{L, R},
     parser::api::{Expression, LofAst},
-    runtime::program::Program,
 };
 use regex::Regex;
 
@@ -20,7 +24,7 @@ fn map_typed_variables(
     variables
         .iter()
         .map(|(var_name, var_type_exp)| {
-            match elaborate_expression(var_type_exp.clone()) {
+            match elaborate_expression(var_type_exp) {
                 Ok(Union::L(term)) => panic!(
                     "TODO handle this but term is no supposed to show up {:?}",
                     term
@@ -72,21 +76,21 @@ fn expect_type(arg: Union<FolTerm, FolFormula>) -> Result<FolFormula, String> {
 
 //########################### EXPRESSIONS ELABORATION
 pub fn elaborate_expression(
-    ast: Expression,
+    ast: &Expression,
 ) -> Result<Union<FolTerm, FolFormula>, String> {
     match ast {
-        Expression::VarUse(var_name) => elaborate_var_use(var_name),
+        Expression::VarUse(var_name) => elaborate_var_use(var_name.clone()),
         Expression::Abstraction(var_name, var_type, body) => {
-            wrap_term::<Fol>(elaborate_abstraction(var_name, *var_type, *body))
+            wrap_term::<Fol>(elaborate_abstraction(var_name, var_type, body))
         }
         Expression::Application(left, right) => {
-            elaborate_application(*left, right)
+            elaborate_application(left, right)
         }
         Expression::Arrow(domain, codomain) => {
-            wrap_type::<Fol>(elaborate_arrow(*domain, *codomain))
+            wrap_type::<Fol>(elaborate_arrow(domain, codomain))
         }
         Expression::TypeProduct(var_name, var_type, body) => {
-            wrap_type::<Fol>(elaborate_forall(var_name, *var_type, *body))
+            wrap_type::<Fol>(elaborate_forall(var_name, var_type, body))
         }
         Expression::Tuple(terms) => wrap_term::<Fol>(elaborate_tuple(terms)),
         Expression::Pipe(types) => wrap_type::<Fol>(elaborate_pipe(types)),
@@ -111,9 +115,9 @@ pub fn elaborate_var_use(
 //
 //
 pub fn elaborate_abstraction(
-    var_name: String,
-    var_type: Expression,
-    body: Expression,
+    var_name: &String,
+    var_type: &Expression,
+    body: &Expression,
 ) -> Result<FolTerm, String> {
     let var_type = elaborate_expression(var_type)?;
     match var_type {
@@ -121,7 +125,7 @@ pub fn elaborate_abstraction(
             let body = elaborate_expression(body)?;
             match body {
                 Union::L(body_term) => Ok(Abstraction(
-                    var_name.clone(),
+                    var_name.to_string(),
                     Box::new(var_type),
                     Box::new(body_term),
                 )),
@@ -136,8 +140,8 @@ pub fn elaborate_abstraction(
 //
 //
 pub fn elaborate_arrow(
-    domain: Expression,
-    codomain: Expression,
+    domain: &Expression,
+    codomain: &Expression,
 ) -> Result<FolFormula, String> {
     let domain = elaborate_expression(domain)?;
     match domain {
@@ -156,11 +160,12 @@ pub fn elaborate_arrow(
 //
 //
 pub fn elaborate_application(
-    function: Expression,
-    args: Vec<Expression>,
+    function: &Expression,
+    args: &Vec<Expression>,
 ) -> Result<Union<FolTerm, FolFormula>, String> {
     let fun_term: FolTerm = expect_term(elaborate_expression(function)?)?;
-    let arg_terms = simple_map(args, |arg| elaborate_expression(arg));
+    let arg_terms =
+        simple_map(args.to_owned(), |arg| elaborate_expression(&arg));
     let mut unwrapped: Vec<FolTerm> = vec![];
     for term in arg_terms {
         unwrapped.push(expect_term(term?)?);
@@ -183,9 +188,9 @@ pub fn elaborate_application(
 //
 //
 pub fn elaborate_forall(
-    var_name: String,
-    var_type: Expression,
-    body: Expression,
+    var_name: &String,
+    var_type: &Expression,
+    body: &Expression,
 ) -> Result<FolFormula, String> {
     let var_type = elaborate_expression(var_type)?;
     match var_type {
@@ -193,7 +198,7 @@ pub fn elaborate_forall(
             let body = elaborate_expression(body)?;
             match body {
                 Union::R(body_formula) => Ok(ForAll(
-                    var_name.clone(),
+                    var_name.to_string(),
                     Box::new(var_type),
                     Box::new(body_formula),
                 )),
@@ -205,7 +210,7 @@ pub fn elaborate_forall(
 }
 //
 //
-pub fn elaborate_tuple(terms: Vec<Expression>) -> Result<FolTerm, String> {
+pub fn elaborate_tuple(terms: &Vec<Expression>) -> Result<FolTerm, String> {
     let mut elaborated_terms = vec![];
     for term in terms {
         elaborated_terms.push(expect_term(elaborate_expression(term)?)?);
@@ -215,7 +220,7 @@ pub fn elaborate_tuple(terms: Vec<Expression>) -> Result<FolTerm, String> {
 }
 //
 //
-pub fn elaborate_pipe(types: Vec<Expression>) -> Result<FolFormula, String> {
+pub fn elaborate_pipe(types: &Vec<Expression>) -> Result<FolFormula, String> {
     let mut elaborated_types = vec![];
     for term in types {
         elaborated_types.push(expect_type(elaborate_expression(term)?)?);
@@ -226,117 +231,45 @@ pub fn elaborate_pipe(types: Vec<Expression>) -> Result<FolFormula, String> {
 //########################### EXPRESSIONS ELABORATION
 //
 //########################### STATEMENTS ELABORATION
-pub fn elaborate_statement(
-    ast: Statement,
-    program: &mut Program<Fol>,
-) -> Result<(), String> {
+pub fn elaborate_statement(ast: &Statement) -> Result<Schedule<Fol>, String> {
     match ast {
-        Statement::Comment() => Ok(()),
+        Statement::Comment() => Ok(Schedule::new()),
         Statement::FileRoot(file_path, asts) => {
-            elaborate_file_root(program, file_path, asts)
+            elaborate_file_root::<Fol>(file_path, asts)
         }
-        Statement::DirRoot(dirpath, asts) => {
-            elaborate_dir_root(program, dirpath, asts)
-        }
-        Statement::Axiom(axiom_name, formula) => {
-            elaborate_axiom(program, axiom_name, *formula)
-        }
-        Statement::Let(var_name, var_type, body) => {
-            elaborate_let(program, var_name, var_type, *body)
-        }
+        Statement::DirRoot(dirpath, asts) => elaborate_dir_root(dirpath, asts),
+        Statement::Axiom(axiom_name, formula) => Ok(Schedule::singleton_stm(
+            elaborate_axiom(axiom_name, formula)?,
+        )),
+        Statement::Let(var_name, var_type, body) => Ok(
+            Schedule::singleton_stm(elaborate_let(var_name, var_type, body)?),
+        ),
         Statement::Fun(fun_name, args, out_type, body, is_rec) => {
-            elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
+            Ok(Schedule::singleton_stm(elaborate_fun(
+                fun_name, args, out_type, body, is_rec,
+            )?))
         }
-        Statement::EmptyRoot(nodes) => elaborate_empty(program, nodes),
+        Statement::EmptyRoot(nodes) => elaborate_empty(nodes),
         Statement::Theorem(theorem_name, formula, proof) => {
-            elaborate_theorem(program, theorem_name, formula, proof)
+            Ok(Schedule::singleton_stm(elaborate_theorem(
+                theorem_name,
+                formula,
+                proof,
+            )?))
         }
         _ => Err(format!("Language construct {:?} not supported in FOL", ast)),
     }
 }
 //
 //
-fn elaborate_ast_vector(
-    program: &mut Program<Fol>,
-    root: String,
-    asts: Vec<LofAst>,
-) -> Result<(), String> {
-    let mut errors: Vec<_> = vec![];
-
-    for sub_ast in asts {
-        match sub_ast {
-            LofAst::Stm(stm) => {
-                match elaborate_statement(stm.clone(), program) {
-                    Err(message) => errors.push(message),
-                    Ok(_) => {}
-                }
-            }
-            LofAst::Exp(exp) => {
-                let exp = elaborate_expression(exp)?;
-                match exp {
-                    Union::L(term) => program.push_term(&term),
-                    // drop top level type expressions as they are not reducable in LOF
-                    // TODO revaluate this implementation
-                    Union::R(_type_exp) => {}
-                }
-            }
-        }
-    }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(format!(
-            "Elaborating the ASTs rooted at '{}' raised errors:\n{}",
-            root,
-            errors.join("\n")
-        ))
-    }
-}
-pub fn elaborate_file_root(
-    program: &mut Program<Fol>,
-    file_path: String,
-    asts: Vec<LofAst>,
-) -> Result<(), String> {
-    elaborate_ast_vector(program, file_path, asts)
-}
-//
-//
-pub fn elaborate_dir_root(
-    program: &mut Program<Fol>,
-    dir_path: String,
-    asts: Vec<LofAst>,
-) -> Result<(), String> {
-    // elaborate_ast_vector(program, dir_path, asts);
-    for sub_ast in asts {
-        match sub_ast {
-            LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
-                let _ = elaborate_file_root(
-                    program,
-                    format!("{}/{}", dir_path, file_path),
-                    file_contet,
-                );
-            }
-            _ => {
-                return Err(format!("AST nodes of directory node can only be FileRoot, not {:?}", sub_ast));
-            }
-        }
-    }
-
-    Ok(())
-}
-//
-//
 pub fn elaborate_axiom(
-    program: &mut Program<Fol>,
-    axiom_name: String,
-    formula: Expression,
-) -> Result<(), String> {
+    axiom_name: &String,
+    formula: &Expression,
+) -> Result<FolStm, String> {
     let formula = elaborate_expression(formula)?;
     match formula {
         Union::R(formula) => {
-            program.push_statement(&Axiom(axiom_name, Box::new(formula)));
-            Ok(())
+            Ok(Axiom(axiom_name.to_string(), Box::new(formula)))
         }
         Union::L(term) => {
             type_expected_error(&format!("axiom {}", axiom_name), &term)
@@ -346,11 +279,10 @@ pub fn elaborate_axiom(
 //
 //
 pub fn elaborate_theorem(
-    program: &mut Program<Fol>,
-    theorem_name: String,
-    formula: Expression,
-    proof: Union<Expression, Vec<Tactic<Expression>>>,
-) -> Result<(), String> {
+    theorem_name: &String,
+    formula: &Expression,
+    proof: &Union<Expression, Vec<Tactic<Expression>>>,
+) -> Result<FolStm, String> {
     let fol_formula_union = elaborate_expression(formula)?;
     let fol_formula = expect_type(fol_formula_union)?;
     let proof: Union<FolTerm, Vec<Tactic<Union<FolTerm, FolFormula>>>> =
@@ -363,10 +295,10 @@ pub fn elaborate_theorem(
             R(interactive_proof) => {
                 let fol_interactive_proof: Vec<
                     Tactic<Union<FolTerm, FolFormula>>,
-                > = simple_map(interactive_proof, |tactic| {
+                > = simple_map(interactive_proof.to_vec(), |tactic| {
                     elaborate_tactic::<Union<FolTerm, FolFormula>, _>(
                         tactic,
-                        |exp| elaborate_expression(exp).unwrap(),
+                        |exp| elaborate_expression(&exp).unwrap(),
                     )
                     //TODO this is a temporary solution, doesnt handle errors gracefully
                     .unwrap()
@@ -375,21 +307,19 @@ pub fn elaborate_theorem(
             }
         };
 
-    program.push_statement(&Theorem(
-        theorem_name,
+    Ok(Theorem(
+        theorem_name.to_string(),
         Box::new(fol_formula),
         proof,
-    ));
-    Ok(())
+    ))
 }
 //
 //
 pub fn elaborate_let(
-    program: &mut Program<Fol>,
-    var_name: String,
-    opt_type: Option<Expression>,
-    body: Expression,
-) -> Result<(), String> {
+    var_name: &String,
+    opt_type: &Option<Expression>,
+    body: &Expression,
+) -> Result<FolStm, String> {
     let body = elaborate_expression(body)?;
     match body {
         Union::L(body_term) => {
@@ -398,21 +328,13 @@ pub fn elaborate_let(
                 None => None,
             };
             match var_type {
-                Some(Union::R(var_type)) => {
-                    program.push_statement(&Let(
-                        var_name,
-                        Some(var_type),
-                        Box::new(body_term),
-                    ));
-                    Ok(())
-                }
+                Some(Union::R(var_type)) => Ok(Let(
+                    var_name.to_string(),
+                    Some(var_type),
+                    Box::new(body_term),
+                )),
                 None => {
-                    program.push_statement(&Let(
-                        var_name,
-                        None,
-                        Box::new(body_term),
-                    ));
-                    Ok(())
+                    Ok(Let(var_name.to_string(), None, Box::new(body_term)))
                 }
 
                 Some(Union::L(wrong_term)) => type_expected_error(
@@ -430,28 +352,24 @@ pub fn elaborate_let(
 //
 //
 pub fn elaborate_fun(
-    program: &mut Program<Fol>,
-    fun_name: String,
-    args: Vec<(String, Expression)>,
-    out_type: Expression,
-    body: Expression,
-    is_rec: bool,
-) -> Result<(), String> {
+    fun_name: &String,
+    args: &Vec<(String, Expression)>,
+    out_type: &Expression,
+    body: &Expression,
+    is_rec: &bool,
+) -> Result<FolStm, String> {
     let out_type = elaborate_expression(out_type)?;
     match out_type {
         Union::R(out_type) => {
             let body = elaborate_expression(body)?;
             match body {
-                Union::L(body) => {
-                    program.push_statement(&Fun(
-                        fun_name,
-                        map_typed_variables(&args),
-                        Box::new(out_type),
-                        Box::new(body),
-                        is_rec,
-                    ));
-                    Ok(())
-                }
+                Union::L(body) => Ok(Fun(
+                    fun_name.to_string(),
+                    map_typed_variables(args),
+                    Box::new(out_type),
+                    Box::new(body),
+                    *is_rec,
+                )),
                 Union::R(type_exp) => term_expected_error(
                     &format!("fun definition of {}", fun_name),
                     &type_exp,
@@ -466,11 +384,8 @@ pub fn elaborate_fun(
 }
 //
 //
-pub fn elaborate_empty(
-    program: &mut Program<Fol>,
-    nodes: Vec<LofAst>,
-) -> Result<(), String> {
-    elaborate_ast_vector(program, "".to_string(), nodes)
+pub fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Schedule<Fol>, String> {
+    elaborate_ast_vector::<Fol>(&"".to_string(), nodes)
 }
 //
 //########################### STATEMENTS ELABORATION
@@ -482,16 +397,12 @@ pub fn elaborate_empty(
 mod unit_tests {
     use crate::{
         misc::Union::{self, L, R},
-        parser::api::{
-            Expression::{self, VarUse},
-            Statement,
-        },
-        runtime::program::{Program, ProgramNode},
+        parser::api::Expression::{self},
         type_theory::fol::{
             elaboration::{
                 elaborate_abstraction, elaborate_application, elaborate_arrow,
                 elaborate_expression, elaborate_forall, elaborate_let,
-                elaborate_statement, elaborate_var_use,
+                elaborate_var_use,
             },
             fol::{
                 FolFormula::{Arrow, ForAll, Predicate},
@@ -509,7 +420,7 @@ mod unit_tests {
             "Variable elaboration doesnt produce proper term"
         );
         assert_eq!(
-            elaborate_expression(Expression::VarUse("n".to_string())),
+            elaborate_expression(&Expression::VarUse("n".to_string())),
             Ok(Union::L(Variable("n".to_string()))),
             "Top level elaboration doesnt support variables"
         );
@@ -534,9 +445,9 @@ mod unit_tests {
     fn test_abstraction_elaboration() {
         assert_eq!(
             elaborate_abstraction(
-                "x".to_string(),
-                Expression::VarUse("Nat".to_string()),
-                Expression::VarUse("x".to_string())
+                &"x".to_string(),
+                &Expression::VarUse("Nat".to_string()),
+                &Expression::VarUse("x".to_string())
             ),
             Ok(Abstraction(
                 "x".to_string(),
@@ -546,7 +457,7 @@ mod unit_tests {
             "Abstraction elaboration doesnt produce correct term "
         );
         assert_eq!(
-            elaborate_expression(Expression::Abstraction(
+            elaborate_expression(&Expression::Abstraction(
                 "x".to_string(),
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("x".to_string())),
@@ -564,8 +475,8 @@ mod unit_tests {
     fn test_application_elaboration() {
         assert_eq!(
             elaborate_application(
-                Expression::VarUse("f".to_string()),
-                vec![Expression::VarUse("x".to_string())]
+                &Expression::VarUse("f".to_string()),
+                &vec![Expression::VarUse("x".to_string())]
             ),
             Ok(L(Application(
                 Box::new(Variable("f".to_string())),
@@ -574,7 +485,7 @@ mod unit_tests {
             "Application elaboration doesnt produce correct term"
         );
         assert_eq!(
-            elaborate_expression(Expression::Application(
+            elaborate_expression(&Expression::Application(
                 Box::new(Expression::VarUse("f".to_string())),
                 vec![Expression::VarUse("x".to_string())],
             )),
@@ -590,8 +501,8 @@ mod unit_tests {
     fn test_arrow_elaboration() {
         assert_eq!(
             elaborate_arrow(
-                Expression::VarUse("Nat".to_string()),
-                Expression::VarUse("Bool".to_string())
+                &Expression::VarUse("Nat".to_string()),
+                &Expression::VarUse("Bool".to_string())
             ),
             Ok(Arrow(
                 Box::new(Predicate("Nat".to_string(), vec![])),
@@ -600,7 +511,7 @@ mod unit_tests {
             "Arrow elaboration doesnt produce proper term"
         );
         assert_eq!(
-            elaborate_expression(Expression::Arrow(
+            elaborate_expression(&Expression::Arrow(
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("Bool".to_string())),
             )),
@@ -616,9 +527,9 @@ mod unit_tests {
     fn test_forall_elaboration() {
         assert_eq!(
             elaborate_forall(
-                "n".to_string(),
-                Expression::VarUse("Nat".to_string()),
-                Expression::VarUse("Top".to_string())
+                &"n".to_string(),
+                &Expression::VarUse("Nat".to_string()),
+                &Expression::VarUse("Top".to_string())
             ),
             Ok(ForAll(
                 "n".to_string(),
@@ -628,7 +539,7 @@ mod unit_tests {
             "For all elaboration doesnt produce proper term"
         );
         assert_eq!(
-            elaborate_expression(Expression::TypeProduct(
+            elaborate_expression(&Expression::TypeProduct(
                 "n".to_string(),
                 Box::new(Expression::VarUse("Nat".to_string())),
                 Box::new(Expression::VarUse("Top".to_string())),
@@ -648,18 +559,16 @@ mod unit_tests {
 
     #[test]
     fn test_let_elaboration() {
-        let mut program = Program::new();
         let res = elaborate_let(
-            &mut program,
-            "n".to_string(),
-            Some(VarUse("Nat".to_string())),
-            VarUse("zero".to_string()),
+            &"n".to_string(),
+            &Some(Expression::VarUse("Nat".to_string())),
+            &Expression::VarUse("zero".to_string()),
         );
-        let expected_let = ProgramNode::OfStm(Let(
+        let expected_let = Let(
             "n".to_string(),
             Some(Predicate("Nat".to_string(), vec![])),
             Box::new(Variable("zero".to_string())),
-        ));
+        );
 
         assert!(
             res.is_ok(),
@@ -667,29 +576,9 @@ mod unit_tests {
             res.err().unwrap()
         );
         assert_eq!(
-            program.peek_top_schedule(),
-            Some(&expected_let),
-            "Let elaboration doesnt push proper term"
-        );
-
-        let mut program = Program::new();
-        let res = elaborate_statement(
-            Statement::Let(
-                "n".to_string(),
-                Some(Expression::VarUse("Nat".to_string())),
-                Box::new(Expression::VarUse("zero".to_string())),
-            ),
-            &mut program,
-        );
-        assert!(
-            res.is_ok(),
-            "Top level let elaboration failed with {}",
-            res.err().unwrap()
-        );
-        assert_eq!(
-            program.peek_top_schedule(),
-            Some(&expected_let),
-            "Top level elaboration doesnt support let"
+            res.unwrap(),
+            expected_let,
+            "Let elaboration doesn't return proper statement"
         );
     }
 }

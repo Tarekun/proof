@@ -1,7 +1,8 @@
 use super::cic::CicStm::{Axiom, Theorem};
 use super::cic::PLACEHOLDER_DBI;
 use super::cic::{
-    CicStm, CicTerm,
+    CicStm::{self},
+    CicTerm,
     CicTerm::{Abstraction, Application, Match, Meta, Product, Sort, Variable},
 };
 use super::cic_utils::index_variables;
@@ -9,9 +10,11 @@ use crate::misc::simple_map;
 use crate::misc::Union;
 use crate::misc::Union::{L, R};
 use crate::parser::api::{Expression, LofAst, Statement, Tactic};
-use crate::runtime::program::Program;
+use crate::runtime::program::Schedule;
 use crate::type_theory::cic::cic::Cic;
-use crate::type_theory::commons::elaboration::elaborate_tactic;
+use crate::type_theory::commons::elaboration::{
+    elaborate_ast_vector, elaborate_tactic,
+};
 
 fn map_typed_variables(
     variables: &Vec<(String, Expression)>,
@@ -23,40 +26,6 @@ fn map_typed_variables(
         })
         .collect()
 }
-
-fn elaborate_ast_vector(
-    program: &mut Program<Cic>,
-    root: String,
-    asts: Vec<LofAst>,
-) -> Result<(), String> {
-    let mut errors: Vec<_> = vec![];
-
-    for sub_ast in asts {
-        match sub_ast {
-            LofAst::Stm(stm) => {
-                match elaborate_statement(stm.clone(), program) {
-                    Err(message) => errors.push(message),
-                    Ok(_) => {}
-                }
-            }
-            LofAst::Exp(exp) => {
-                let term = elaborate_expression(&exp);
-                program.push_term(&term);
-            }
-        }
-    }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(format!(
-            "Elaborating the ASTs rooted at '{}' raised errors:\n{}",
-            root,
-            errors.join("\n")
-        ))
-    }
-}
-
 //
 //########################### EXPRESSIONS ELABORATION
 /// Performs elaboration of the LoF `Expression` to a `CicTerm`.
@@ -198,39 +167,39 @@ fn elaborate_match(
 //########################### EXPRESSIONS ELABORATION
 //
 //########################### STATEMENTS ELABORATION
-pub fn elaborate_statement(
-    ast: Statement,
-    program: &mut Program<Cic>,
-) -> Result<(), String> {
+pub fn elaborate_statement(ast: &Statement) -> Result<Schedule<Cic>, String> {
     match ast {
-        Statement::Comment() => Ok(()),
+        Statement::Comment() => Ok(Schedule::new()),
         Statement::FileRoot(file_path, asts) => {
-            elaborate_file_root(program, file_path, asts)
+            elaborate_file_root(file_path, asts)
         }
-        Statement::Axiom(axiom_name, formula) => {
-            elaborate_axiom(program, axiom_name, *formula)
-        }
-        Statement::Let(var_name, var_type, body) => {
-            elaborate_let(program, var_name, var_type, *body)
-        }
+        Statement::DirRoot(dirpath, asts) => elaborate_dir_root(dirpath, asts),
+        Statement::Axiom(axiom_name, formula) => Ok(Schedule::singleton_stm(
+            elaborate_axiom(axiom_name, formula)?,
+        )),
+        Statement::Let(var_name, var_type, body) => Ok(
+            Schedule::singleton_stm(elaborate_let(var_name, var_type, body)?),
+        ),
         Statement::Inductive(type_name, parameters, ariety, constructors) => {
-            elaborate_inductive(
-                program,
+            Ok(Schedule::singleton_stm(elaborate_inductive(
                 type_name,
                 parameters,
-                *ariety,
+                ariety,
                 constructors,
-            )
-        }
-        Statement::DirRoot(dirpath, asts) => {
-            elaborate_dir_root(program, dirpath, asts)
+            )?))
         }
         Statement::Fun(fun_name, args, out_type, body, is_rec) => {
-            elaborate_fun(program, fun_name, args, *out_type, *body, is_rec)
+            Ok(Schedule::singleton_stm(elaborate_fun(
+                fun_name, args, out_type, body, is_rec,
+            )?))
         }
-        Statement::EmptyRoot(nodes) => elaborate_empty(program, nodes),
+        Statement::EmptyRoot(nodes) => Ok(elaborate_empty(nodes)?),
         Statement::Theorem(theorem_name, formula, proof) => {
-            elaborate_theorem(program, theorem_name, formula, proof)
+            Ok(Schedule::singleton_stm(elaborate_theorem(
+                theorem_name,
+                formula,
+                proof,
+            )?))
         } // _ => Err(format!(
           //     "Language construct {:?} not supported in CIC",
           //     ast
@@ -240,28 +209,26 @@ pub fn elaborate_statement(
 //
 //
 fn elaborate_file_root(
-    program: &mut Program<Cic>,
-    file_path: String,
-    asts: Vec<LofAst>,
-) -> Result<(), String> {
-    elaborate_ast_vector(program, file_path, asts)
+    file_path: &String,
+    asts: &Vec<LofAst>,
+) -> Result<Schedule<Cic>, String> {
+    elaborate_ast_vector::<Cic>(file_path, asts)
 }
 //
 //
 fn elaborate_dir_root(
-    program: &mut Program<Cic>,
-    dir_path: String,
-    asts: Vec<LofAst>,
-) -> Result<(), String> {
-    // elaborate_ast_vector(program, dir_path, asts);
+    dir_path: &String,
+    asts: &Vec<LofAst>,
+) -> Result<Schedule<Cic>, String> {
+    let mut schedule = Schedule::new();
     for sub_ast in asts {
         match sub_ast {
             LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
-                let _ = elaborate_file_root(
-                    program,
-                    format!("{}/{}", dir_path, file_path),
+                let content = elaborate_file_root(
+                    &format!("{}/{}", dir_path, file_path),
                     file_contet,
-                );
+                )?;
+                schedule.extend(&content);
             }
             _ => {
                 return Err(format!("AST nodes of directory node can only be FileRoot, not {:?}", sub_ast));
@@ -269,64 +236,63 @@ fn elaborate_dir_root(
         }
     }
 
-    Ok(())
+    Ok(schedule)
 }
 //
 //
 fn elaborate_let(
-    program: &mut Program<Cic>,
-    var_name: String,
-    var_type: Option<Expression>,
-    body: Expression,
-) -> Result<(), String> {
+    var_name: &String,
+    var_type: &Option<Expression>,
+    body: &Expression,
+) -> Result<CicStm, String> {
     //TODO im pretty sure this should increase the dbi in its scope
     //but i have no reference to the scope here
     let opt_type = match var_type {
         Some(type_exp) => Some(elaborate_expression(&type_exp)),
         None => None,
     };
-    program.push_statement(&CicStm::Let(
-        var_name,
+    let elaborated_body = elaborate_expression(&body);
+
+    Ok(CicStm::Let(
+        var_name.to_string(),
         opt_type,
-        Box::new(elaborate_expression(&body)),
-    ));
-    Ok(())
+        Box::new(elaborated_body),
+    ))
 }
 //
 //
 fn elaborate_fun(
-    program: &mut Program<Cic>,
-    fun_name: String,
-    args: Vec<(String, Expression)>,
-    out_type: Expression,
-    body: Expression,
-    is_rec: bool,
-) -> Result<(), String> {
+    fun_name: &String,
+    args: &Vec<(String, Expression)>,
+    out_type: &Expression,
+    body: &Expression,
+    is_rec: &bool,
+) -> Result<CicStm, String> {
     let elaborated_args = map_typed_variables(&args);
+    let elaborated_out_type = elaborate_expression(&out_type);
+    let elaborated_body = elaborate_expression(&body);
 
-    program.push_statement(&CicStm::Fun(
-        fun_name,
+    Ok(CicStm::Fun(
+        fun_name.to_string(),
         elaborated_args,
-        Box::new(elaborate_expression(&out_type)),
-        Box::new(elaborate_expression(&body)),
-        is_rec,
-    ));
-    Ok(())
+        Box::new(elaborated_out_type),
+        Box::new(elaborated_body),
+        *is_rec,
+    ))
 }
 //
 //
 fn elaborate_inductive(
-    program: &mut Program<Cic>,
-    type_name: String,
-    parameters: Vec<(String, Expression)>,
-    ariety: Expression,
-    constructors: Vec<(String, Expression)>,
-) -> Result<(), String> {
+    type_name: &String,
+    parameters: &Vec<(String, Expression)>,
+    ariety: &Expression,
+    constructors: &Vec<(String, Expression)>,
+) -> Result<CicStm, String> {
     let parameter_terms: Vec<(String, CicTerm)> =
         //TODO i assume inductive definitions are only top-level avaible but who knows
         map_typed_variables(&parameters);
-    let ariety_term: CicTerm = elaborate_expression(&ariety);
-    let ariety_term: CicTerm = index_variables(&ariety_term);
+    let ariety_term = elaborate_expression(&ariety);
+    let ariety_term = index_variables(&ariety_term);
     let constructor_terms: Vec<(String, CicTerm)> = constructors
         .iter()
         .map(|(constr_name, constr_type)| {
@@ -334,44 +300,38 @@ fn elaborate_inductive(
         })
         .collect();
 
-    program.push_statement(&CicStm::InductiveDef(
-        type_name,
+    Ok(CicStm::InductiveDef(
+        type_name.to_string(),
         parameter_terms,
         Box::new(ariety_term),
         constructor_terms,
-    ));
-    Ok(())
+    ))
 }
 //
 //
 fn elaborate_axiom(
-    program: &mut Program<Cic>,
-    axiom_name: String,
-    formula: Expression,
-) -> Result<(), String> {
-    program.push_statement(&Axiom(
-        axiom_name,
-        Box::new(elaborate_expression(&formula)),
-    ));
-    Ok(())
+    axiom_name: &String,
+    formula: &Expression,
+) -> Result<CicStm, String> {
+    let elaborated_formula = elaborate_expression(&formula);
+    Ok(Axiom(axiom_name.to_string(), Box::new(elaborated_formula)))
 }
 //
 //
 fn elaborate_theorem(
-    program: &mut Program<Cic>,
-    theorem_name: String,
-    formula: Expression,
-    proof: Union<Expression, Vec<Tactic<Expression>>>,
-) -> Result<(), String> {
-    let cic_formula = elaborate_expression(&formula);
-    let proof = match proof {
+    theorem_name: &String,
+    formula: &Expression,
+    proof: &Union<Expression, Vec<Tactic<Expression>>>,
+) -> Result<CicStm, String> {
+    let elaborated_formula = elaborate_expression(&formula);
+    let elaborated_proof = match proof {
         L(proof_term) => {
             let cic_proof_term = elaborate_expression(&proof_term);
             L(cic_proof_term)
         }
         R(interactive_proof) => {
             let cic_interactive_proof: Vec<Tactic<CicTerm>> =
-                simple_map(interactive_proof, |tactic| {
+                simple_map(interactive_proof.to_owned(), |tactic| {
                     elaborate_tactic::<CicTerm, _>(tactic, |exp| {
                         elaborate_expression(&exp)
                     })
@@ -382,20 +342,16 @@ fn elaborate_theorem(
         }
     };
 
-    program.push_statement(&Theorem(
-        theorem_name,
-        Box::new(cic_formula),
-        proof,
-    ));
-    Ok(())
+    Ok(Theorem(
+        theorem_name.to_string(),
+        Box::new(elaborated_formula),
+        elaborated_proof,
+    ))
 }
 //
 //
-fn elaborate_empty(
-    program: &mut Program<Cic>,
-    nodes: Vec<LofAst>,
-) -> Result<(), String> {
-    elaborate_ast_vector(program, "".to_string(), nodes)
+fn elaborate_empty(nodes: &Vec<LofAst>) -> Result<Schedule<Cic>, String> {
+    elaborate_ast_vector::<Cic>(&"".to_string(), nodes)
 }
 //
 //########################### STATEMENTS ELABORATION
@@ -405,7 +361,6 @@ fn elaborate_empty(
 mod unit_tests {
     use crate::{
         parser::api::Expression,
-        runtime::program::{Program, ProgramNode},
         type_theory::cic::{
             cic::{
                 CicStm,
@@ -455,21 +410,7 @@ mod unit_tests {
             Box::new(Sort("TYPE".to_string())),
             Box::new(Variable("x".to_string(), 0)),
         );
-        // let expected_term_placeholder = Abstraction(
-        //     "x".to_string(),
-        //     Box::new(Sort("TYPE".to_string())),
-        //     Box::new(Variable("x".to_string(), PLACEHOLDER_DBI)),
-        // );
 
-        // assert_eq!(
-        //     elaborate_abstraction(
-        //         "x",
-        //         &Expression::VarUse("TYPE".to_string()),
-        //         &Expression::VarUse("x".to_string()),
-        //     ),
-        //     expected_term_placeholder.clone(),
-        //     "Abstraction elaboration isnt working as expected"
-        // );
         assert_eq!(
             elaborate_expression(&Expression::Abstraction(
                 "x".to_string(),
@@ -608,14 +549,12 @@ mod unit_tests {
     #[test]
     fn test_inductive_elaboration() {
         let ariety = Expression::VarUse("TYPE".to_string());
-        let mut program = Program::new();
 
-        let _ = elaborate_inductive(
-            &mut program,
-            "nat".to_string(),
-            vec![],
-            ariety.clone(),
-            vec![
+        let result = elaborate_inductive(
+            &"nat".to_string(),
+            &vec![],
+            &ariety,
+            &vec![
                 ("o".to_string(), Expression::VarUse("nat".to_string())),
                 (
                     "s".to_string(),
@@ -628,8 +567,8 @@ mod unit_tests {
             ],
         );
         assert_eq!(
-            program.peek_top_schedule(),
-            Some(&ProgramNode::OfStm(CicStm::InductiveDef(
+            result,
+            Ok(CicStm::InductiveDef(
                 "nat".to_string(),
                 vec![],
                 Box::new(Sort("TYPE".to_string())),
@@ -647,7 +586,7 @@ mod unit_tests {
                         )
                     )
                 ]
-            ))),
+            )),
             "Inductive elaboration isnt working with constant constructor"
         );
     }

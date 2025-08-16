@@ -1,8 +1,79 @@
-use crate::parser::api::{
-    Expression,
-    Tactic::{self, Begin, By, Qed, Suppose},
+use crate::{
+    parser::api::{
+        Expression, LofAst, Statement,
+        Tactic::{self, Begin, By, Qed, Suppose},
+    },
+    runtime::program::Schedule,
+    type_theory::interface::TypeTheory,
 };
 
+//########################### STATEMENTS ELABORATION
+pub fn elaborate_ast_vector<T: TypeTheory>(
+    root: &String,
+    asts: &Vec<LofAst>,
+) -> Result<Schedule<T>, String> {
+    let mut errors: Vec<_> = vec![];
+    let mut schedule = Schedule::new();
+
+    for sub_ast in asts {
+        match sub_ast {
+            LofAst::Stm(stm) => match T::elaborate_statement(&stm) {
+                Err(message) => errors.push(message),
+                Ok(stms) => {
+                    schedule.extend(&stms);
+                }
+            },
+            LofAst::Exp(exp) => match T::elaborate_expression(&exp) {
+                Err(message) => errors.push(message),
+                Ok(exp) => schedule.add_expression(&exp),
+            },
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(schedule)
+    } else {
+        Err(format!(
+            "Elaborating the ASTs rooted at '{}' raised errors:\n{}",
+            root,
+            errors.join("\n")
+        ))
+    }
+}
+
+pub fn elaborate_file_root<T: TypeTheory>(
+    file_path: &String,
+    asts: &Vec<LofAst>,
+) -> Result<Schedule<T>, String> {
+    elaborate_ast_vector::<T>(file_path, asts)
+}
+
+pub fn elaborate_dir_root<T: TypeTheory>(
+    dir_path: &String,
+    asts: &Vec<LofAst>,
+) -> Result<Schedule<T>, String> {
+    let mut schedule = Schedule::new();
+
+    for sub_ast in asts {
+        match sub_ast {
+            LofAst::Stm(Statement::FileRoot(file_path, file_contet)) => {
+                let file_content = elaborate_file_root(
+                    &format!("{}/{}", dir_path, file_path),
+                    file_contet,
+                )?;
+                schedule.extend(&file_content);
+            }
+            _ => {
+                return Err(format!("AST nodes of directory node can only be FileRoot, not {:?}", sub_ast));
+            }
+        }
+    }
+
+    Ok(schedule)
+}
+//########################### STATEMENTS ELABORATION
+//
+//
 //########################### TACTICS ELABORATION
 pub fn elaborate_tactic<E, F: Fn(Expression) -> E>(
     tactic: Tactic<Expression>,

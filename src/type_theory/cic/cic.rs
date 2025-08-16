@@ -7,9 +7,9 @@ use super::type_check::{
     type_check_variable,
 };
 use super::unification::{cic_unification, solve_unification};
-use crate::misc::Union;
-use crate::parser::api::{LofAst, Tactic};
-use crate::runtime::program::Program;
+use crate::misc::Union::{self};
+use crate::parser::api::{Expression, Statement, Tactic};
+use crate::runtime::program::Schedule;
 use crate::type_theory::cic::elaboration::{
     elaborate_expression, elaborate_statement,
 };
@@ -71,12 +71,13 @@ impl TypeTheory for Cic {
     type Term = CicTerm;
     type Type = CicTerm;
     type Stm = CicStm;
+    type Exp = CicTerm;
 
     #[allow(non_snake_case)]
     fn default_environment() -> Environment<CicTerm, CicTerm> {
         let TYPE = CicTerm::Sort("TYPE".to_string());
         let axioms: Vec<(&str, &CicTerm)> =
-            vec![("TYPE", &TYPE), ("PROP", &TYPE), ("Unit", &TYPE)];
+            vec![("TYPE", &TYPE), ("PROP", &TYPE)];
 
         Environment::with_defaults(axioms, Vec::default(), vec![])
     }
@@ -96,33 +97,50 @@ impl TypeTheory for Cic {
         common_unification_check(type1, type2)
     }
 
-    fn elaborate_ast(ast: LofAst) -> Result<Program<Cic>, String> {
-        let mut program = Program::new();
-
-        debug!("Elaboration of ast node {:?}", ast);
-        match ast {
-            LofAst::Stm(stm) => {
-                match elaborate_statement(stm, &mut program) {
-                    Err(message) => panic!("{}", message),
-                    Ok(_) => {}
-                };
-            }
-            LofAst::Exp(exp) => {
-                elaborate_expression(&exp);
-            }
-        }
-
-        Ok(program)
+    fn elaborate_expression(exp: &Expression) -> Result<CicTerm, String> {
+        Ok(elaborate_expression(exp))
+    }
+    fn elaborate_statement(stm: &Statement) -> Result<Schedule<Cic>, String> {
+        elaborate_statement(stm)
     }
 }
 
 impl Kernel for Cic {
+    fn type_check_expression(
+        term: &CicTerm,
+        environment: &mut Environment<CicTerm, CicTerm>,
+    ) -> Result<CicTerm, String> {
+        match term {
+            CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
+            CicTerm::Variable(var_name, _) => {
+                type_check_variable(environment, var_name)
+            }
+            CicTerm::Abstraction(var_name, var_type, body) => {
+                type_check_abstraction(environment, var_name, var_type, body)
+            }
+            CicTerm::Product(var_name, var_type, body) => {
+                type_check_product(environment, var_name, var_type, body)
+            }
+            CicTerm::Application(left, right) => {
+                type_check_application(environment, left, right)
+            }
+            CicTerm::Match(matched_term, branches) => {
+                type_check_match(environment, matched_term, branches)
+            }
+            CicTerm::Meta(index) => {
+                //TODO handle this properly
+                // Err(format!("MetaVariables should never appear as type checkable terms. Received ?[{}]", index))
+                Ok(CicTerm::Sort("TYPE".to_string()))
+            }
+        }
+    }
+
     fn type_check_term(
         term: &CicTerm,
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
         debug!("Term-type checking of {:?}", term);
-        common_type_checking(term, environment)
+        Cic::type_check_expression(term, environment)
     }
 
     fn type_check_type(
@@ -130,7 +148,7 @@ impl Kernel for Cic {
         environment: &mut Environment<CicTerm, CicTerm>,
     ) -> Result<CicTerm, String> {
         debug!("Type-type checking of {:?}", typee);
-        let type_sort = common_type_checking(typee, environment)?;
+        let type_sort = Cic::type_check_expression(typee, environment)?;
         match type_sort {
             CicTerm::Sort(_) => Ok(type_sort),
             _ => Err(format!("Expected sort term, found: {:?}", typee)),
@@ -202,6 +220,18 @@ impl Refiner for Cic {
 }
 
 impl Reducer for Cic {
+    fn normalize_expression(
+        environment: &mut Environment<CicTerm, CicTerm>,
+        term: &CicTerm,
+    ) -> CicTerm {
+        debug!("Normalizing term: {:?}", term);
+        generic_term_normalization::<Cic, _>(
+            environment,
+            term,
+            one_step_reduction,
+        )
+    }
+
     fn normalize_term(
         environment: &mut Environment<CicTerm, CicTerm>,
         term: &CicTerm,
@@ -224,8 +254,6 @@ impl Reducer for Cic {
 }
 
 impl Interactive for Cic {
-    type Exp = CicTerm;
-
     fn proof_hole() -> Self::Term {
         CicTerm::Sort("THIS_IS_A_PARTIAL_PROOF_HOLE".to_string())
     }
@@ -240,35 +268,6 @@ impl Interactive for Cic {
         partial_proof: &Self::Term,
     ) -> Result<(Self::Type, Self::Term), String> {
         type_check_tactic(environment, tactic, target, partial_proof)
-    }
-}
-
-fn common_type_checking(
-    term: &CicTerm,
-    environment: &mut Environment<CicTerm, CicTerm>,
-) -> Result<CicTerm, String> {
-    match term {
-        CicTerm::Sort(sort_name) => type_check_sort(environment, sort_name),
-        CicTerm::Variable(var_name, _) => {
-            type_check_variable(environment, var_name)
-        }
-        CicTerm::Abstraction(var_name, var_type, body) => {
-            type_check_abstraction(environment, var_name, var_type, body)
-        }
-        CicTerm::Product(var_name, var_type, body) => {
-            type_check_product(environment, var_name, var_type, body)
-        }
-        CicTerm::Application(left, right) => {
-            type_check_application(environment, left, right)
-        }
-        CicTerm::Match(matched_term, branches) => {
-            type_check_match(environment, matched_term, branches)
-        }
-        CicTerm::Meta(index) => {
-            //TODO handle this properly
-            // Err(format!("MetaVariables should never appear as type checkable terms. Received ?[{}]", index))
-            Ok(CicTerm::Sort("TYPE".to_string()))
-        }
     }
 }
 
